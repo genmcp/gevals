@@ -33,3 +33,4 @@ go.work.sum
 
 # built binary
 /gevals
+/eval
