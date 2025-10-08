@@ -5,33 +5,26 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/genmcp/gevals/pkg/mcp"
 	"github.com/openai/openai-go/v2"
 	"github.com/openai/openai-go/v2/option"
 	"github.com/openai/openai-go/v2/shared"
-	"github.com/genmcp/gevals/pkg/mcp"
 )
 
 type Agent interface {
 	Run(ctx context.Context, prompt string) (string, error)
 }
 
-type openaiAgent struct {
+type aiAgent struct {
 	client       *openai.Client
 	mcpClients   []*mcp.Client
 	model        shared.ChatModel
 	systemPrompt string
 }
 
-func NewOpenAIAgent(url, apiKey, model, systemPrompt string) (*openaiAgent, error) {
-	if url == "" || apiKey == "" {
-		return nil, fmt.Errorf("both url and API key must be provided to create an openai agent")
-	}
-
-	var chatModel shared.ChatModel
-	if model == "" {
-		chatModel = openai.ChatModelGPT4 // default model
-	} else {
-		chatModel = shared.ChatModel(model)
+func NewAIAgent(url, apiKey, model, systemPrompt string) (*aiAgent, error) {
+	if url == "" || apiKey == "" || model == "" {
+		return nil, fmt.Errorf("all, url and Model API key and model name must be provided to create an ai agent")
 	}
 
 	client := openai.NewClient(
@@ -39,16 +32,16 @@ func NewOpenAIAgent(url, apiKey, model, systemPrompt string) (*openaiAgent, erro
 		option.WithAPIKey(apiKey),
 	)
 
-	return &openaiAgent{
+	return &aiAgent{
 		client:       &client,
 		mcpClients:   make([]*mcp.Client, 0),
-		model:        chatModel,
+		model:        shared.ChatModel(model),
 		systemPrompt: systemPrompt,
 	}, nil
 }
 
 // AddMCPServer adds an MCP server to the agent
-func (o *openaiAgent) AddMCPServer(ctx context.Context, serverURL string) error {
+func (o *aiAgent) AddMCPServer(ctx context.Context, serverURL string) error {
 	mcpClient, err := mcp.NewClient(ctx, serverURL)
 	if err != nil {
 		return fmt.Errorf("failed to create MCP client for %s: %w", serverURL, err)
@@ -64,9 +57,9 @@ func (o *openaiAgent) AddMCPServer(ctx context.Context, serverURL string) error 
 	return nil
 }
 
-func (o *openaiAgent) Run(ctx context.Context, prompt string) (string, error) {
+func (o *aiAgent) Run(ctx context.Context, prompt string) (string, error) {
 	// Start conversation with system prompt (if provided) and user's prompt
-	messages := []openai.ChatCompletionMessageParamUnion{}
+	var messages []openai.ChatCompletionMessageParamUnion
 
 	if o.systemPrompt != "" {
 		messages = append(messages, openai.SystemMessage(o.systemPrompt))
@@ -140,7 +133,7 @@ func (o *openaiAgent) Run(ctx context.Context, prompt string) (string, error) {
 }
 
 // callToolOnAnyClient finds the MCP client that has the specified tool and calls it
-func (o *openaiAgent) callToolOnAnyClient(ctx context.Context, toolName string, arguments map[string]interface{}) (string, error) {
+func (o *aiAgent) callToolOnAnyClient(ctx context.Context, toolName string, arguments map[string]interface{}) (string, error) {
 	// Search through all MCP clients to find one that has this tool
 	for _, mcpClient := range o.mcpClients {
 		tools := mcpClient.GetTools()
@@ -157,7 +150,7 @@ func (o *openaiAgent) callToolOnAnyClient(ctx context.Context, toolName string, 
 }
 
 // Close closes the agent and any associated resources
-func (o *openaiAgent) Close() error {
+func (o *aiAgent) Close() error {
 	var errs []error
 	for _, mcpClient := range o.mcpClients {
 		if err := mcpClient.Close(); err != nil {

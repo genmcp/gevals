@@ -7,27 +7,27 @@ import (
 	"os"
 	"strings"
 
-	"github.com/spf13/cobra"
 	"github.com/genmcp/gevals/pkg/agent"
+	"github.com/spf13/cobra"
 )
 
 var (
 	mcpURL       string
 	prompt       string
-	openaiURL    string
-	openaiKey    string
-	model        string
+	modelBaseURL string
+	modelKey     string
+	modelName    string
 	systemPrompt string
 )
 
 var rootCmd = &cobra.Command{
 	Use:   "gevals-cli",
-	Short: "A CLI tool that connects to an MCP server and runs an OpenAI agent",
+	Short: "A CLI tool that connects to an MCP server and runs an OpenAI compliant agent",
 	Long: `gevals-cli is a command-line interface that connects to a Model Context Protocol (MCP)
-server and uses OpenAI's API to run an intelligent agent. The agent can interact with
+server and uses OpenAI compliant API to run an intelligent agent. The agent can interact with
 tools provided by the MCP server to accomplish tasks.`,
 	Example: `  gevals-cli --mcp-url http://localhost:3000 --prompt "What files are in the current directory?"
-  gevals-cli --mcp-url http://localhost:3000 --prompt "Read the README file" --model gpt-4o`,
+  gevals-cli --mcp-url http://localhost:3000 --prompt "Read the README file" --model-name gpt-4o`,
 	RunE: runAgent,
 }
 
@@ -37,9 +37,9 @@ func init() {
 	rootCmd.Flags().StringVar(&prompt, "prompt", "", "Prompt to send to the agent (required)")
 
 	// Optional flags with environment variable defaults
-	rootCmd.Flags().StringVar(&openaiURL, "openai-url", getEnvOrDefault("OPENAI_BASE_URL", "https://api.openai.com/v1"), "OpenAI API base URL")
-	rootCmd.Flags().StringVar(&openaiKey, "openai-key", getEnvOrDefault("OPENAI_API_KEY", ""), "OpenAI API key")
-	rootCmd.Flags().StringVar(&model, "model", getEnvOrDefault("OPENAI_MODEL", "gpt-4"), "OpenAI model to use")
+	rootCmd.Flags().StringVar(&modelBaseURL, "model-base-url", getEnvOrDefault("MODEL_BASE_URL", ""), "OpenAI API compliant base URL, like https://api.openai.com/v1")
+	rootCmd.Flags().StringVar(&modelKey, "model-key", getEnvOrDefault("MODEL_KEY", ""), "Model API key")
+	rootCmd.Flags().StringVar(&modelName, "model-name", getEnvOrDefault("MODEL_NAME", ""), "Model name to use")
 	rootCmd.Flags().StringVar(&systemPrompt, "system", getEnvOrDefault("SYSTEM_PROMPT", ""), "System prompt for the agent")
 
 	// Mark required flags
@@ -48,19 +48,24 @@ func init() {
 }
 
 func runAgent(cmd *cobra.Command, args []string) error {
-	// Validate OpenAI API key
-	if openaiKey == "" {
-		return fmt.Errorf("OpenAI API key must be provided via --openai-key flag or OPENAI_API_KEY environment variable")
+	// Validate Model API key
+	if modelBaseURL == "" {
+		return fmt.Errorf("OpenAI API compliant base URL must be provided via --model-base-url flag or MODEL_BASE_URL environment variable")
+	}
+
+	// Validate Model API key
+	if modelKey == "" {
+		return fmt.Errorf("Model API key must be provided via --model-key flag or MODEL_KEY environment variable")
 	}
 
 	// Create context
 	ctx := context.Background()
 
-	// Create the OpenAI agent
-	fmt.Printf("Creating OpenAI agent with model: %s\n", model)
-	agentInstance, err := agent.NewOpenAIAgent(openaiURL, openaiKey, model, systemPrompt)
+	// Create the AI agent
+	fmt.Printf("Creating AI agent with modelName: %s\n", modelName)
+	agentInstance, err := agent.NewAIAgent(modelBaseURL, modelKey, modelName, systemPrompt)
 	if err != nil {
-		return fmt.Errorf("failed to create OpenAI agent: %w", err)
+		return fmt.Errorf("failed to create AI agent: %w", err)
 	}
 
 	// Ensure cleanup
