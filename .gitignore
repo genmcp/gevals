@@ -32,5 +32,5 @@ go.work.sum
 .vscode/
 
 # built binary
-/gevals
-/eval
+/agent
+/runner

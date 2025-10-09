@@ -14,12 +14,12 @@ var (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "eval",
+	Use:   "runner",
 	Short: "Evaluate agent CLI performance on tasks",
-	Long: `eval is a framework for evaluating how well agent CLI binaries perform on defined tasks.
+	Long: `runner is a framework for evaluating how well agent CLI binaries perform on defined tasks.
 Tasks include prompts, optional setup/verifier/cleanup scripts, and expected output patterns.`,
-	Example: `  eval --agent "my-agent '{{.Prompt}}'" --task task.yaml
-  eval --agent "agent-cli --prompt '{{.Prompt}}'" --task tasks/create-pod.yaml`,
+	Example: `  runner --agent "my-agent '{{.Prompt}}'" --task task.yaml
+  runner --agent "agent-cli --prompt '{{.Prompt}}'" --task tasks/create-pod.yaml`,
 	RunE: runEvaluation,
 }
 
@@ -30,7 +30,7 @@ func init() {
 
 	// Mark required flags
 	rootCmd.MarkFlagRequired("agent")
-	rootCmd.MarkFlagRequired("task")
+	//	rootCmd.MarkFlagRequired("task")
 }
 
 func runEvaluation(cmd *cobra.Command, args []string) error {
