@@ -3,11 +3,11 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/genmcp/gevals/pkg/agent/core"
 	"log"
 	"os"
 	"strings"
 
-	"github.com/genmcp/gevals/pkg/agent"
 	"github.com/spf13/cobra"
 )
 
@@ -21,13 +21,13 @@ var (
 )
 
 var rootCmd = &cobra.Command{
-	Use:   "gevals-cli",
+	Use:   "agent-cli",
 	Short: "A CLI tool that connects to an MCP server and runs an OpenAI compliant agent",
-	Long: `gevals-cli is a command-line interface that connects to a Model Context Protocol (MCP)
+	Long: `agent-cli is a command-line interface that connects to a Model Context Protocol (MCP)
 server and uses OpenAI compliant API to run an intelligent agent. The agent can interact with
 tools provided by the MCP server to accomplish tasks.`,
-	Example: `  gevals-cli --mcp-url http://localhost:3000 --prompt "What files are in the current directory?"
-  gevals-cli --mcp-url http://localhost:3000 --prompt "Read the README file" --model-name gpt-4o`,
+	Example: `  agent-cli --mcp-url http://localhost:3000 --prompt "What files are in the current directory?"
+  agent-cli --mcp-url http://localhost:3000 --prompt "Read the README file" --model-name gpt-4o`,
 	RunE: runAgent,
 }
 
@@ -63,7 +63,7 @@ func runAgent(cmd *cobra.Command, args []string) error {
 
 	// Create the AI agent
 	fmt.Printf("Creating AI agent with modelName: %s\n", modelName)
-	agentInstance, err := agent.NewAIAgent(modelBaseURL, modelKey, modelName, systemPrompt)
+	agentInstance, err := core.NewAIAgent(modelBaseURL, modelKey, modelName, systemPrompt)
 	if err != nil {
 		return fmt.Errorf("failed to create AI agent: %w", err)
 	}

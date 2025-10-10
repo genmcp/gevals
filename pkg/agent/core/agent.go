@@ -1,11 +1,11 @@
-package agent
+package core
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/genmcp/gevals/pkg/agent/mcp"
 
-	"github.com/genmcp/gevals/pkg/mcp"
 	"github.com/openai/openai-go/v2"
 	"github.com/openai/openai-go/v2/option"
 	"github.com/openai/openai-go/v2/shared"

@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 
+	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/openai/openai-go/v2"
 	"github.com/openai/openai-go/v2/shared"
-	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 // Client wraps MCP SDK functionality for tool calling
@@ -20,7 +20,7 @@ type Client struct {
 func NewClient(ctx context.Context, serverURL string) (*Client, error) {
 	// Create MCP client with implementation info
 	client := mcpsdk.NewClient(&mcpsdk.Implementation{
-		Name:    "gevals-agent",
+		Name:    "agent-agent",
 		Version: "1.0.0",
 	}, nil)
 
