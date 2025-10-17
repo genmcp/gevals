@@ -1,11 +1,10 @@
-package agent
+package openaiagent
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
 
-	"github.com/genmcp/gevals/pkg/mcp"
 	"github.com/openai/openai-go/v2"
 	"github.com/openai/openai-go/v2/option"
 	"github.com/openai/openai-go/v2/shared"
@@ -17,7 +16,7 @@ type Agent interface {
 
 type aiAgent struct {
 	client       *openai.Client
-	mcpClients   []*mcp.Client
+	mcpClients   []*McpClient
 	model        shared.ChatModel
 	systemPrompt string
 }
@@ -34,7 +33,7 @@ func NewAIAgent(url, apiKey, model, systemPrompt string) (*aiAgent, error) {
 
 	return &aiAgent{
 		client:       &client,
-		mcpClients:   make([]*mcp.Client, 0),
+		mcpClients:   make([]*McpClient, 0),
 		model:        shared.ChatModel(model),
 		systemPrompt: systemPrompt,
 	}, nil
@@ -42,7 +41,7 @@ func NewAIAgent(url, apiKey, model, systemPrompt string) (*aiAgent, error) {
 
 // AddMCPServer adds an MCP server to the agent
 func (o *aiAgent) AddMCPServer(ctx context.Context, serverURL string) error {
-	mcpClient, err := mcp.NewClient(ctx, serverURL)
+	mcpClient, err := NewMcpClient(ctx, serverURL)
 	if err != nil {
 		return fmt.Errorf("failed to create MCP client for %s: %w", serverURL, err)
 	}
@@ -100,8 +99,8 @@ func (o *aiAgent) Run(ctx context.Context, prompt string) (string, error) {
 		message := choice.Message
 
 		// Add the assistant's message to the conversation
-		assistantMessage := openai.AssistantMessage(message.Content)
-		messages = append(messages, assistantMessage)
+		// Important: Use ToParam() to preserve tool_calls if present, not just the content
+		messages = append(messages, message.ToParam())
 
 		// If there are no tool calls, we're done
 		if len(message.ToolCalls) == 0 {
@@ -115,7 +114,7 @@ func (o *aiAgent) Run(ctx context.Context, prompt string) (string, error) {
 			}
 
 			// Parse tool arguments
-			var args map[string]interface{}
+			var args map[string]any
 			if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
 				return "", fmt.Errorf("failed to parse tool arguments: %w", err)
 			}
@@ -133,7 +132,7 @@ func (o *aiAgent) Run(ctx context.Context, prompt string) (string, error) {
 }
 
 // callToolOnAnyClient finds the MCP client that has the specified tool and calls it
-func (o *aiAgent) callToolOnAnyClient(ctx context.Context, toolName string, arguments map[string]interface{}) (string, error) {
+func (o *aiAgent) callToolOnAnyClient(ctx context.Context, toolName string, arguments map[string]any) (string, error) {
 	// Search through all MCP clients to find one that has this tool
 	for _, mcpClient := range o.mcpClients {
 		tools := mcpClient.GetTools()

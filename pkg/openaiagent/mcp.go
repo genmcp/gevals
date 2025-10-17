@@ -1,23 +1,23 @@
-package mcp
+package openaiagent
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
 
+	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/openai/openai-go/v2"
 	"github.com/openai/openai-go/v2/shared"
-	mcpsdk "github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// Client wraps MCP SDK functionality for tool calling
-type Client struct {
+// McpClient wraps MCP SDK functionality for tool calling
+type McpClient struct {
 	session *mcpsdk.ClientSession
 	tools   []mcpsdk.Tool
 }
 
-// NewClient creates a new MCP client connection over HTTP
-func NewClient(ctx context.Context, serverURL string) (*Client, error) {
+// NewMcpClient creates a new MCP client connection over HTTP
+func NewMcpClient(ctx context.Context, serverURL string) (*McpClient, error) {
 	// Create MCP client with implementation info
 	client := mcpsdk.NewClient(&mcpsdk.Implementation{
 		Name:    "gevals-agent",
@@ -35,13 +35,13 @@ func NewClient(ctx context.Context, serverURL string) (*Client, error) {
 		return nil, fmt.Errorf("failed to connect to MCP server: %w", err)
 	}
 
-	return &Client{
+	return &McpClient{
 		session: session,
 	}, nil
 }
 
 // LoadTools fetches available tools from the MCP server
-func (c *Client) LoadTools(ctx context.Context) error {
+func (c *McpClient) LoadTools(ctx context.Context) error {
 	result, err := c.session.ListTools(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("failed to list tools: %w", err)
@@ -58,7 +58,7 @@ func (c *Client) LoadTools(ctx context.Context) error {
 }
 
 // GetTools returns the available tools as OpenAI function definitions
-func (c *Client) GetTools() []openai.ChatCompletionToolUnionParam {
+func (c *McpClient) GetTools() []openai.ChatCompletionToolUnionParam {
 	var openaiTools []openai.ChatCompletionToolUnionParam
 
 	for _, tool := range c.tools {
@@ -70,7 +70,7 @@ func (c *Client) GetTools() []openai.ChatCompletionToolUnionParam {
 }
 
 // CallTool executes a tool call through the MCP server
-func (c *Client) CallTool(ctx context.Context, name string, arguments map[string]interface{}) (string, error) {
+func (c *McpClient) CallTool(ctx context.Context, name string, arguments map[string]interface{}) (string, error) {
 	result, err := c.session.CallTool(ctx, &mcpsdk.CallToolParams{
 		Name:      name,
 		Arguments: arguments,
@@ -89,7 +89,7 @@ func (c *Client) CallTool(ctx context.Context, name string, arguments map[string
 }
 
 // Close closes the MCP client connection
-func (c *Client) Close() error {
+func (c *McpClient) Close() error {
 	return c.session.Close()
 }
 
@@ -117,3 +117,4 @@ func convertMCPToolToOpenAI(tool mcpsdk.Tool) openai.ChatCompletionToolUnionPara
 	// Use the helper function to create the tool
 	return openai.ChatCompletionFunctionTool(function)
 }
+
