@@ -7,6 +7,7 @@ import (
 	"maps"
 	"os"
 	"slices"
+	"sort"
 
 	"golang.org/x/sync/errgroup"
 )
@@ -22,6 +23,10 @@ type ServerManager interface {
 	Start(ctx context.Context) error
 	// Close closes associated server resrouces. Caller must ensure this is only called once, and called after Start
 	Close() error
+
+	// aggregate call tracking
+	GetAllCallHistory() CallHistory
+	GetCallHistoryForServer(serverName string) (CallHistory, bool)
 }
 
 type serverManager struct {
@@ -129,6 +134,39 @@ func (m *serverManager) Close() error {
 	}
 
 	return errors.Join(errs...)
+}
+
+func (m *serverManager) GetAllCallHistory() CallHistory {
+	combined := CallHistory{}
+
+	for _, srv := range m.servers {
+		history := srv.GetCallHistory()
+		combined.PromptGets = append(combined.PromptGets, history.PromptGets...)
+		combined.ResourceReads = append(combined.ResourceReads, history.ResourceReads...)
+		combined.ToolCalls = append(combined.ToolCalls, history.ToolCalls...)
+	}
+
+	// sort all by timestamp for chronological order
+	sort.Slice(combined.ToolCalls, func(i, j int) bool {
+		return combined.ToolCalls[i].Timestamp.Before(combined.ToolCalls[j].Timestamp)
+	})
+	sort.Slice(combined.ResourceReads, func(i, j int) bool {
+		return combined.ResourceReads[i].Timestamp.Before(combined.ResourceReads[j].Timestamp)
+	})
+	sort.Slice(combined.PromptGets, func(i, j int) bool {
+		return combined.PromptGets[i].Timestamp.Before(combined.PromptGets[j].Timestamp)
+	})
+
+	return combined
+}
+
+func (m *serverManager) GetCallHistoryForServer(serverName string) (CallHistory, bool) {
+	srv, ok := m.servers[serverName]
+	if !ok {
+		return CallHistory{}, false
+	}
+
+	return srv.GetCallHistory(), true
 }
 
 func (m *serverManager) getMcpServers() (*MCPConfig, error) {

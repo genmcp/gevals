@@ -26,7 +26,7 @@ func TestParseConfigFile(t *testing.T) {
 		"basic": {
 			file: "basic.json",
 			expected: &MCPConfig{
-				MCPServers: map[string]ServerConfig{
+				MCPServers: map[string]*ServerConfig{
 					"filesystem": {
 						Command: "npx",
 						Args:    []string{"-y", "@modelcontextprotocol/server-filesystem", "/tmp"},
@@ -40,7 +40,7 @@ func TestParseConfigFile(t *testing.T) {
 		"with-env": {
 			file: "with-env.json",
 			expected: &MCPConfig{
-				MCPServers: map[string]ServerConfig{
+				MCPServers: map[string]*ServerConfig{
 					"postgres": {
 						Command: "uvx",
 						Args:    []string{"mcp-server-postgres"},
@@ -57,7 +57,7 @@ func TestParseConfigFile(t *testing.T) {
 		"http-server": {
 			file: "http-server.json",
 			expected: &MCPConfig{
-				MCPServers: map[string]ServerConfig{
+				MCPServers: map[string]*ServerConfig{
 					"api-server": {
 						Type: "http",
 						URL:  "${API_BASE_URL:-https://api.example.com}/mcp",

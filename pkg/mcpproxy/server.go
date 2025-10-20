@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"os/exec"
+	"sync"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -17,6 +18,7 @@ type Server interface {
 	GetName() string
 	GetAllowedToolNames() []string
 	Close() error
+	GetCallHistory() CallHistory
 }
 
 type server struct {
@@ -25,6 +27,9 @@ type server struct {
 	proxyClient *mcp.ClientSession
 	cfg         *ServerConfig // TODO(Cali0707): see if we actually need this
 	url         string
+
+	// Call tracking
+	recorder Recorder
 }
 
 var _ Server = &server{}
@@ -35,7 +40,9 @@ func NewProxyServerForConfig(ctx context.Context, name string, config *ServerCon
 		return nil, fmt.Errorf("failed to create proxy client for %+v: %w", config, err)
 	}
 
-	s, err := createProxyServer(ctx, cs)
+	r := NewRecorder(name)
+
+	s, err := createProxyServer(ctx, cs, r)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create proxy server for %+v: %w", config, err)
 	}
@@ -45,6 +52,7 @@ func NewProxyServerForConfig(ctx context.Context, name string, config *ServerCon
 		proxyServer: s,
 		proxyClient: cs,
 		cfg:         config,
+		recorder:    r,
 	}, nil
 }
 
@@ -77,7 +85,7 @@ func createProxyClient(ctx context.Context, config *ServerConfig) (*mcp.ClientSe
 	return cs, nil
 }
 
-func createProxyServer(ctx context.Context, cs *mcp.ClientSession) (*mcp.Server, error) {
+func createProxyServer(ctx context.Context, cs *mcp.ClientSession, r Recorder) (*mcp.Server, error) {
 	opts := &mcp.ServerOptions{
 		Instructions: cs.InitializeResult().Instructions,
 		HasPrompts:   cs.InitializeResult().Capabilities.Prompts != nil,
@@ -95,18 +103,24 @@ func createProxyServer(ctx context.Context, cs *mcp.ClientSession) (*mcp.Server,
 				continue
 			}
 			s.AddPrompt(p, func(ctx context.Context, gpr *mcp.GetPromptRequest) (*mcp.GetPromptResult, error) {
-				return cs.GetPrompt(ctx, gpr.Params)
+				start := time.Now()
+				res, err := cs.GetPrompt(ctx, gpr.Params)
+				r.RecordPromptGet(gpr, res, err, start)
+				return res, err
 			})
 		}
 	}
 
 	if opts.HasResources {
-		for r, err := range cs.Resources(ctx, &mcp.ListResourcesParams{}) {
+		for rr, err := range cs.Resources(ctx, &mcp.ListResourcesParams{}) {
 			if err != nil {
 				continue
 			}
-			s.AddResource(r, func(ctx context.Context, rrr *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
-				return cs.ReadResource(ctx, rrr.Params)
+			s.AddResource(rr, func(ctx context.Context, rrr *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
+				start := time.Now()
+				res, err := cs.ReadResource(ctx, rrr.Params)
+				r.RecordResourceRead(rrr, res, err, start)
+				return res, err
 			})
 		}
 
@@ -115,7 +129,10 @@ func createProxyServer(ctx context.Context, cs *mcp.ClientSession) (*mcp.Server,
 				continue
 			}
 			s.AddResourceTemplate(rt, func(ctx context.Context, rrr *mcp.ReadResourceRequest) (*mcp.ReadResourceResult, error) {
-				return cs.ReadResource(ctx, rrr.Params)
+				start := time.Now()
+				res, err := cs.ReadResource(ctx, rrr.Params)
+				r.RecordResourceRead(rrr, res, err, start)
+				return res, err
 			})
 		}
 	}
@@ -126,11 +143,14 @@ func createProxyServer(ctx context.Context, cs *mcp.ClientSession) (*mcp.Server,
 				continue
 			}
 			s.AddTool(t, func(ctx context.Context, ctr *mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-				return cs.CallTool(ctx, &mcp.CallToolParams{
+				start := time.Now()
+				res, err := cs.CallTool(ctx, &mcp.CallToolParams{
 					Meta:      ctr.Params.Meta,
 					Name:      ctr.Params.Name,
 					Arguments: ctr.Params.Arguments,
 				})
+				r.RecordToolCall(ctr, res, err, start)
+				return res, err
 			})
 		}
 	}
@@ -222,4 +242,8 @@ func (s *server) GetAllowedToolNames() []string {
 
 func (s *server) Close() error {
 	return s.proxyClient.Close()
+}
+
+func (s *server) GetCallHistory() CallHistory {
+	return s.recorder.GetHistory()
 }
