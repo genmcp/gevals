@@ -15,7 +15,7 @@ type Runner interface {
 }
 
 type Task interface {
-	GetMcpServerFiles() []string
+	GetMcpServerFiles() ([]string, error)
 	GetMcpServers() []McpServer
 	GetPrompt() string
 }
@@ -68,7 +68,12 @@ func (a *agentSpecRunner) RunTask(ctx context.Context, task Task) (AgentResult, 
 	}
 
 	var serverFiles []string
-	for _, f := range task.GetMcpServerFiles() {
+	filesRaw, err := task.GetMcpServerFiles()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get the mcp server files: %w", err)
+	}
+
+	for _, f := range filesRaw {
 		tmp := struct {
 			File string
 		}{

@@ -6,18 +6,30 @@ import (
 	"net"
 	"net/http"
 	"os/exec"
+	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-type Server struct {
+type Server interface {
+	Run(ctx context.Context) error
+	GetConfig() (*ServerConfig, error)
+	GetName() string
+	GetAllowedToolNames() []string
+	Close() error
+}
+
+type server struct {
+	name        string
 	proxyServer *mcp.Server
 	proxyClient *mcp.ClientSession
 	cfg         *ServerConfig // TODO(Cali0707): see if we actually need this
 	url         string
 }
 
-func NewProxyServerForConfig(ctx context.Context, config *ServerConfig) (*Server, error) {
+var _ Server = &server{}
+
+func NewProxyServerForConfig(ctx context.Context, name string, config *ServerConfig) (Server, error) {
 	cs, err := createProxyClient(ctx, config)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create proxy client for %+v: %w", config, err)
@@ -28,9 +40,11 @@ func NewProxyServerForConfig(ctx context.Context, config *ServerConfig) (*Server
 		return nil, fmt.Errorf("failed to create proxy server for %+v: %w", config, err)
 	}
 
-	return &Server{
+	return &server{
+		name:        name,
 		proxyServer: s,
 		proxyClient: cs,
+		cfg:         config,
 	}, nil
 }
 
@@ -127,7 +141,7 @@ func createProxyServer(ctx context.Context, cs *mcp.ClientSession) (*mcp.Server,
 // Run is a blocking call until ctx is cancelled
 // Run will start the server in streamablehttp transport
 // TODO(Cali0707): update this to support other transports
-func (s *Server) Run(ctx context.Context) error {
+func (s *server) Run(ctx context.Context) error {
 	mux := http.NewServeMux()
 
 	handler := mcp.NewStreamableHTTPHandler(func(r *http.Request) *mcp.Server {
@@ -145,10 +159,35 @@ func (s *Server) Run(ctx context.Context) error {
 
 	s.url = fmt.Sprintf("http://localhost:%d/mcp", port)
 
-	return http.Serve(listener, mux)
+	httpServer := &http.Server{
+		Handler: mux,
+	}
+
+	// Run server in a goroutine
+	serverErr := make(chan error, 1)
+	go func() {
+		if err := httpServer.Serve(listener); err != nil && err != http.ErrServerClosed {
+			serverErr <- err
+		}
+	}()
+
+	// Wait for context cancellation or server error
+	select {
+	case <-ctx.Done():
+		// Context cancelled, shutdown gracefully
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := httpServer.Shutdown(shutdownCtx); err != nil {
+			return fmt.Errorf("server shutdown failed: %w", err)
+		}
+		return nil
+	case err := <-serverErr:
+		// Server error
+		return err
+	}
 }
 
-func (s *Server) GetConfig() (*ServerConfig, error) {
+func (s *server) GetConfig() (*ServerConfig, error) {
 	if s.url == "" {
 		return nil, fmt.Errorf("url must be set for config to be valid, ensure Run() is called before GetConfig()")
 	}
@@ -160,6 +199,27 @@ func (s *Server) GetConfig() (*ServerConfig, error) {
 	}, nil
 }
 
-func (s *Server) Close() error {
+func (s *server) GetName() string {
+	return s.name
+}
+
+func (s *server) GetAllowedToolNames() []string {
+	if s.cfg.EnableAllTools {
+		toolNames := make([]string, 0)
+		for t, err := range s.proxyClient.Tools(context.Background(), &mcp.ListToolsParams{}) {
+			if err != nil {
+				continue
+			}
+
+			toolNames = append(toolNames, t.Name)
+		}
+
+		return toolNames
+	}
+
+	return s.cfg.AlwaysAllow
+}
+
+func (s *server) Close() error {
 	return s.proxyClient.Close()
 }
