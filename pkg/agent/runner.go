@@ -11,13 +11,13 @@ import (
 )
 
 type Runner interface {
-	RunTask(ctx context.Context, task Task) (AgentResult, error)
+	RunTask(ctx context.Context, prompt string) (AgentResult, error)
+	WithMcpServerInfo(mcpInfo McpServerInfo) Runner
 }
 
-type Task interface {
+type McpServerInfo interface {
 	GetMcpServerFiles() ([]string, error)
 	GetMcpServers() []McpServer
-	GetPrompt() string
 }
 
 type McpServer interface {
@@ -31,6 +31,7 @@ type AgentResult interface {
 
 type agentSpecRunner struct {
 	*AgentSpec
+	mcpInfo McpServerInfo
 }
 
 type agentSpecRunnerResult struct {
@@ -51,7 +52,7 @@ func NewRunnerForSpec(spec *AgentSpec) (Runner, error) {
 	}, nil
 }
 
-func (a *agentSpecRunner) RunTask(ctx context.Context, task Task) (AgentResult, error) {
+func (a *agentSpecRunner) RunTask(ctx context.Context, prompt string) (AgentResult, error) {
 	argTemplateMcpServer, err := template.ParseGlob(a.Commands.ArgTemplateMcpServer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse argTemplateMcpServer: %w", err)
@@ -68,7 +69,7 @@ func (a *agentSpecRunner) RunTask(ctx context.Context, task Task) (AgentResult, 
 	}
 
 	var serverFiles []string
-	filesRaw, err := task.GetMcpServerFiles()
+	filesRaw, err := a.mcpInfo.GetMcpServerFiles()
 	if err != nil {
 		return nil, fmt.Errorf("failed to get the mcp server files: %w", err)
 	}
@@ -90,7 +91,7 @@ func (a *agentSpecRunner) RunTask(ctx context.Context, task Task) (AgentResult, 
 	}
 
 	var allowedTools []string
-	for _, s := range task.GetMcpServers() {
+	for _, s := range a.mcpInfo.GetMcpServers() {
 		for _, t := range s.GetAllowedToolNames() {
 			tmp := struct {
 				ServerName string
@@ -117,7 +118,7 @@ func (a *agentSpecRunner) RunTask(ctx context.Context, task Task) (AgentResult, 
 	}{
 		McpServerFileArgs: strings.Join(serverFiles, " "),
 		AllowedToolArgs:   strings.Join(allowedTools, " "),
-		Prompt:            task.GetPrompt(),
+		Prompt:            prompt,
 	}
 
 	formatted := bytes.NewBuffer(nil)
@@ -141,4 +142,11 @@ func (a *agentSpecRunner) RunTask(ctx context.Context, task Task) (AgentResult, 
 	return &agentSpecRunnerResult{
 		commandOuput: string(res),
 	}, nil
+}
+
+func (a *agentSpecRunner) WithMcpServerInfo(mcpInfo McpServerInfo) Runner {
+	return &agentSpecRunner{
+		AgentSpec: a.AgentSpec,
+		mcpInfo:   mcpInfo,
+	}
 }

@@ -63,7 +63,7 @@ func (a *AgentSpec) UnmarshalJSON(data []byte) error {
 	}
 
 	if tmp.Kind != KindAgent {
-		return fmt.Errorf("cannot decode kind '%s' as kind 'agent'", tmp.Kind)
+		return fmt.Errorf("cannot decode kind '%s' as kind '%s'", tmp.Kind, KindAgent)
 	}
 
 	return nil
