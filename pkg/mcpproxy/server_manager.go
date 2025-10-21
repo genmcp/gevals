@@ -25,7 +25,7 @@ type ServerManager interface {
 	Close() error
 
 	// aggregate call tracking
-	GetAllCallHistory() CallHistory
+	GetAllCallHistory() *CallHistory
 	GetCallHistoryForServer(serverName string) (CallHistory, bool)
 }
 
@@ -136,7 +136,7 @@ func (m *serverManager) Close() error {
 	return errors.Join(errs...)
 }
 
-func (m *serverManager) GetAllCallHistory() CallHistory {
+func (m *serverManager) GetAllCallHistory() *CallHistory {
 	combined := CallHistory{}
 
 	for _, srv := range m.servers {
@@ -157,7 +157,7 @@ func (m *serverManager) GetAllCallHistory() CallHistory {
 		return combined.PromptGets[i].Timestamp.Before(combined.PromptGets[j].Timestamp)
 	})
 
-	return combined
+	return &combined
 }
 
 func (m *serverManager) GetCallHistoryForServer(serverName string) (CallHistory, bool) {

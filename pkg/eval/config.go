@@ -1,7 +1,5 @@
 package eval
 
-import "github.com/genmcp/gevals/pkg/util"
-
 const (
 	KindEval = "Eval"
 )
@@ -20,18 +18,8 @@ type EvalConfig struct {
 	AgentFile     string `json:"agentFile"`
 	McpConfigFile string `json:"mcpConfigFile"`
 
-	// Task configuration - two modes:
-
-	// Simple mode: all tasks share same assertions
-	Tasks      *SimpleTaskConfig `json:"tasks,omitempty"`
-	Assertions *TaskAssertions   `json:"assertions,omitempty"`
-
 	// Advanced mode: different assertion sets
 	TaskSets []TaskSet `json:"taskSets,omitempty"`
-}
-
-type SimpleTaskConfig struct {
-	Glob string `json:"glob"`
 }
 
 type TaskSet struct {

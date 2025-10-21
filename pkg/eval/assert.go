@@ -29,6 +29,14 @@ type SingleAssertionResult struct {
 	Details []string `json:"details,omitempty"`
 }
 
+func (s *SingleAssertionResult) Succeeded() bool {
+	if s == nil {
+		return true
+	}
+
+	return s.Passed
+}
+
 type CompositeAssertionResult struct {
 	ToolsUsed        *SingleAssertionResult `json:"toolsUsed,omitempty"`
 	RequireAny       *SingleAssertionResult `json:"requireAny,omitempty"`
@@ -41,6 +49,13 @@ type CompositeAssertionResult struct {
 	PromptsNotUsed   *SingleAssertionResult `json:"promptsNotUsed,omitempty"`
 	CallOrder        *SingleAssertionResult `json:"callOrder,omitempty"`
 	NoDuplicateCalls *SingleAssertionResult `json:"noDuplicateCalls,omitempty"`
+}
+
+func (c *CompositeAssertionResult) Succeeded() bool {
+	return c.ToolsUsed.Succeeded() && c.RequireAny.Succeeded() && c.ToolsNotUsed.Succeeded() &&
+		c.MinToolCalls.Succeeded() && c.MaxToolCalls.Succeeded() && c.ResourcesRead.Succeeded() &&
+		c.ResourcesNotRead.Succeeded() && c.PromptsUsed.Succeeded() && c.PromptsNotUsed.Succeeded() &&
+		c.CallOrder.Succeeded() && c.NoDuplicateCalls.Succeeded()
 }
 
 type CompositeAssertionEvaluator interface {

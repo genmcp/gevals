@@ -8,6 +8,8 @@ import (
 	"os/exec"
 	"strings"
 	"text/template"
+
+	"github.com/genmcp/gevals/pkg/mcpproxy"
 )
 
 type Runner interface {
@@ -17,12 +19,7 @@ type Runner interface {
 
 type McpServerInfo interface {
 	GetMcpServerFiles() ([]string, error)
-	GetMcpServers() []McpServer
-}
-
-type McpServer interface {
-	GetName() string
-	GetAllowedToolNames() []string
+	GetMcpServers() []mcpproxy.Server
 }
 
 type AgentResult interface {
