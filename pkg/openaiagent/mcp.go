@@ -20,7 +20,7 @@ type McpClient struct {
 func NewMcpClient(ctx context.Context, serverURL string) (*McpClient, error) {
 	// Create MCP client with implementation info
 	client := mcpsdk.NewClient(&mcpsdk.Implementation{
-		Name:    "gevals-agent",
+		Name:    "agent-agent",
 		Version: "1.0.0",
 	}, nil)
 
@@ -117,4 +117,7 @@ func convertMCPToolToOpenAI(tool mcpsdk.Tool) openai.ChatCompletionToolUnionPara
 	// Use the helper function to create the tool
 	return openai.ChatCompletionFunctionTool(function)
 }
+<<<<<<<< HEAD:pkg/openaiagent/mcp.go
 
+========
+>>>>>>>> main:pkg/agent/mcp/mcp.go
