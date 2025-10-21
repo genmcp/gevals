@@ -1,5 +1,14 @@
 package eval
 
+import (
+	"fmt"
+	"os"
+
+	"sigs.k8s.io/yaml"
+
+	"github.com/genmcp/gevals/pkg/util"
+)
+
 const (
 	KindEval = "Eval"
 )
@@ -85,4 +94,28 @@ type CallOrderAssertion struct {
 	Type   string `json:"type"` // "tool", "resource", "prompt"
 	Server string `json:"server"`
 	Name   string `json:"name"`
+}
+
+func (e *EvalSpec) UnmarshalJSON(data []byte) error {
+	return util.UnmarshalWithKind(data, e, KindEval)
+}
+
+func Read(data []byte) (*EvalSpec, error) {
+	spec := &EvalSpec{}
+
+	err := yaml.Unmarshal(data, spec)
+	if err != nil {
+		return nil, err
+	}
+
+	return spec, nil
+}
+
+func FromFile(path string) (*EvalSpec, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read file '%s' for evalspec: %w", path, err)
+	}
+
+	return Read(data)
 }

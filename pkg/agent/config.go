@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/genmcp/gevals/pkg/util"
 	"sigs.k8s.io/yaml"
 )
 
@@ -50,23 +51,7 @@ type AgentCommands struct {
 }
 
 func (a *AgentSpec) UnmarshalJSON(data []byte) error {
-	type Doppleganger AgentSpec
-	tmp := struct {
-		Kind string `json:"kind"`
-		*Doppleganger
-	}{
-		Doppleganger: (*Doppleganger)(a),
-	}
-
-	if err := json.Unmarshal(data, &tmp); err != nil {
-		return err
-	}
-
-	if tmp.Kind != KindAgent {
-		return fmt.Errorf("cannot decode kind '%s' as kind '%s'", tmp.Kind, KindAgent)
-	}
-
-	return nil
+	return util.UnmarshalWithKind(data, a, KindAgent)
 }
 
 func Read(data []byte) (*AgentSpec, error) {
