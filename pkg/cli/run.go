@@ -1,0 +1,260 @@
+package cli
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"os"
+
+	"github.com/fatih/color"
+	"github.com/genmcp/gevals/pkg/eval"
+	"github.com/spf13/cobra"
+)
+
+// NewRunCmd creates the run command
+func NewRunCmd() *cobra.Command {
+	var outputFormat string
+	var verbose bool
+
+	cmd := &cobra.Command{
+		Use:   "run [eval-config-file]",
+		Short: "Run an evaluation",
+		Long:  `Run an evaluation using the specified eval configuration file.`,
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			configFile := args[0]
+
+			// Load eval spec
+			spec, err := eval.FromFile(configFile)
+			if err != nil {
+				return fmt.Errorf("failed to load eval config: %w", err)
+			}
+
+			// Create runner
+			runner, err := eval.NewRunner(spec)
+			if err != nil {
+				return fmt.Errorf("failed to create eval runner: %w", err)
+			}
+
+			// Create progress display
+			display := newProgressDisplay(verbose)
+
+			// Run with progress
+			ctx := context.Background()
+			results, err := runner.RunWithProgress(ctx, display.handleProgress)
+			if err != nil {
+				return fmt.Errorf("eval failed: %w", err)
+			}
+
+			// Save results to JSON file
+			outputFile := fmt.Sprintf("gevals-%s-out.json", spec.Metadata.Name)
+			if err := saveResultsToFile(results, outputFile); err != nil {
+				return fmt.Errorf("failed to save results to file: %w", err)
+			}
+			fmt.Printf("\n📄 Results saved to: %s\n", outputFile)
+
+			// Display results
+			if err := displayResults(results, outputFormat); err != nil {
+				return fmt.Errorf("failed to display results: %w", err)
+			}
+
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVarP(&outputFormat, "output", "o", "text", "Output format (text, json)")
+	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Verbose output")
+
+	return cmd
+}
+
+// progressDisplay handles interactive progress display
+type progressDisplay struct {
+	verbose bool
+	green   *color.Color
+	red     *color.Color
+	yellow  *color.Color
+	cyan    *color.Color
+	bold    *color.Color
+}
+
+func newProgressDisplay(verbose bool) *progressDisplay {
+	return &progressDisplay{
+		verbose: verbose,
+		green:   color.New(color.FgGreen),
+		red:     color.New(color.FgRed),
+		yellow:  color.New(color.FgYellow),
+		cyan:    color.New(color.FgCyan),
+		bold:    color.New(color.Bold),
+	}
+}
+
+func (d *progressDisplay) handleProgress(event eval.ProgressEvent) {
+	switch event.Type {
+	case eval.EventEvalStart:
+		d.bold.Println("\n=== Starting Evaluation ===")
+
+	case eval.EventTaskStart:
+		fmt.Println()
+		d.cyan.Printf("Task: %s\n", event.Task.TaskName)
+		if event.Task.Difficulty != "" {
+			fmt.Printf("  Difficulty: %s\n", event.Task.Difficulty)
+		}
+
+	case eval.EventTaskSetup:
+		if d.verbose {
+			fmt.Printf("  → Setting up task environment...\n")
+		}
+
+	case eval.EventTaskRunning:
+		fmt.Printf("  → Running agent...\n")
+
+	case eval.EventTaskVerifying:
+		fmt.Printf("  → Verifying results...\n")
+
+	case eval.EventTaskAssertions:
+		if d.verbose {
+			fmt.Printf("  → Evaluating assertions...\n")
+		}
+
+	case eval.EventTaskComplete:
+		task := event.Task
+		if task.TaskPassed && task.AllAssertionsPassed {
+			d.green.Printf("  ✓ Task passed\n")
+		} else if task.TaskPassed && !task.AllAssertionsPassed {
+			d.yellow.Printf("  ~ Task passed but assertions failed\n")
+		} else {
+			d.red.Printf("  ✗ Task failed\n")
+			if task.TaskError != "" {
+				fmt.Printf("    Error: %s\n", task.TaskError)
+			}
+		}
+
+	case eval.EventEvalComplete:
+		fmt.Println()
+		d.bold.Println("=== Evaluation Complete ===")
+	}
+}
+
+func displayResults(results []*eval.EvalResult, format string) error {
+	switch format {
+	case "json":
+		encoder := json.NewEncoder(os.Stdout)
+		encoder.SetIndent("", "  ")
+		return encoder.Encode(results)
+
+	case "text":
+		return displayTextResults(results)
+
+	default:
+		return fmt.Errorf("unknown output format: %s", format)
+	}
+}
+
+func displayTextResults(results []*eval.EvalResult) error {
+	green := color.New(color.FgGreen)
+	red := color.New(color.FgRed)
+	yellow := color.New(color.FgYellow)
+	bold := color.New(color.Bold)
+
+	fmt.Println()
+	bold.Println("=== Results Summary ===")
+	fmt.Println()
+
+	totalTasks := len(results)
+	tasksPassed := 0
+	tasksWithAllAssertions := 0
+
+	for _, result := range results {
+		if result.TaskPassed {
+			tasksPassed++
+		}
+		if result.AllAssertionsPassed {
+			tasksWithAllAssertions++
+		}
+
+		// Display individual result
+		fmt.Printf("Task: %s\n", result.TaskName)
+		fmt.Printf("  Path: %s\n", result.TaskPath)
+		if result.Difficulty != "" {
+			fmt.Printf("  Difficulty: %s\n", result.Difficulty)
+		}
+
+		if result.TaskPassed {
+			green.Printf("  Task Status: PASSED\n")
+		} else {
+			red.Printf("  Task Status: FAILED\n")
+			if result.TaskError != "" {
+				fmt.Printf("  Error: %s\n", result.TaskError)
+			}
+		}
+
+		if result.AssertionResults != nil {
+			if result.AllAssertionsPassed {
+				green.Printf("  Assertions: PASSED\n")
+			} else {
+				yellow.Printf("  Assertions: FAILED\n")
+				printFailedAssertions(result.AssertionResults)
+			}
+		}
+
+		fmt.Println()
+	}
+
+	bold.Println("=== Overall Statistics ===")
+	fmt.Printf("Total Tasks: %d\n", totalTasks)
+
+	if tasksPassed == totalTasks {
+		green.Printf("Tasks Passed: %d/%d\n", tasksPassed, totalTasks)
+	} else {
+		fmt.Printf("Tasks Passed: %d/%d\n", tasksPassed, totalTasks)
+	}
+
+	if tasksWithAllAssertions == totalTasks {
+		green.Printf("Assertions Passed: %d/%d\n", tasksWithAllAssertions, totalTasks)
+	} else {
+		fmt.Printf("Assertions Passed: %d/%d\n", tasksWithAllAssertions, totalTasks)
+	}
+
+	return nil
+}
+
+func printFailedAssertions(results *eval.CompositeAssertionResult) {
+	printSingleAssertion("ToolsUsed", results.ToolsUsed)
+	printSingleAssertion("RequireAny", results.RequireAny)
+	printSingleAssertion("ToolsNotUsed", results.ToolsNotUsed)
+	printSingleAssertion("MinToolCalls", results.MinToolCalls)
+	printSingleAssertion("MaxToolCalls", results.MaxToolCalls)
+	printSingleAssertion("ResourcesRead", results.ResourcesRead)
+	printSingleAssertion("ResourcesNotRead", results.ResourcesNotRead)
+	printSingleAssertion("PromptsUsed", results.PromptsUsed)
+	printSingleAssertion("PromptsNotUsed", results.PromptsNotUsed)
+	printSingleAssertion("CallOrder", results.CallOrder)
+	printSingleAssertion("NoDuplicateCalls", results.NoDuplicateCalls)
+}
+
+func printSingleAssertion(name string, result *eval.SingleAssertionResult) {
+	if result != nil && !result.Passed {
+		fmt.Printf("    - %s: %s\n", name, result.Reason)
+		for _, detail := range result.Details {
+			fmt.Printf("      %s\n", detail)
+		}
+	}
+}
+
+func saveResultsToFile(results []*eval.EvalResult, filename string) error {
+	file, err := os.Create(filename)
+	if err != nil {
+		return fmt.Errorf("failed to create file: %w", err)
+	}
+	defer file.Close()
+
+	encoder := json.NewEncoder(file)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(results); err != nil {
+		return fmt.Errorf("failed to encode results: %w", err)
+	}
+
+	return nil
+}
+

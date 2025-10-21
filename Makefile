@@ -1,18 +1,18 @@
 AGENT_BINARY_NAME = agent
-RUNNER_BINARY_NAME = runner
+GEVALS_BINARY_NAME = gevals
 
 .PHONY: clean
 clean:
-	rm -f $(AGENT_BINARY_NAME) $(RUNNER_BINARY_NAME)
+	rm -f $(AGENT_BINARY_NAME) $(GEVALS_BINARY_NAME)
 
 .PHONY: build-agent
 build-agent: clean
 	go build -o $(AGENT_BINARY_NAME) ./cmd/agent
 
-.PHONY: build-runner
-build-runner: clean
-	go build -o $(RUNNER_BINARY_NAME) ./cmd/runner
+.PHONY: build-gevals
+build-gevals: clean
+	go build -o $(GEVALS_BINARY_NAME) ./cmd/gevals/
 
 .PHONY: build
-build: build-agent build-runner
+build: build-agent build-gevals
 

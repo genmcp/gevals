@@ -1,7 +1,6 @@
 package agent
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 
@@ -39,6 +38,10 @@ type AgentCommands struct {
 	// the tool name will be in {{ .ToolName }}
 	ArgTemplateAllowedTools string `json:"argTemplateAllowedTools"`
 
+	// The separator to use when joining allowed tools together
+	// Defaults to " " (space) if not specified
+	AllowedToolsJoinSeparator *string `json:"allowedToolsJoinSeparator,omitempty"`
+
 	// A template command to run the agent with a prompt and some mcp servers
 	// the prompt will be in {{ .Prompt }}
 	// the servers will be in {{ .McpServerFileArgs }}
@@ -51,7 +54,10 @@ type AgentCommands struct {
 }
 
 func (a *AgentSpec) UnmarshalJSON(data []byte) error {
-	return util.UnmarshalWithKind(data, a, KindAgent)
+	type Doppleganger AgentSpec
+
+	tmp := (*Doppleganger)(a)
+	return util.UnmarshalWithKind(data, tmp, KindAgent)
 }
 
 func Read(data []byte) (*AgentSpec, error) {

@@ -6,7 +6,6 @@ import (
 	"net"
 	"net/http"
 	"os/exec"
-	"sync"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"

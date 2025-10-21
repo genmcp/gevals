@@ -3,6 +3,7 @@ package eval
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"sigs.k8s.io/yaml"
 
@@ -97,10 +98,13 @@ type CallOrderAssertion struct {
 }
 
 func (e *EvalSpec) UnmarshalJSON(data []byte) error {
-	return util.UnmarshalWithKind(data, e, KindEval)
+	type Doppleganger EvalSpec
+
+	tmp := (*Doppleganger)(e)
+	return util.UnmarshalWithKind(data, tmp, KindEval)
 }
 
-func Read(data []byte) (*EvalSpec, error) {
+func Read(data []byte, basePath string) (*EvalSpec, error) {
 	spec := &EvalSpec{}
 
 	err := yaml.Unmarshal(data, spec)
@@ -108,7 +112,45 @@ func Read(data []byte) (*EvalSpec, error) {
 		return nil, err
 	}
 
+	// Convert all relative file paths to absolute paths
+	if err := resolveFilePath(&spec.Config.AgentFile, basePath); err != nil {
+		return nil, fmt.Errorf("failed to resolve agent file path: %w", err)
+	}
+	if err := resolveFilePath(&spec.Config.McpConfigFile, basePath); err != nil {
+		return nil, fmt.Errorf("failed to resolve mcp config file path: %w", err)
+	}
+
+	// Resolve task set paths and globs
+	for i := range spec.Config.TaskSets {
+		if spec.Config.TaskSets[i].Path != "" {
+			if err := resolveFilePath(&spec.Config.TaskSets[i].Path, basePath); err != nil {
+				return nil, fmt.Errorf("failed to resolve task set path at index %d: %w", i, err)
+			}
+		} else if spec.Config.TaskSets[i].Glob != "" {
+			if err := resolveFilePath(&spec.Config.TaskSets[i].Glob, basePath); err != nil {
+				return nil, fmt.Errorf("failed to resolve task set glob at index %d: %w", i, err)
+			}
+		}
+	}
+
 	return spec, nil
+}
+
+func resolveFilePath(filePath *string, basePath string) error {
+	if filePath == nil || *filePath == "" {
+		return nil
+	}
+
+	// If the path is already absolute, leave it as-is
+	if filepath.IsAbs(*filePath) {
+		return nil
+	}
+
+	// Convert relative path to absolute path based on the YAML file's directory
+	absPath := filepath.Join(basePath, *filePath)
+	*filePath = absPath
+
+	return nil
 }
 
 func FromFile(path string) (*EvalSpec, error) {
@@ -117,5 +159,13 @@ func FromFile(path string) (*EvalSpec, error) {
 		return nil, fmt.Errorf("failed to read file '%s' for evalspec: %w", path, err)
 	}
 
-	return Read(data)
+	// Convert to absolute path to ensure basePath is absolute
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get absolute path for '%s': %w", path, err)
+	}
+
+	basePath := filepath.Dir(absPath)
+
+	return Read(data, basePath)
 }

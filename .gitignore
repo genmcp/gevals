@@ -33,4 +33,4 @@ go.work.sum
 
 # built binary
 /agent
-/runner
+/gevals

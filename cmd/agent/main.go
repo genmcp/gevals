@@ -3,11 +3,11 @@ package main
 import (
 	"context"
 	"fmt"
-	"github.com/genmcp/gevals/pkg/agent/core"
 	"log"
 	"os"
 	"strings"
 
+	"github.com/genmcp/gevals/pkg/openaiagent"
 	"github.com/spf13/cobra"
 )
 
@@ -63,7 +63,7 @@ func runAgent(cmd *cobra.Command, args []string) error {
 
 	// Create the AI agent
 	fmt.Printf("Creating AI agent with modelName: %s\n", modelName)
-	agentInstance, err := core.NewAIAgent(modelBaseURL, modelKey, modelName, systemPrompt)
+	agentInstance, err := openaiagent.NewAIAgent(modelBaseURL, modelKey, modelName, systemPrompt)
 	if err != nil {
 		return fmt.Errorf("failed to create AI agent: %w", err)
 	}

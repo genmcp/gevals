@@ -25,11 +25,13 @@ type EvalResult struct {
 
 type EvalRunner interface {
 	Run(ctx context.Context) ([]*EvalResult, error)
+	RunWithProgress(ctx context.Context, callback ProgressCallback) ([]*EvalResult, error)
 }
 
 type evalRunner struct {
-	spec      *EvalSpec
-	mcpConfig *mcpproxy.MCPConfig
+	spec             *EvalSpec
+	mcpConfig        *mcpproxy.MCPConfig
+	progressCallback ProgressCallback
 }
 
 var _ EvalRunner = &evalRunner{}
@@ -40,7 +42,30 @@ type taskConfig struct {
 	assertions *TaskAssertions
 }
 
+// NewRunner creates a new EvalRunner from an EvalSpec
+func NewRunner(spec *EvalSpec) (EvalRunner, error) {
+	if spec == nil {
+		return nil, fmt.Errorf("eval spec cannot be nil")
+	}
+
+	return &evalRunner{
+		spec:             spec,
+		progressCallback: NoopProgressCallback,
+	}, nil
+}
+
 func (r *evalRunner) Run(ctx context.Context) ([]*EvalResult, error) {
+	return r.RunWithProgress(ctx, NoopProgressCallback)
+}
+
+func (r *evalRunner) RunWithProgress(ctx context.Context, callback ProgressCallback) ([]*EvalResult, error) {
+	r.progressCallback = callback
+
+	r.progressCallback(ProgressEvent{
+		Type:    EventEvalStart,
+		Message: "Starting evaluation",
+	})
+
 	mcpConfig, err := mcpproxy.ParseConfigFile(r.spec.Config.McpConfigFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load MCP config: %w", err)
@@ -59,6 +84,9 @@ func (r *evalRunner) Run(ctx context.Context) ([]*EvalResult, error) {
 	}
 
 	taskConfigs, err := r.collectTaskConfigs()
+	if err != nil {
+		return nil, err
+	}
 
 	results := make([]*EvalResult, 0, len(taskConfigs))
 	var runErr error
@@ -70,6 +98,11 @@ func (r *evalRunner) Run(ctx context.Context) ([]*EvalResult, error) {
 			results = append(results, result)
 		}
 	}
+
+	r.progressCallback(ProgressEvent{
+		Type:    EventEvalComplete,
+		Message: "Evaluation complete",
+	})
 
 	return results, runErr
 }
@@ -119,6 +152,18 @@ func (r *evalRunner) runTask(
 		Difficulty: tc.spec.Metadata.Difficulty,
 	}
 
+	r.progressCallback(ProgressEvent{
+		Type:    EventTaskStart,
+		Message: fmt.Sprintf("Starting task: %s", tc.spec.Metadata.Name),
+		Task:    result,
+	})
+
+	r.progressCallback(ProgressEvent{
+		Type:    EventTaskSetup,
+		Message: fmt.Sprintf("Setting up task: %s", tc.spec.Metadata.Name),
+		Task:    result,
+	})
+
 	taskRunner, manager, cleanup, err := r.setupTaskResources(ctx, tc, mcpConfig)
 	if err != nil {
 		return nil, err
@@ -127,9 +172,21 @@ func (r *evalRunner) runTask(
 
 	r.executeTaskSteps(ctx, taskRunner, agentRunner, manager, result)
 
+	r.progressCallback(ProgressEvent{
+		Type:    EventTaskAssertions,
+		Message: fmt.Sprintf("Evaluating assertions for task: %s", tc.spec.Metadata.Name),
+		Task:    result,
+	})
+
 	r.evaluateTaskAssertions(tc, manager, result)
 
 	result.CallHistory = manager.GetAllCallHistory()
+
+	r.progressCallback(ProgressEvent{
+		Type:    EventTaskComplete,
+		Message: fmt.Sprintf("Completed task: %s (passed: %v)", tc.spec.Metadata.Name, result.TaskPassed),
+		Task:    result,
+	})
 
 	return result, nil
 }
@@ -175,6 +232,12 @@ func (r *evalRunner) executeTaskSteps(
 	manager mcpproxy.ServerManager,
 	result *EvalResult,
 ) {
+	r.progressCallback(ProgressEvent{
+		Type:    EventTaskRunning,
+		Message: fmt.Sprintf("Running agent for task: %s", result.TaskName),
+		Task:    result,
+	})
+
 	agentRunner = agentRunner.WithMcpServerInfo(manager)
 
 	out, err := taskRunner.RunAgent(ctx, agentRunner)
@@ -186,6 +249,12 @@ func (r *evalRunner) executeTaskSteps(
 	}
 
 	result.TaskOutput = out
+
+	r.progressCallback(ProgressEvent{
+		Type:    EventTaskVerifying,
+		Message: fmt.Sprintf("Verifying task: %s", result.TaskName),
+		Task:    result,
+	})
 
 	out, err = taskRunner.Verify(ctx)
 	if err != nil {

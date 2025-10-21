@@ -117,7 +117,3 @@ func convertMCPToolToOpenAI(tool mcpsdk.Tool) openai.ChatCompletionToolUnionPara
 	// Use the helper function to create the tool
 	return openai.ChatCompletionFunctionTool(function)
 }
-<<<<<<<< HEAD:pkg/openaiagent/mcp.go
-
-========
->>>>>>>> main:pkg/agent/mcp/mcp.go

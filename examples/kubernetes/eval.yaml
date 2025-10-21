@@ -1,0 +1,14 @@
+kind: Eval
+metadata:
+  name: "kubernetes-basic-operations"
+config:
+  agentFile: agent.yaml
+  mcpConfigFile: mcp-config.yaml
+  taskSets:
+    - path: tasks/create-pod.yaml
+      assertions:
+        toolsUsed:
+          - server: kubernetes
+            toolPattern: "pods_.*"
+        minToolCalls: 1
+        maxToolCalls: 10

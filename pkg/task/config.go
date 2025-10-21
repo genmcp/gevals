@@ -1,7 +1,6 @@
 package task
 
 import (
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -35,7 +34,10 @@ type TaskSteps struct {
 }
 
 func (t *TaskSpec) UnmarshalJSON(data []byte) error {
-	return util.UnmarshalWithKind(data, t, KindTask)
+	type Doppleganger TaskSpec
+
+	tmp := (*Doppleganger)(t)
+	return util.UnmarshalWithKind(data, tmp, KindTask)
 }
 
 func Read(data []byte, basePath string) (*TaskSpec, error) {

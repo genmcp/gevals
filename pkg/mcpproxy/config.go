@@ -1,6 +1,7 @@
 package mcpproxy
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 
@@ -127,7 +128,7 @@ func (c *MCPConfig) GetServer(name string) (*ServerConfig, bool) {
 
 // ToFile writes the configuration to the specified path
 func (c *MCPConfig) ToFile(path string) error {
-	bytes, err := yaml.Marshal(c)
+	bytes, err := json.MarshalIndent(c, "", "  ")
 	if err != nil {
 		return fmt.Errorf("failed to marshal MCPConfig to bytes: %w", err)
 	}

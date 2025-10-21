@@ -1,14 +1,9 @@
-<<<<<<<< HEAD:pkg/openaiagent/agent.go
 package openaiagent
-========
-package core
->>>>>>>> main:pkg/agent/core/agent.go
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/genmcp/gevals/pkg/agent/mcp"
 
 	"github.com/openai/openai-go/v2"
 	"github.com/openai/openai-go/v2/option"
