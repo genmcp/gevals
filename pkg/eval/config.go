@@ -42,6 +42,7 @@ type TaskSet struct {
 	Assertions *TaskAssertions `json:"assertions,omitempty"`
 }
 
+// TODO: add a custom Verify script for another form of assertion
 type TaskAssertions struct {
 	// Tool assertions
 	ToolsUsed    []ToolAssertion `json:"toolsUsed,omitempty"`
@@ -63,9 +64,6 @@ type TaskAssertions struct {
 
 	// Efficiency assertions
 	NoDuplicateCalls bool `json:"noDuplicateCalls,omitempty"`
-
-	// Custom verification
-	Verify *util.Step `json:"verify,omitempty"`
 }
 
 type ToolAssertion struct {
