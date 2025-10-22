@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/fatih/color"
 	"github.com/genmcp/gevals/pkg/eval"
@@ -124,9 +126,22 @@ func (d *progressDisplay) handleProgress(event eval.ProgressEvent) {
 		} else if task.TaskPassed && !task.AllAssertionsPassed {
 			d.yellow.Printf("  ~ Task passed but assertions failed\n")
 		} else {
-			d.red.Printf("  ✗ Task failed\n")
-			if task.TaskError != "" {
-				fmt.Printf("    Error: %s\n", task.TaskError)
+			if task.AgentExecutionError {
+				d.red.Printf("  ✗ Agent failed to run\n")
+				if task.TaskError != "" || task.TaskOutput != "" {
+					errorFile, err := saveErrorToFile(task.TaskName, task.TaskError, task.TaskOutput)
+					if err != nil {
+						// If we can't save to file, fall back to printing inline
+						fmt.Printf("    Error: %s\n", task.TaskError)
+					} else {
+						fmt.Printf("    Error details saved to: %s\n", errorFile)
+					}
+				}
+			} else {
+				d.red.Printf("  ✗ Task failed\n")
+				if task.TaskError != "" {
+					fmt.Printf("    Error: %s\n", task.TaskError)
+				}
 			}
 		}
 
@@ -187,9 +202,22 @@ func displayTextResults(results []*eval.EvalResult) error {
 		if result.TaskPassed {
 			green.Printf("  Task Status: PASSED\n")
 		} else {
-			red.Printf("  Task Status: FAILED\n")
-			if result.TaskError != "" {
-				fmt.Printf("  Error: %s\n", result.TaskError)
+			if result.AgentExecutionError {
+				red.Printf("  Task Status: FAILED (Agent execution error)\n")
+				if result.TaskError != "" || result.TaskOutput != "" {
+					errorFile, err := saveErrorToFile(result.TaskName, result.TaskError, result.TaskOutput)
+					if err != nil {
+						// If we can't save to file, fall back to printing inline
+						fmt.Printf("  Error: %s\n", result.TaskError)
+					} else {
+						fmt.Printf("  Error details saved to: %s\n", errorFile)
+					}
+				}
+			} else {
+				red.Printf("  Task Status: FAILED\n")
+				if result.TaskError != "" {
+					fmt.Printf("  Error: %s\n", result.TaskError)
+				}
 			}
 		}
 
@@ -360,5 +388,32 @@ func saveResultsToFile(results []*eval.EvalResult, filename string) error {
 	}
 
 	return nil
+}
+
+// saveErrorToFile saves task error and output to a file and returns the filename
+func saveErrorToFile(taskName, taskError, taskOutput string) (string, error) {
+	// Create a safe filename from task name
+	safeTaskName := strings.ReplaceAll(taskName, "/", "-")
+	safeTaskName = strings.ReplaceAll(safeTaskName, " ", "-")
+	filename := fmt.Sprintf("%s-error.txt", safeTaskName)
+
+	content := ""
+	if taskError != "" {
+		content += fmt.Sprintf("=== Error ===\n%s\n", taskError)
+	}
+	if taskOutput != "" {
+		content += fmt.Sprintf("\n=== Output ===\n%s\n", taskOutput)
+	}
+
+	if err := os.WriteFile(filename, []byte(content), 0644); err != nil {
+		return "", fmt.Errorf("failed to write error file: %w", err)
+	}
+
+	absPath, err := filepath.Abs(filename)
+	if err != nil {
+		return filename, nil // Return relative path if we can't get absolute
+	}
+
+	return absPath, nil
 }
 

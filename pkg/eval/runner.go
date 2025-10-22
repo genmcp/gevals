@@ -17,6 +17,7 @@ type EvalResult struct {
 	TaskPassed          bool                      `json:"taskPassed"`
 	TaskOutput          string                    `json:"taskOutput"`
 	TaskError           string                    `json:"taskError,omitempty"`
+	AgentExecutionError bool                      `json:"agentExecutionError,omitempty"` // True if agent failed to execute
 	Difficulty          string                    `json:"difficulty"`
 	AssertionResults    *CompositeAssertionResult `json:"assertionResults"`
 	AllAssertionsPassed bool                      `json:"allAssertionsPassed"`
@@ -245,6 +246,7 @@ func (r *evalRunner) executeTaskSteps(
 		result.TaskPassed = false
 		result.TaskOutput = out
 		result.TaskError = err.Error()
+		result.AgentExecutionError = true
 		return
 	}
 
