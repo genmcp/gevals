@@ -58,6 +58,89 @@ func (c *CompositeAssertionResult) Succeeded() bool {
 		c.CallOrder.Succeeded() && c.NoDuplicateCalls.Succeeded()
 }
 
+// TotalAssertions returns the total number of individual assertions that were evaluated
+func (c *CompositeAssertionResult) TotalAssertions() int {
+	count := 0
+	if c.ToolsUsed != nil {
+		count++
+	}
+	if c.RequireAny != nil {
+		count++
+	}
+	if c.ToolsNotUsed != nil {
+		count++
+	}
+	if c.MinToolCalls != nil {
+		count++
+	}
+	if c.MaxToolCalls != nil {
+		count++
+	}
+	if c.ResourcesRead != nil {
+		count++
+	}
+	if c.ResourcesNotRead != nil {
+		count++
+	}
+	if c.PromptsUsed != nil {
+		count++
+	}
+	if c.PromptsNotUsed != nil {
+		count++
+	}
+	if c.CallOrder != nil {
+		count++
+	}
+	if c.NoDuplicateCalls != nil {
+		count++
+	}
+	return count
+}
+
+// PassedAssertions returns the number of individual assertions that passed
+func (c *CompositeAssertionResult) PassedAssertions() int {
+	count := 0
+	if c.ToolsUsed != nil && c.ToolsUsed.Succeeded() {
+		count++
+	}
+	if c.RequireAny != nil && c.RequireAny.Succeeded() {
+		count++
+	}
+	if c.ToolsNotUsed != nil && c.ToolsNotUsed.Succeeded() {
+		count++
+	}
+	if c.MinToolCalls != nil && c.MinToolCalls.Succeeded() {
+		count++
+	}
+	if c.MaxToolCalls != nil && c.MaxToolCalls.Succeeded() {
+		count++
+	}
+	if c.ResourcesRead != nil && c.ResourcesRead.Succeeded() {
+		count++
+	}
+	if c.ResourcesNotRead != nil && c.ResourcesNotRead.Succeeded() {
+		count++
+	}
+	if c.PromptsUsed != nil && c.PromptsUsed.Succeeded() {
+		count++
+	}
+	if c.PromptsNotUsed != nil && c.PromptsNotUsed.Succeeded() {
+		count++
+	}
+	if c.CallOrder != nil && c.CallOrder.Succeeded() {
+		count++
+	}
+	if c.NoDuplicateCalls != nil && c.NoDuplicateCalls.Succeeded() {
+		count++
+	}
+	return count
+}
+
+// FailedAssertions returns the number of individual assertions that failed
+func (c *CompositeAssertionResult) FailedAssertions() int {
+	return c.TotalAssertions() - c.PassedAssertions()
+}
+
 type CompositeAssertionEvaluator interface {
 	Evaluate(history *mcpproxy.CallHistory) *CompositeAssertionResult
 }

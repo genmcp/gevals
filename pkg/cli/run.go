@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/fatih/color"
 	"github.com/genmcp/gevals/pkg/eval"
@@ -124,9 +126,22 @@ func (d *progressDisplay) handleProgress(event eval.ProgressEvent) {
 		} else if task.TaskPassed && !task.AllAssertionsPassed {
 			d.yellow.Printf("  ~ Task passed but assertions failed\n")
 		} else {
-			d.red.Printf("  ✗ Task failed\n")
-			if task.TaskError != "" {
-				fmt.Printf("    Error: %s\n", task.TaskError)
+			if task.AgentExecutionError {
+				d.red.Printf("  ✗ Agent failed to run\n")
+				if task.TaskError != "" || task.TaskOutput != "" {
+					errorFile, err := saveErrorToFile(task.TaskName, task.TaskError, task.TaskOutput)
+					if err != nil {
+						// If we can't save to file, fall back to printing inline
+						fmt.Printf("    Error: %s\n", task.TaskError)
+					} else {
+						fmt.Printf("    Error details saved to: %s\n", errorFile)
+					}
+				}
+			} else {
+				d.red.Printf("  ✗ Task failed\n")
+				if task.TaskError != "" {
+					fmt.Printf("    Error: %s\n", task.TaskError)
+				}
 			}
 		}
 
@@ -163,14 +178,18 @@ func displayTextResults(results []*eval.EvalResult) error {
 
 	totalTasks := len(results)
 	tasksPassed := 0
-	tasksWithAllAssertions := 0
+	totalAssertions := 0
+	passedAssertions := 0
 
 	for _, result := range results {
 		if result.TaskPassed {
 			tasksPassed++
 		}
-		if result.AllAssertionsPassed {
-			tasksWithAllAssertions++
+
+		// Count individual assertions
+		if result.AssertionResults != nil {
+			totalAssertions += result.AssertionResults.TotalAssertions()
+			passedAssertions += result.AssertionResults.PassedAssertions()
 		}
 
 		// Display individual result
@@ -183,17 +202,32 @@ func displayTextResults(results []*eval.EvalResult) error {
 		if result.TaskPassed {
 			green.Printf("  Task Status: PASSED\n")
 		} else {
-			red.Printf("  Task Status: FAILED\n")
-			if result.TaskError != "" {
-				fmt.Printf("  Error: %s\n", result.TaskError)
+			if result.AgentExecutionError {
+				red.Printf("  Task Status: FAILED (Agent execution error)\n")
+				if result.TaskError != "" || result.TaskOutput != "" {
+					errorFile, err := saveErrorToFile(result.TaskName, result.TaskError, result.TaskOutput)
+					if err != nil {
+						// If we can't save to file, fall back to printing inline
+						fmt.Printf("  Error: %s\n", result.TaskError)
+					} else {
+						fmt.Printf("  Error details saved to: %s\n", errorFile)
+					}
+				}
+			} else {
+				red.Printf("  Task Status: FAILED\n")
+				if result.TaskError != "" {
+					fmt.Printf("  Error: %s\n", result.TaskError)
+				}
 			}
 		}
 
 		if result.AssertionResults != nil {
+			passed := result.AssertionResults.PassedAssertions()
+			total := result.AssertionResults.TotalAssertions()
 			if result.AllAssertionsPassed {
-				green.Printf("  Assertions: PASSED\n")
+				green.Printf("  Assertions: PASSED (%d/%d)\n", passed, total)
 			} else {
-				yellow.Printf("  Assertions: FAILED\n")
+				yellow.Printf("  Assertions: FAILED (%d/%d)\n", passed, total)
 				printFailedAssertions(result.AssertionResults)
 			}
 		}
@@ -210,13 +244,111 @@ func displayTextResults(results []*eval.EvalResult) error {
 		fmt.Printf("Tasks Passed: %d/%d\n", tasksPassed, totalTasks)
 	}
 
-	if tasksWithAllAssertions == totalTasks {
-		green.Printf("Assertions Passed: %d/%d\n", tasksWithAllAssertions, totalTasks)
-	} else {
-		fmt.Printf("Assertions Passed: %d/%d\n", tasksWithAllAssertions, totalTasks)
+	if totalAssertions > 0 {
+		if passedAssertions == totalAssertions {
+			green.Printf("Assertions Passed: %d/%d\n", passedAssertions, totalAssertions)
+		} else {
+			fmt.Printf("Assertions Passed: %d/%d\n", passedAssertions, totalAssertions)
+		}
 	}
 
+	// Group by difficulty
+	fmt.Println()
+	bold.Println("=== Statistics by Difficulty ===")
+	displayStatsByDifficulty(results, green)
+
 	return nil
+}
+
+func displayStatsByDifficulty(results []*eval.EvalResult, green *color.Color) {
+	// Group results by difficulty
+	type difficultyStats struct {
+		totalTasks       int
+		tasksPassed      int
+		totalAssertions  int
+		passedAssertions int
+	}
+
+	statsByDifficulty := make(map[string]*difficultyStats)
+
+	for _, result := range results {
+		difficulty := result.Difficulty
+		if difficulty == "" {
+			difficulty = "unspecified"
+		}
+
+		if statsByDifficulty[difficulty] == nil {
+			statsByDifficulty[difficulty] = &difficultyStats{}
+		}
+
+		stats := statsByDifficulty[difficulty]
+		stats.totalTasks++
+
+		if result.TaskPassed {
+			stats.tasksPassed++
+		}
+
+		if result.AssertionResults != nil {
+			stats.totalAssertions += result.AssertionResults.TotalAssertions()
+			stats.passedAssertions += result.AssertionResults.PassedAssertions()
+		}
+	}
+
+	// Display stats in order: easy, medium, hard, then any others
+	orderedDifficulties := []string{"easy", "medium", "hard"}
+
+	for _, difficulty := range orderedDifficulties {
+		stats, exists := statsByDifficulty[difficulty]
+		if !exists {
+			continue
+		}
+
+		fmt.Printf("\n%s:\n", difficulty)
+
+		if stats.tasksPassed == stats.totalTasks {
+			green.Printf("  Tasks: %d/%d\n", stats.tasksPassed, stats.totalTasks)
+		} else {
+			fmt.Printf("  Tasks: %d/%d\n", stats.tasksPassed, stats.totalTasks)
+		}
+
+		if stats.totalAssertions > 0 {
+			if stats.passedAssertions == stats.totalAssertions {
+				green.Printf("  Assertions: %d/%d\n", stats.passedAssertions, stats.totalAssertions)
+			} else {
+				fmt.Printf("  Assertions: %d/%d\n", stats.passedAssertions, stats.totalAssertions)
+			}
+		}
+	}
+
+	// Display any other difficulties (e.g., "unspecified") that weren't in the main list
+	for difficulty, stats := range statsByDifficulty {
+		isStandard := false
+		for _, d := range orderedDifficulties {
+			if d == difficulty {
+				isStandard = true
+				break
+			}
+		}
+		if isStandard {
+			continue
+		}
+
+		fmt.Printf("\n%s:\n", difficulty)
+
+		if stats.tasksPassed == stats.totalTasks {
+			green.Printf("  Tasks: %d/%d\n", stats.tasksPassed, stats.totalTasks)
+		} else {
+			fmt.Printf("  Tasks: %d/%d\n", stats.tasksPassed, stats.totalTasks)
+		}
+
+		if stats.totalAssertions > 0 {
+			if stats.passedAssertions == stats.totalAssertions {
+				green.Printf("  Assertions: %d/%d\n", stats.passedAssertions, stats.totalAssertions)
+			} else {
+				fmt.Printf("  Assertions: %d/%d\n", stats.passedAssertions, stats.totalAssertions)
+			}
+		}
+	}
 }
 
 func printFailedAssertions(results *eval.CompositeAssertionResult) {
@@ -256,5 +388,32 @@ func saveResultsToFile(results []*eval.EvalResult, filename string) error {
 	}
 
 	return nil
+}
+
+// saveErrorToFile saves task error and output to a file and returns the filename
+func saveErrorToFile(taskName, taskError, taskOutput string) (string, error) {
+	// Create a safe filename from task name
+	safeTaskName := strings.ReplaceAll(taskName, "/", "-")
+	safeTaskName = strings.ReplaceAll(safeTaskName, " ", "-")
+	filename := fmt.Sprintf("%s-error.txt", safeTaskName)
+
+	content := ""
+	if taskError != "" {
+		content += fmt.Sprintf("=== Error ===\n%s\n", taskError)
+	}
+	if taskOutput != "" {
+		content += fmt.Sprintf("\n=== Output ===\n%s\n", taskOutput)
+	}
+
+	if err := os.WriteFile(filename, []byte(content), 0644); err != nil {
+		return "", fmt.Errorf("failed to write error file: %w", err)
+	}
+
+	absPath, err := filepath.Abs(filename)
+	if err != nil {
+		return filename, nil // Return relative path if we can't get absolute
+	}
+
+	return absPath, nil
 }
 
