@@ -32,11 +32,11 @@ type agentSpecRunner struct {
 }
 
 type agentSpecRunnerResult struct {
-	commandOuput string
+	commandOutput string
 }
 
 func (a *agentSpecRunnerResult) GetOutput() string {
-	return a.commandOuput
+	return a.commandOutput
 }
 
 func NewRunnerForSpec(spec *AgentSpec) (Runner, error) {
@@ -143,7 +143,7 @@ func (a *agentSpecRunner) RunTask(ctx context.Context, prompt string) (AgentResu
 	}
 
 	return &agentSpecRunnerResult{
-		commandOuput: string(res),
+		commandOutput: string(res),
 	}, nil
 }
 

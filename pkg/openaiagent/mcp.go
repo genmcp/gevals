@@ -20,7 +20,7 @@ type McpClient struct {
 func NewMcpClient(ctx context.Context, serverURL string) (*McpClient, error) {
 	// Create MCP client with implementation info
 	client := mcpsdk.NewClient(&mcpsdk.Implementation{
-		Name:    "agent-agent",
+		Name:    "mcp-agent",
 		Version: "1.0.0",
 	}, nil)
 

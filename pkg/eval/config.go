@@ -51,11 +51,11 @@ type TaskAssertions struct {
 
 	// Resource assertions
 	ResourcesRead    []ResourceAssertion `json:"resourcesRead,omitempty"`
-	ResourcesNotRead []ResourceAssertion `json:"resourcesNotReady,omitempty"`
+	ResourcesNotRead []ResourceAssertion `json:"resourcesNotRead,omitempty"`
 
 	// Prompt assertions
 	PromptsUsed    []PromptAssertion `json:"promptsUsed,omitempty"`
-	PromptsNotUsed []PromptAssertion `json:"prompteNotUsed,omitempty"`
+	PromptsNotUsed []PromptAssertion `json:"promptsNotUsed,omitempty"`
 
 	// Order assertions
 	CallOrder []CallOrderAssertion `json:"callOrder,omitempty"`

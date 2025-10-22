@@ -23,7 +23,7 @@ type aiAgent struct {
 
 func NewAIAgent(url, apiKey, model, systemPrompt string) (*aiAgent, error) {
 	if url == "" || apiKey == "" || model == "" {
-		return nil, fmt.Errorf("all, url and Model API key and model name must be provided to create an ai agent")
+		return nil, fmt.Errorf("url, API key, and model name must all be provided to create an ai agent")
 	}
 
 	client := openai.NewClient(

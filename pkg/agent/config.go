@@ -21,7 +21,7 @@ type AgentMetadata struct {
 	// Name of the agent
 	Name string `json:"name"`
 
-	// Version of the agent - used if Commads.GetVersion is not set
+	// Version of the agent - used if Commands.GetVersion is not set
 	Version *string `json:"version,omitempty"`
 }
 

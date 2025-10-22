@@ -21,7 +21,7 @@ type ServerManager interface {
 	GetMcpServers() []Server
 	// Start is non-blocking. Caller must ensure this is only called once, and called before Close
 	Start(ctx context.Context) error
-	// Close closes associated server resrouces. Caller must ensure this is only called once, and called after Start
+	// Close closes associated server resources. Caller must ensure this is only called once, and called after Start
 	Close() error
 
 	// aggregate call tracking

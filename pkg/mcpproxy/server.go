@@ -67,7 +67,7 @@ func createProxyClient(ctx context.Context, config *ServerConfig) (*mcp.ClientSe
 			HTTPClient: client,
 		}
 	} else {
-		cmd := exec.Command(config.Args[0], config.Args[1:]...)
+		cmd := exec.Command(config.Command, config.Args...)
 		transport = &mcp.CommandTransport{Command: cmd}
 	}
 
