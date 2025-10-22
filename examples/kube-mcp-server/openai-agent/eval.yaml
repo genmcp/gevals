@@ -1,0 +1,14 @@
+kind: Eval
+metadata:
+  name: "openai-agent-kubernetes-test"
+config:
+  agentFile: agent.yaml
+  mcpConfigFile: ../mcp-config.yaml
+  taskSets:
+    - path: ../tasks/create-pod.yaml
+      assertions:
+        toolsUsed:
+          - server: kubernetes
+            toolPattern: "(pods_.*|resources_.*)"  # Accept either pod-specific or generic resource tools
+        minToolCalls: 1
+        maxToolCalls: 10
