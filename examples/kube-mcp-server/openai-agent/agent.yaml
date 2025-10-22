@@ -1,0 +1,8 @@
+kind: Agent
+metadata:
+  name: "openai-agent"
+commands:
+  useVirtualHome: false
+  argTemplateMcpServer: "{{ .File }}"
+  runPrompt: |-
+    examples/kube-mcp-server/openai-agent/agent-wrapper.sh {{ .McpServerFileArgs }} "{{ .Prompt }}"

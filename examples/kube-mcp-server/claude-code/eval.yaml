@@ -3,9 +3,9 @@ metadata:
   name: "kubernetes-basic-operations"
 config:
   agentFile: agent.yaml
-  mcpConfigFile: mcp-config.yaml
+  mcpConfigFile: ../mcp-config.yaml
   taskSets:
-    - path: tasks/create-pod.yaml
+    - path: ../tasks/create-pod.yaml
       assertions:
         toolsUsed:
           - server: kubernetes
