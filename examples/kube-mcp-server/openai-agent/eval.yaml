@@ -5,7 +5,7 @@ config:
   agentFile: agent.yaml
   mcpConfigFile: ../mcp-config.yaml
   taskSets:
-    - path: ../tasks/create-pod.yaml
+    - path: ../tasks/create-pod/create-pod.yaml
       assertions:
         toolsUsed:
           - server: kubernetes
