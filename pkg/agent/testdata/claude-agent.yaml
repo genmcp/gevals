@@ -1,0 +1,9 @@
+kind: Agent
+metadata:
+  name: "claude"
+  version: "2.0.x"
+commands:
+  argTemplateMcpServer: "{{ .File }}"
+  argTemplateAllowedTools: "mcp__{{ .ServerName }}__{{ .ToolName }}"
+  runPrompt: |-
+    claude --mcp-config {{ .McpServerFileArgs }} --strict-mcp-config --allowedTools {{ .AllowedToolArgs }} --print {{ .Prompt }}
