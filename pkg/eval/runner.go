@@ -167,7 +167,14 @@ func (r *evalRunner) runTask(
 
 	taskRunner, manager, cleanup, err := r.setupTaskResources(ctx, tc, mcpConfig)
 	if err != nil {
-		return nil, err
+		result.TaskPassed = false
+		result.TaskError = err.Error()
+		r.progressCallback(ProgressEvent{
+			Type:    EventTaskError,
+			Message: fmt.Sprintf("Task setup failed: %s", tc.spec.Metadata.Name),
+			Task:    result,
+		})
+		return result, nil
 	}
 	defer cleanup()
 

@@ -119,6 +119,13 @@ func (d *progressDisplay) handleProgress(event eval.ProgressEvent) {
 			fmt.Printf("  → Evaluating assertions...\n")
 		}
 
+	case eval.EventTaskError:
+		task := event.Task
+		d.red.Printf("  ✗ Task failed during setup\n")
+		if task.TaskError != "" {
+			fmt.Printf("    Error: %s\n", task.TaskError)
+		}
+
 	case eval.EventTaskComplete:
 		task := event.Task
 		if task.TaskPassed && task.AllAssertionsPassed {
@@ -180,16 +187,30 @@ func displayTextResults(results []*eval.EvalResult) error {
 	tasksPassed := 0
 	totalAssertions := 0
 	passedAssertions := 0
+	verificationFailedButAssertionsPassed := 0
+	verificationFailedButAssertionsPassedTotal := 0
+	verificationFailedButAssertionsPassedCount := 0
 
 	for _, result := range results {
 		if result.TaskPassed {
 			tasksPassed++
 		}
 
+		// Track cases where verification failed but assertions passed
+		if !result.TaskPassed && result.AllAssertionsPassed && !result.AgentExecutionError {
+			verificationFailedButAssertionsPassed++
+		}
+
 		// Count individual assertions
 		if result.AssertionResults != nil {
 			totalAssertions += result.AssertionResults.TotalAssertions()
 			passedAssertions += result.AssertionResults.PassedAssertions()
+
+			// Track assertions for verification-failed tasks
+			if !result.TaskPassed && !result.AgentExecutionError {
+				verificationFailedButAssertionsPassedTotal += result.AssertionResults.TotalAssertions()
+				verificationFailedButAssertionsPassedCount += result.AssertionResults.PassedAssertions()
+			}
 		}
 
 		// Display individual result
@@ -214,7 +235,12 @@ func displayTextResults(results []*eval.EvalResult) error {
 					}
 				}
 			} else {
-				red.Printf("  Task Status: FAILED\n")
+				// Check if assertions passed but verification failed
+				if result.AllAssertionsPassed {
+					yellow.Printf("  Task Status: FAILED (Verification failed, but assertions passed)\n")
+				} else {
+					red.Printf("  Task Status: FAILED\n")
+				}
 				if result.TaskError != "" {
 					fmt.Printf("  Error: %s\n", result.TaskError)
 				}
@@ -249,6 +275,17 @@ func displayTextResults(results []*eval.EvalResult) error {
 			green.Printf("Assertions Passed: %d/%d\n", passedAssertions, totalAssertions)
 		} else {
 			fmt.Printf("Assertions Passed: %d/%d\n", passedAssertions, totalAssertions)
+		}
+	}
+
+	// Show stats for verification-failed tasks
+	if verificationFailedButAssertionsPassed > 0 {
+		fmt.Println()
+		yellow.Printf("Tasks where verification failed but assertions passed: %d\n", verificationFailedButAssertionsPassed)
+		if verificationFailedButAssertionsPassedTotal > 0 {
+			yellow.Printf("  Assertions in these tasks: %d/%d\n",
+				verificationFailedButAssertionsPassedCount,
+				verificationFailedButAssertionsPassedTotal)
 		}
 	}
 

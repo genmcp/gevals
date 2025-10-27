@@ -21,6 +21,7 @@ const (
 	EventTaskVerifying  ProgressEventType = "task_verifying"
 	EventTaskAssertions ProgressEventType = "task_assertions"
 	EventTaskComplete   ProgressEventType = "task_complete"
+	EventTaskError      ProgressEventType = "task_error"
 	EventEvalComplete   ProgressEventType = "eval_complete"
 )
 
