@@ -12,7 +12,7 @@ config:
             toolPattern: "pods_.*"
         minToolCalls: 1
         maxToolCalls: 10
-    - glob: ../tasks/fix-*/fix-*.yaml
+    - glob: ../tasks/*/*.yaml
       assertions:
         toolsUsed:
           - server: kubernetes
