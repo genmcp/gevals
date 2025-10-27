@@ -44,7 +44,7 @@ The tasks and MCP configuration are shared - only the agent configuration differ
 ### Option 1: Claude Code
 
 ```bash
-./gevals run examples/kube-mcp-server/claude-code/eval.yaml
+./gevals eval examples/kube-mcp-server/claude-code/eval.yaml
 ```
 
 **Requirements:**
@@ -64,7 +64,7 @@ export MODEL_KEY='your-api-key'
 export MODEL_NAME='your-model-name'
 
 # Run the test
-./gevals run examples/kube-mcp-server/openai-agent/eval.yaml
+./gevals eval examples/kube-mcp-server/openai-agent/eval.yaml
 ```
 
 **Note:** Different AI models may choose different tools from the MCP server (`pods_*` or `resources_*`) to accomplish the same task. Both approaches work correctly.

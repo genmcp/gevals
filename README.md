@@ -21,7 +21,7 @@ If agents successfully complete tasks using your MCP server, your tools are well
 go build -o gevals ./cmd/gevals
 
 # Run the example (requires Kubernetes cluster + MCP server)
-./gevals run examples/kubernetes/eval.yaml
+./gevals eval examples/kubernetes/eval.yaml
 ```
 
 The tool will:
