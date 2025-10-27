@@ -1,0 +1,15 @@
+kind: Task
+metadata:
+  name: "netedge-selector-mismatch"
+  difficulty: medium
+steps:
+  setup:
+    file: setup.sh
+  verify:
+    file: verify.sh
+  cleanup:
+    file: cleanup.sh
+  prompt:
+    inline: |
+      Traffic routed through the application in namespace "netedge-scenario1" is returning router 503s.
+      Diagnose the issue with the available MCP tools and repair the service so that the route works again.
