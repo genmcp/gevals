@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 )
 
@@ -82,7 +83,10 @@ func (s *Step) createFileCommand(ctx context.Context) (*exec.Cmd, error) {
 	if err := ensureExecutable(s.File); err != nil {
 		return nil, err
 	}
-	return exec.CommandContext(ctx, s.File), nil
+	cmd := exec.CommandContext(ctx, s.File)
+	// Set working directory to the script's directory so relative paths work
+	cmd.Dir = filepath.Dir(s.File)
+	return cmd, nil
 }
 
 func ensureExecutable(path string) error {
