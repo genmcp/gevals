@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"path/filepath"
+	"regexp"
 
 	"github.com/genmcp/gevals/pkg/agent"
 	"github.com/genmcp/gevals/pkg/mcpproxy"
@@ -25,8 +26,8 @@ type EvalResult struct {
 }
 
 type EvalRunner interface {
-	Run(ctx context.Context) ([]*EvalResult, error)
-	RunWithProgress(ctx context.Context, callback ProgressCallback) ([]*EvalResult, error)
+	Run(ctx context.Context, taskPattern string) ([]*EvalResult, error)
+	RunWithProgress(ctx context.Context, taskPattern string, callback ProgressCallback) ([]*EvalResult, error)
 }
 
 type evalRunner struct {
@@ -55,12 +56,21 @@ func NewRunner(spec *EvalSpec) (EvalRunner, error) {
 	}, nil
 }
 
-func (r *evalRunner) Run(ctx context.Context) ([]*EvalResult, error) {
-	return r.RunWithProgress(ctx, NoopProgressCallback)
+func (r *evalRunner) Run(ctx context.Context, taskPattern string) ([]*EvalResult, error) {
+	return r.RunWithProgress(ctx, taskPattern, NoopProgressCallback)
 }
 
-func (r *evalRunner) RunWithProgress(ctx context.Context, callback ProgressCallback) ([]*EvalResult, error) {
+func (r *evalRunner) RunWithProgress(ctx context.Context, taskPattern string, callback ProgressCallback) ([]*EvalResult, error) {
 	r.progressCallback = callback
+
+	if taskPattern == "" {
+		taskPattern = "." // match everything (any character matches all task names)
+	}
+
+	taskMatcher, err := regexp.Compile(taskPattern)
+	if err != nil {
+		return nil, fmt.Errorf("failed to compile regexp for task name match: %w", err)
+	}
 
 	r.progressCallback(ProgressEvent{
 		Type:    EventEvalStart,
@@ -84,7 +94,7 @@ func (r *evalRunner) RunWithProgress(ctx context.Context, callback ProgressCallb
 		return nil, fmt.Errorf("failed to create agent runner from spec: %w", err)
 	}
 
-	taskConfigs, err := r.collectTaskConfigs()
+	taskConfigs, err := r.collectTaskConfigs(taskMatcher)
 	if err != nil {
 		return nil, err
 	}
@@ -108,7 +118,7 @@ func (r *evalRunner) RunWithProgress(ctx context.Context, callback ProgressCallb
 	return results, runErr
 }
 
-func (r *evalRunner) collectTaskConfigs() ([]taskConfig, error) {
+func (r *evalRunner) collectTaskConfigs(rx *regexp.Regexp) ([]taskConfig, error) {
 	taskConfigs := make([]taskConfig, 0)
 
 	for _, ts := range r.spec.Config.TaskSets {
@@ -128,6 +138,10 @@ func (r *evalRunner) collectTaskConfigs() ([]taskConfig, error) {
 			taskSpec, err := task.FromFile(path)
 			if err != nil {
 				return nil, fmt.Errorf("failed to load task at path %s: %w", path, err)
+			}
+
+			if !rx.MatchString(taskSpec.Metadata.Name) {
+				continue
 			}
 
 			taskConfigs = append(taskConfigs, taskConfig{

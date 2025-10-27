@@ -13,13 +13,14 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// NewRunCmd creates the run command
-func NewRunCmd() *cobra.Command {
+// NewEvalCmd creates the run command
+func NewEvalCmd() *cobra.Command {
 	var outputFormat string
 	var verbose bool
+	var run string
 
 	cmd := &cobra.Command{
-		Use:   "run [eval-config-file]",
+		Use:   "eval [eval-config-file]",
 		Short: "Run an evaluation",
 		Long:  `Run an evaluation using the specified eval configuration file.`,
 		Args:  cobra.ExactArgs(1),
@@ -43,7 +44,7 @@ func NewRunCmd() *cobra.Command {
 
 			// Run with progress
 			ctx := context.Background()
-			results, err := runner.RunWithProgress(ctx, display.handleProgress)
+			results, err := runner.RunWithProgress(ctx, run, display.handleProgress)
 			if err != nil {
 				return fmt.Errorf("eval failed: %w", err)
 			}
@@ -66,6 +67,7 @@ func NewRunCmd() *cobra.Command {
 
 	cmd.Flags().StringVarP(&outputFormat, "output", "o", "text", "Output format (text, json)")
 	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Verbose output")
+	cmd.Flags().StringVarP(&run, "run", "r", "", "Regular expression to match task names to run (unanchored, like go test -run)")
 
 	return cmd
 }
@@ -416,4 +418,3 @@ func saveErrorToFile(taskName, taskError, taskOutput string) (string, error) {
 
 	return absPath, nil
 }
-
