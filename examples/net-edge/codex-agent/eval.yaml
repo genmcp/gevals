@@ -1,0 +1,16 @@
+kind: Eval
+metadata:
+  name: "netedge-selector-mismatch"
+config:
+  agentFile: agent.yaml
+  mcpConfigFile: ../mcp-config.yaml
+  taskSets:
+    - path: ../tasks/selector-mismatch/selector-mismatch.yaml
+      assertions:
+        toolsUsed:
+          - server: netedge
+            tool: inspect_route
+          - server: netedge
+            tool: get_service_endpoints
+        minToolCalls: 2
+        maxToolCalls: 20

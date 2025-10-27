@@ -1,0 +1,68 @@
+kind: Agent
+metadata:
+  name: "codex-gpt-5"
+commands:
+  useVirtualHome: false
+  argTemplateMcpServer: "{{ .File }}"
+  argTemplateAllowedTools: "mcp__{{ .ServerName }}__{{ .ToolName }}"
+  allowedToolsJoinSeparator: ","
+  runPrompt: |-
+    set -euo pipefail
+
+    if ! command -v jq >/dev/null 2>&1; then
+      echo "jq is required to extract MCP server details" >&2
+      exit 1
+    fi
+
+    MCP_SERVER_FILE="{{ .McpServerFileArgs }}"
+    if [[ ! -f "${MCP_SERVER_FILE}" ]]; then
+      echo "MCP server file not found: ${MCP_SERVER_FILE}" >&2
+      exit 1
+    fi
+
+    NETEDGE_URL="$(jq -r '.mcpServers.netedge.url' "${MCP_SERVER_FILE}")"
+    if [[ -z "${NETEDGE_URL}" || "${NETEDGE_URL}" == "null" ]]; then
+      echo "Unable to parse netedge MCP URL from ${MCP_SERVER_FILE}" >&2
+      exit 1
+    fi
+
+    REPO_ROOT="$(pwd)"
+    GEN_MCP_PARENT="${REPO_ROOT}/../gen-mcp"
+    if [[ ! -d "${GEN_MCP_PARENT}" ]]; then
+      echo "Expected gen-mcp checkout at ${GEN_MCP_PARENT}" >&2
+      exit 1
+    fi
+    GEN_MCP_ROOT="$(cd "${GEN_MCP_PARENT}" && pwd)"
+
+    PROMPT_FILE="$(mktemp)"
+    printf '%b' {{ printf "%q" .Prompt }} > "${PROMPT_FILE}"
+
+    TMP_HOME="$(mktemp -d)"
+    trap 'rm -rf "${TMP_HOME}" "${PROMPT_FILE}"' EXIT
+    CONFIG_DIR="${TMP_HOME}/.codex"
+    mkdir -p "${CONFIG_DIR}"
+
+    {
+      printf 'preferred_auth_method = "apikey"\n'
+      printf '\n'
+      printf '[features]\n'
+      printf 'rmcp_client = true\n'
+      printf '\n'
+      printf '[profiles.gpt-5-codex]\n'
+      printf 'model = "gpt-5-codex"\n'
+      printf 'approval_policy = "on-failure"\n'
+      printf 'sandbox_mode = "workspace-write"\n'
+      printf 'network_access = "true"\n'
+      printf '\n'
+      printf '[mcp_servers.netedge]\n'
+      printf 'type = "http"\n'
+      printf 'url = "%s"\n' "${NETEDGE_URL}"
+      printf 'enableAllTools = true\n'
+    } > "${CONFIG_DIR}/config.toml"
+
+    PROMPT_CONTENT="$(cat "${PROMPT_FILE}")"
+
+    HOME="${TMP_HOME}" codex exec \
+      --profile=gpt-5-codex \
+      --cd "${GEN_MCP_ROOT}" \
+      "${PROMPT_CONTENT}"
