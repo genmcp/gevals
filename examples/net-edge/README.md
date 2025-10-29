@@ -54,20 +54,22 @@ but Codex still needs a profile that can use the API key.
 Provide the key at runtime, for example:
 
 ```bash
-export CODEX_API_KEY=sk-...
+export OPENAI_API_KEY=sk-...
 ```
 
 ## Running the eval
 
 1. Build the project (from repo root): `make build`
 2. Ensure your current shell can reach the OpenShift cluster (`oc whoami` should succeed).
-3. Run the evaluation:
+3. Ensure `OPENAI_API_KEY` is exported in the shell that will launch `gevals`.
+4. Run the evaluation:
 
-   ```bash
-   ./gevals run examples/net-edge/codex-agent/eval.yaml
-   ```
+ ```bash
+ ./gevals run examples/net-edge/codex-agent/eval.yaml
+ ```
 
 `setup.sh` deploys the hello workload, then intentionally breaks the Service selector so the Route loses its
-endpoints. The Codex agent must diagnose and repair the mismatch, after which `verify.sh` confirms the
-selector and endpoints are healthy. Results are written to `gevals-netedge-selector-mismatch-out.json` by
-default.
+endpoints. The Codex agent must diagnose and repair the mismatch, after which `verify.sh` confirms the selector
+and endpoints are healthy. Results are written to `gevals-netedge-selector-mismatch-out.json` by default.
+
+For advanced debugging tips refer to `docs/dev/DEV_DEBUGGING_NOTES.md` in the repo root.

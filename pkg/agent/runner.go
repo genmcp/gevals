@@ -50,6 +50,13 @@ func NewRunnerForSpec(spec *AgentSpec) (Runner, error) {
 }
 
 func (a *agentSpecRunner) RunTask(ctx context.Context, prompt string) (AgentResult, error) {
+	debugDir := ""
+	if os.Getenv("GEVALS_DEBUG") != "" {
+		if dir, err := os.MkdirTemp("", "gevals-debug-"); err == nil {
+			debugDir = dir
+		}
+	}
+
 	argTemplateMcpServer, err := template.New("argTemplateMcpServer").Parse(a.Commands.ArgTemplateMcpServer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse argTemplateMcpServer: %w", err)
@@ -136,10 +143,24 @@ func (a *agentSpecRunner) RunTask(ctx context.Context, prompt string) (AgentResu
 	}
 
 	cmd := exec.CommandContext(ctx, shell, "-c", formatted.String())
+	envVars := os.Environ()
+	if debugDir != "" {
+		envVars = append(envVars, fmt.Sprintf("GEVALS_DEBUG_DIR=%s", debugDir))
+		envVars = append(envVars, "GEVALS_DEBUG=1")
+	}
+	cmd.Env = envVars
 
 	res, err := cmd.CombinedOutput()
 	if err != nil {
-		return nil, fmt.Errorf("failed to run command: %s -c %q: %w.\n\noutput: %s", shell, formatted.String(), err, res)
+		debugSuffix := ""
+		if debugDir != "" {
+			debugSuffix = fmt.Sprintf("\n\ndebug artifacts preserved at: %s", debugDir)
+		}
+		return nil, fmt.Errorf("failed to run command: %s -c %q: %w.\n\noutput: %s%s", shell, formatted.String(), err, res, debugSuffix)
+	}
+
+	if debugDir != "" {
+		_ = os.RemoveAll(debugDir)
 	}
 
 	return &agentSpecRunnerResult{
