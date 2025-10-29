@@ -11,5 +11,5 @@ steps:
     file: cleanup.sh
   prompt:
     inline: |
-      Traffic routed through the application in namespace "netedge-scenario1" is returning router 503s.
-      Diagnose the issue with the available MCP tools and repair the service so that the route works again.
+      On the currently connected cluster, we've deployed an app and exposed it through a Route, but it’s not working.
+      Diagnose the root cause and describe the fix so the Route succeeds again.

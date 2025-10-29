@@ -38,21 +38,61 @@ commands:
     printf '%b' {{ printf "%q" .Prompt }} > "${PROMPT_FILE}"
 
     TMP_HOME="$(mktemp -d)"
-    trap 'rm -rf "${TMP_HOME}" "${PROMPT_FILE}"' EXIT
     CONFIG_DIR="${TMP_HOME}/.codex"
     mkdir -p "${CONFIG_DIR}"
 
+    DEBUG_DIR="${GEVALS_DEBUG_DIR:-}"
+    cleanup() {
+      local exit_status="$1"
+
+      if [[ -n "${DEBUG_DIR}" ]]; then
+        mkdir -p "${DEBUG_DIR}"
+        if [[ -f "${CONFIG_DIR}/config.toml" ]]; then
+          cp "${CONFIG_DIR}/config.toml" "${DEBUG_DIR}/config.toml" 2>/dev/null || true
+        fi
+        if [[ -f "${PROMPT_FILE}" ]]; then
+          cp "${PROMPT_FILE}" "${DEBUG_DIR}/prompt.txt" 2>/dev/null || true
+        fi
+        if [[ -d "${TMP_HOME}" ]]; then
+          mkdir -p "${DEBUG_DIR}/codex-home"
+          cp -R "${TMP_HOME}/." "${DEBUG_DIR}/codex-home" 2>/dev/null || true
+          if [[ -f "${DEBUG_DIR}/codex-home/.codex/auth.json" ]]; then
+            printf '{\n  "OPENAI_API_KEY": "<redacted>"\n}\n' > "${DEBUG_DIR}/codex-home/.codex/auth.json"
+          fi
+        fi
+        printf 'exit_status=%s\n' "${exit_status}" >> "${DEBUG_DIR}/debug.log"
+      fi
+
+      rm -rf "${TMP_HOME}"
+      rm -f "${PROMPT_FILE}"
+
+      trap - EXIT
+      exit "${exit_status}"
+    }
+    trap 'cleanup $?' EXIT
+
+    WORKSPACE_PARENT="$(dirname "${REPO_ROOT}")"
+
     {
       printf 'preferred_auth_method = "apikey"\n'
+      printf '\n'
+      printf '[projects."%s/*"]\n' "${WORKSPACE_PARENT%/}"
+      printf 'trust_level = "trusted"\n'
+      printf '\n'
+      printf '[projects."%s"]\n' "${GEN_MCP_ROOT%/}"
+      printf 'trust_level = "trusted"\n'
       printf '\n'
       printf '[features]\n'
       printf 'rmcp_client = true\n'
       printf '\n'
       printf '[profiles.gpt-5-codex]\n'
       printf 'model = "gpt-5-codex"\n'
+      printf 'model_provider = "openai"\n'
       printf 'approval_policy = "on-failure"\n'
       printf 'sandbox_mode = "workspace-write"\n'
       printf 'network_access = "true"\n'
+      printf 'model_reasoning_effort = "high"\n'
+      printf 'model_reasoning_summary = "auto"\n'
       printf '\n'
       printf '[mcp_servers.netedge]\n'
       printf 'type = "http"\n'
@@ -61,8 +101,46 @@ commands:
     } > "${CONFIG_DIR}/config.toml"
 
     PROMPT_CONTENT="$(cat "${PROMPT_FILE}")"
+    OPENAI_API_KEY_VALUE="${OPENAI_API_KEY:-}"
 
-    HOME="${TMP_HOME}" codex exec \
-      --profile=gpt-5-codex \
-      --cd "${GEN_MCP_ROOT}" \
-      "${PROMPT_CONTENT}"
+    if [[ -z "${OPENAI_API_KEY_VALUE}" ]]; then
+      echo "OPENAI_API_KEY must be set" >&2
+      exit 1
+    fi
+
+    AUTH_FILE="${CONFIG_DIR}/auth.json"
+    {
+      printf '{\n'
+      printf '  "OPENAI_API_KEY": "%s"\n' "${OPENAI_API_KEY_VALUE}"
+      printf '}\n'
+    } > "${AUTH_FILE}"
+
+    if [[ -n "${DEBUG_DIR}" ]]; then
+      mkdir -p "${DEBUG_DIR}"
+      DEBUG_LOG="${DEBUG_DIR}/debug.log"
+      timestamp="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+      {
+        echo "--- codex exec ${timestamp} ---"
+        printf 'netedge_url=%s\n' "${NETEDGE_URL}"
+        printf 'prompt_length=%s\n' "${#PROMPT_CONTENT}"
+        printf 'tmp_home=%s\n' "${TMP_HOME}"
+        printf 'openai_api_key_length=%s\n' "${#OPENAI_API_KEY_VALUE}"
+        printf 'auth_json_created=%s\n' "$([[ -f "${AUTH_FILE}" ]] && echo 1 || echo 0)"
+      } >> "${DEBUG_LOG}"
+    fi
+
+    CODEX_ARGS=(--profile=gpt-5-codex --cd "${GEN_MCP_ROOT}")
+    if [[ -n "${DEBUG_DIR}" ]]; then
+      CODEX_ARGS+=(--json)
+    fi
+    CODEX_ARGS+=("${PROMPT_CONTENT}")
+
+    if [[ -n "${DEBUG_DIR}" ]]; then
+      HOME="${TMP_HOME}" \
+        OPENAI_API_KEY="${OPENAI_API_KEY_VALUE}" \
+        codex exec "${CODEX_ARGS[@]}" 2>&1 | tee -a "${DEBUG_DIR}/codex.log"
+    else
+      HOME="${TMP_HOME}" \
+        OPENAI_API_KEY="${OPENAI_API_KEY_VALUE}" \
+        codex exec "${CODEX_ARGS[@]}"
+    fi
