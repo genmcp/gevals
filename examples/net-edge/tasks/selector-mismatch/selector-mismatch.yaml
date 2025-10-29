@@ -1,0 +1,15 @@
+kind: Task
+metadata:
+  name: "netedge-selector-mismatch"
+  difficulty: medium
+steps:
+  setup:
+    file: setup.sh
+  verify:
+    file: verify.sh
+  cleanup:
+    file: cleanup.sh
+  prompt:
+    inline: |
+      On the currently connected cluster, we've deployed an app and exposed it through a Route, but it’s not working.
+      Diagnose the root cause and describe the fix so the Route succeeds again.
