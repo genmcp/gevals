@@ -8,6 +8,7 @@ import (
 	"regexp"
 
 	"github.com/genmcp/gevals/pkg/agent"
+	"github.com/genmcp/gevals/pkg/llmjudge"
 	"github.com/genmcp/gevals/pkg/mcpproxy"
 	"github.com/genmcp/gevals/pkg/task"
 )
@@ -94,6 +95,11 @@ func (r *evalRunner) RunWithProgress(ctx context.Context, taskPattern string, ca
 		return nil, fmt.Errorf("failed to create agent runner from spec: %w", err)
 	}
 
+	judge, err := llmjudge.NewLLMJudge(r.spec.Config.LLMJudge)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create llm judge from spec: %w", err)
+	}
+
 	taskConfigs, err := r.collectTaskConfigs(taskMatcher)
 	if err != nil {
 		return nil, err
@@ -102,7 +108,7 @@ func (r *evalRunner) RunWithProgress(ctx context.Context, taskPattern string, ca
 	results := make([]*EvalResult, 0, len(taskConfigs))
 	var runErr error
 	for _, tc := range taskConfigs {
-		result, err := r.runTask(ctx, runner, mcpConfig, tc)
+		result, err := r.runTask(ctx, runner, mcpConfig, judge, tc)
 		if err != nil {
 			runErr = errors.Join(runErr, err)
 		} else {
@@ -159,6 +165,7 @@ func (r *evalRunner) runTask(
 	ctx context.Context,
 	agentRunner agent.Runner,
 	mcpConfig *mcpproxy.MCPConfig,
+	judge llmjudge.LLMJudge,
 	tc taskConfig,
 ) (*EvalResult, error) {
 	result := &EvalResult{
@@ -179,7 +186,7 @@ func (r *evalRunner) runTask(
 		Task:    result,
 	})
 
-	taskRunner, manager, cleanup, err := r.setupTaskResources(ctx, tc, mcpConfig)
+	taskRunner, manager, cleanup, err := r.setupTaskResources(ctx, tc, mcpConfig, judge)
 	if err != nil {
 		return nil, err
 	}
@@ -210,8 +217,9 @@ func (r *evalRunner) setupTaskResources(
 	ctx context.Context,
 	tc taskConfig,
 	mcpConfig *mcpproxy.MCPConfig,
+	judge llmjudge.LLMJudge,
 ) (task.TaskRunner, mcpproxy.ServerManager, func(), error) {
-	taskRunner, err := task.NewTaskRunner(tc.spec)
+	taskRunner, err := task.NewTaskRunner(tc.spec, judge)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to create task runner for task '%s': %w", tc.spec.Metadata.Name, err)
 	}

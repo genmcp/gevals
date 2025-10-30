@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/genmcp/gevals/pkg/util"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -25,25 +26,27 @@ func TestFromFile(t *testing.T) {
 					Difficulty: DifficultyEasy,
 				},
 				Steps: TaskSteps{
-					SetupScript: Step{
+					SetupScript: &util.Step{
 						Inline: `#!/usr/bin/env bash
 kubectl delete namespace create-pod-test --ignore-not-found
 kubectl create namespace create-pod-test`,
 					},
-					VerifyScript: Step{
-						Inline: `#!/usr/bin/env bash
+					VerifyScript: &VerifyStep{
+						Step: &util.Step{
+							Inline: `#!/usr/bin/env bash
 if kubectl wait --for=condition=Ready pod/web-server -n create-pod-test --timeout=120s; then
     exit 0
 else
     exit 1
 fi`,
+						},
 					},
-					CleanupScript: Step{
+					CleanupScript: &util.Step{
 						Inline: `#!/usr/bin/env bash
 kubectl delete pod web-server -n create-pod-test --ignore-not-found
 kubectl delete namespace create-pod-test --ignore-not-found`,
 					},
-					Prompt: Step{
+					Prompt: &util.Step{
 						Inline: "Please create a nginx pod named web-server in the create-pod-test namespace",
 					},
 				},
