@@ -89,7 +89,7 @@ commands:
       printf 'model = "gpt-5-codex"\n'
       printf 'model_provider = "openai"\n'
       printf 'approval_policy = "on-failure"\n'
-      printf 'sandbox_mode = "workspace-write"\n'
+      printf 'sandbox_mode = "danger-full-access"\n'
       printf 'network_access = "true"\n'
       printf 'model_reasoning_effort = "high"\n'
       printf 'model_reasoning_summary = "auto"\n'
