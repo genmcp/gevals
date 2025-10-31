@@ -18,6 +18,8 @@ type Server interface {
 	GetAllowedToolNames() []string
 	Close() error
 	GetCallHistory() CallHistory
+	// WaitReady blocks until the server has initialized and is ready to serve
+	WaitReady(ctx context.Context) error
 }
 
 type server struct {
@@ -29,6 +31,9 @@ type server struct {
 
 	// Call tracking
 	recorder Recorder
+
+	// Ready signaling
+	ready chan struct{}
 }
 
 var _ Server = &server{}
@@ -52,6 +57,7 @@ func NewProxyServerForConfig(ctx context.Context, name string, config *ServerCon
 		proxyClient: cs,
 		cfg:         config,
 		recorder:    r,
+		ready:       make(chan struct{}),
 	}, nil
 }
 
@@ -178,6 +184,9 @@ func (s *server) Run(ctx context.Context) error {
 
 	s.url = fmt.Sprintf("http://localhost:%d/mcp", port)
 
+	// Signal that the server is ready (URL is set and listener is ready)
+	close(s.ready)
+
 	httpServer := &http.Server{
 		Handler: mux,
 	}
@@ -245,4 +254,13 @@ func (s *server) Close() error {
 
 func (s *server) GetCallHistory() CallHistory {
 	return s.recorder.GetHistory()
+}
+
+func (s *server) WaitReady(ctx context.Context) error {
+	select {
+	case <-s.ready:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }

@@ -7,6 +7,7 @@ import (
 
 	"sigs.k8s.io/yaml"
 
+	"github.com/genmcp/gevals/pkg/llmjudge"
 	"github.com/genmcp/gevals/pkg/util"
 )
 
@@ -25,8 +26,9 @@ type EvalMetadata struct {
 
 type EvalConfig struct {
 	// Agent and MCP configuration
-	AgentFile     string `json:"agentFile"`
-	McpConfigFile string `json:"mcpConfigFile"`
+	AgentFile     string                       `json:"agentFile"`
+	McpConfigFile string                       `json:"mcpConfigFile"`
+	LLMJudge      *llmjudge.LLMJudgeEvalConfig `json:"llmJudge"`
 
 	// Advanced mode: different assertion sets
 	TaskSets []TaskSet `json:"taskSets,omitempty"`

@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/genmcp/gevals/pkg/llmjudge"
 	"github.com/genmcp/gevals/pkg/util"
 	"sigs.k8s.io/yaml"
 )
@@ -27,10 +28,53 @@ type TaskMetadata struct {
 }
 
 type TaskSteps struct {
-	SetupScript   *util.Step `json:"setup,omitempty"`
-	CleanupScript *util.Step `json:"cleanup,omitempty"`
-	VerifyScript  *util.Step `json:"verify,omitempty"`
-	Prompt        *util.Step `json:"prompt,omitempty"`
+	SetupScript   *util.Step  `json:"setup,omitempty"`
+	CleanupScript *util.Step  `json:"cleanup,omitempty"`
+	VerifyScript  *VerifyStep `json:"verify,omitempty"`
+	Prompt        *util.Step  `json:"prompt,omitempty"`
+}
+
+type VerifyStep struct {
+	*util.Step
+	*llmjudge.LLMJudgeTaskConfig
+}
+
+func (v *VerifyStep) IsEmpty() bool {
+	if v == nil {
+		return true
+	}
+
+	hasStep := v.Step != nil && !v.Step.IsEmpty()
+	hasJudgeConfig := v.LLMJudgeTaskConfig != nil
+
+	return !hasStep && !hasJudgeConfig
+}
+
+func (v *VerifyStep) Validate() error {
+	if v == nil {
+		return fmt.Errorf("verify step is nil")
+	}
+
+	hasStep := v.Step != nil && !v.Step.IsEmpty()
+	hasJudgeConfig := v.LLMJudgeTaskConfig != nil
+
+	// Must have exactly one verification method
+	if !hasStep && !hasJudgeConfig {
+		return fmt.Errorf("verify.inline, verify.file, verify.exact, or verify.contains must be set")
+	}
+
+	if hasStep && hasJudgeConfig {
+		return fmt.Errorf("cannot specify both a verify script (inline/file) and llm judge config (exact/contains)")
+	}
+
+	// Validate LLM judge config if present
+	if hasJudgeConfig {
+		if err := v.LLMJudgeTaskConfig.Validate(); err != nil {
+			return fmt.Errorf("invalid llm judge config: %w", err)
+		}
+	}
+
+	return nil
 }
 
 func (t *TaskSpec) UnmarshalJSON(data []byte) error {
@@ -55,7 +99,7 @@ func Read(data []byte, basePath string) (*TaskSpec, error) {
 	if err := resolveStepPath(spec.Steps.CleanupScript, basePath); err != nil {
 		return nil, fmt.Errorf("failed to resolve cleanup script path: %w", err)
 	}
-	if err := resolveStepPath(spec.Steps.VerifyScript, basePath); err != nil {
+	if err := resolveStepPath(spec.Steps.VerifyScript.Step, basePath); err != nil {
 		return nil, fmt.Errorf("failed to resolve verify script path: %w", err)
 	}
 	if err := resolveStepPath(spec.Steps.Prompt, basePath); err != nil {
