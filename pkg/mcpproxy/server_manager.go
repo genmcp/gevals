@@ -35,6 +35,7 @@ type serverManager struct {
 
 	cancel context.CancelFunc
 	eg     *errgroup.Group
+	ready  chan struct{} // signals when all servers are ready
 }
 
 func NewServerManger(ctx context.Context, cfg *MCPConfig) (ServerManager, error) {
@@ -50,10 +51,14 @@ func NewServerManger(ctx context.Context, cfg *MCPConfig) (ServerManager, error)
 
 	return &serverManager{
 		servers: servers,
+		ready:   make(chan struct{}),
 	}, nil
 }
 
 func (m *serverManager) GetMcpServerFiles() ([]string, error) {
+	// Wait for servers to be ready before accessing their configs
+	<-m.ready
+
 	if m.tmpDir != "" {
 		return []string{fmt.Sprintf("%s/%s", m.tmpDir, mcpServerFileName)}, nil
 	}
@@ -85,6 +90,8 @@ func (m *serverManager) GetMcpServerFiles() ([]string, error) {
 }
 
 func (m *serverManager) GetMcpServers() []Server {
+	// Wait for servers to be ready before accessing them
+	<-m.ready
 	return slices.Collect(maps.Values(m.servers))
 }
 
@@ -105,6 +112,15 @@ func (m *serverManager) Start(ctx context.Context) error {
 			return nil
 		})
 	}
+
+	// Wait for all servers to be ready in a separate goroutine
+	go func() {
+		for _, srv := range m.servers {
+			// WaitReady will block until the server has initialized
+			_ = srv.WaitReady(ctx)
+		}
+		close(m.ready)
+	}()
 
 	return nil
 }
