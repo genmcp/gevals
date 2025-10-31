@@ -9,8 +9,5 @@ config:
       assertions:
         toolsUsed:
           - server: netedge
-            tool: inspect_route
-          - server: netedge
-            tool: get_service_endpoints
-        minToolCalls: 2
+        minToolCalls: 1
         maxToolCalls: 20

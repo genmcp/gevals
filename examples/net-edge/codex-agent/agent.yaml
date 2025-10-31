@@ -37,9 +37,26 @@ commands:
     PROMPT_FILE="$(mktemp)"
     printf '%b' {{ printf "%q" .Prompt }} > "${PROMPT_FILE}"
 
+    ORIGINAL_HOME="${HOME:-}"
     TMP_HOME="$(mktemp -d)"
     CONFIG_DIR="${TMP_HOME}/.codex"
     mkdir -p "${CONFIG_DIR}"
+
+    # Preserve kubeconfig access inside the temporary HOME so oc commands hit the same cluster.
+    KUBECONFIG_VALUE="${KUBECONFIG:-}"
+    KUBECONFIG_SOURCE="none"
+    if [[ -n "${KUBECONFIG_VALUE}" ]]; then
+      KUBECONFIG_SOURCE="env"
+    else
+      if [[ -n "${ORIGINAL_HOME}" && -d "${ORIGINAL_HOME}/.kube" && -f "${ORIGINAL_HOME}/.kube/config" ]]; then
+        mkdir -p "${TMP_HOME}/.kube"
+        cp -R "${ORIGINAL_HOME}/.kube/." "${TMP_HOME}/.kube" 2>/dev/null || true
+        if [[ -f "${TMP_HOME}/.kube/config" ]]; then
+          KUBECONFIG_VALUE="${TMP_HOME}/.kube/config"
+          KUBECONFIG_SOURCE="copied"
+        fi
+      fi
+    fi
 
     DEBUG_DIR="${GEVALS_DEBUG_DIR:-}"
     cleanup() {
@@ -58,6 +75,9 @@ commands:
           cp -R "${TMP_HOME}/." "${DEBUG_DIR}/codex-home" 2>/dev/null || true
           if [[ -f "${DEBUG_DIR}/codex-home/.codex/auth.json" ]]; then
             printf '{\n  "OPENAI_API_KEY": "<redacted>"\n}\n' > "${DEBUG_DIR}/codex-home/.codex/auth.json"
+          fi
+          if [[ -d "${DEBUG_DIR}/codex-home/.kube" ]]; then
+            rm -rf "${DEBUG_DIR}/codex-home/.kube"
           fi
         fi
         printf 'exit_status=%s\n' "${exit_status}" >> "${DEBUG_DIR}/debug.log"
@@ -126,21 +146,23 @@ commands:
         printf 'tmp_home=%s\n' "${TMP_HOME}"
         printf 'openai_api_key_length=%s\n' "${#OPENAI_API_KEY_VALUE}"
         printf 'auth_json_created=%s\n' "$([[ -f "${AUTH_FILE}" ]] && echo 1 || echo 0)"
+        printf 'kubeconfig_source=%s\n' "${KUBECONFIG_SOURCE}"
       } >> "${DEBUG_LOG}"
     fi
 
-    CODEX_ARGS=(--profile=gpt-5-codex --cd "${GEN_MCP_ROOT}")
+    CODEX_ARGS=(--profile=gpt-5-codex --cd "${GEN_MCP_ROOT}" --sandbox danger-full-access)
     if [[ -n "${DEBUG_DIR}" ]]; then
       CODEX_ARGS+=(--json)
     fi
     CODEX_ARGS+=("${PROMPT_CONTENT}")
 
+    ENV_PREFIX=(env HOME="${TMP_HOME}" OPENAI_API_KEY="${OPENAI_API_KEY_VALUE}")
+    if [[ -n "${KUBECONFIG_VALUE}" ]]; then
+      ENV_PREFIX+=(KUBECONFIG="${KUBECONFIG_VALUE}")
+    fi
+
     if [[ -n "${DEBUG_DIR}" ]]; then
-      HOME="${TMP_HOME}" \
-        OPENAI_API_KEY="${OPENAI_API_KEY_VALUE}" \
-        codex exec "${CODEX_ARGS[@]}" 2>&1 | tee -a "${DEBUG_DIR}/codex.log"
+      "${ENV_PREFIX[@]}" codex exec "${CODEX_ARGS[@]}" 2>&1 | tee -a "${DEBUG_DIR}/codex.log"
     else
-      HOME="${TMP_HOME}" \
-        OPENAI_API_KEY="${OPENAI_API_KEY_VALUE}" \
-        codex exec "${CODEX_ARGS[@]}"
+      "${ENV_PREFIX[@]}" codex exec "${CODEX_ARGS[@]}"
     fi
