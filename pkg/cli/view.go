@@ -12,6 +12,7 @@ import (
 	"github.com/genmcp/gevals/pkg/eval"
 	"github.com/genmcp/gevals/pkg/mcpproxy"
 	"github.com/genmcp/gevals/pkg/task"
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/spf13/cobra"
 )
 
@@ -240,6 +241,68 @@ func printCallHistory(history *mcpproxy.CallHistory) {
 		fmt.Printf(" prompts=%d", promptGets)
 	}
 	fmt.Println()
+
+	if toolCalls > 0 {
+		printToolCallDetails(history.ToolCalls)
+	}
+}
+
+func printToolCallDetails(calls []*mcpproxy.ToolCall) {
+	fmt.Println("    Tool output:")
+	for _, call := range calls {
+		status := "ok"
+		if !call.Success {
+			status = "fail"
+		}
+		header := fmt.Sprintf("      • %s::%s (%s)", call.ServerName, call.ToolName, status)
+		fmt.Println(header)
+
+		snippet := strings.TrimSpace(extractToolText(call))
+		if snippet == "" {
+			continue
+		}
+
+		block := limitMultiline(snippet, 12, 110)
+		for _, line := range strings.Split(block, "\n") {
+			if strings.TrimSpace(line) == "" {
+				continue
+			}
+			fmt.Printf("        %s\n", line)
+		}
+	}
+}
+
+func extractToolText(call *mcpproxy.ToolCall) string {
+	if call == nil || call.Result == nil {
+		return ""
+	}
+
+	var builder strings.Builder
+	for _, content := range call.Result.Content {
+		switch v := content.(type) {
+		case *mcp.TextContent:
+			builder.WriteString(v.Text)
+			if !strings.HasSuffix(v.Text, "\n") {
+				builder.WriteString("\n")
+			}
+		case *mcp.ResourceLink:
+			data, err := json.MarshalIndent(v, "", "  ")
+			if err != nil {
+				continue
+			}
+			builder.Write(data)
+			builder.WriteString("\n")
+		case *mcp.EmbeddedResource:
+			data, err := json.MarshalIndent(v, "", "  ")
+			if err != nil {
+				continue
+			}
+			builder.Write(data)
+			builder.WriteString("\n")
+		}
+	}
+
+	return builder.String()
 }
 
 func summarizeToolCalls(calls []*mcpproxy.ToolCall) string {
