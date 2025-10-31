@@ -1,0 +1,15 @@
+kind: Task
+metadata:
+  name: "netedge-nxdomain-host"
+  difficulty: medium
+steps:
+  setup:
+    file: setup.sh
+  verify:
+    file: verify.sh
+  cleanup:
+    file: cleanup.sh
+  prompt:
+    inline: |
+      On the currently connected cluster, the Route's hostname never resolves in DNS even though the service and pods look healthy.
+      Diagnose the root cause and apply the necessary changes so the Route resolves and serves traffic again (do not stop at describing the fix).
