@@ -1,0 +1,14 @@
+kind: Eval
+metadata:
+  name: "netedge-nxdomain-host"
+config:
+  agentFile: agent.yaml
+  mcpConfigFile: ../mcp-config.yaml
+  taskSets:
+    - path: ../tasks/nxdomain-host/nxdomain-host.yaml
+      assertions:
+        toolsUsed:
+          - server: netedge
+            tool: probe_dns_local
+        minToolCalls: 1
+        maxToolCalls: 20
