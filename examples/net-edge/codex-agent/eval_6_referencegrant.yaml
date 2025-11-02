@@ -1,14 +1,13 @@
 kind: Eval
 metadata:
-  name: "netedge-networkpolicy-block"
+  name: "netedge-referencegrant-missing"
 config:
   agentFile: agent.yaml
   mcpConfigFile: ../mcp-config.yaml
   taskSets:
-    - path: ../tasks/networkpolicy-block/networkpolicy-block.yaml
+    - path: ../tasks/referencegrant-missing/referencegrant-missing.yaml
       assertions:
         toolsUsed:
           - server: netedge
-            tool: inspect_route
         minToolCalls: 1
         maxToolCalls: 20

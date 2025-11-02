@@ -1,0 +1,17 @@
+kind: Task
+metadata:
+  name: "netedge-loadbalancer-missing"
+  difficulty: medium
+steps:
+  setup:
+    file: setup.sh
+  verify:
+    file: verify.sh
+  cleanup:
+    file: cleanup.sh
+  prompt:
+    inline: |
+      The service backing our Route was switched to type LoadBalancer to obtain an external IP, but it never provisions one and traffic still fails.
+      Diagnose why the external address is stuck pending and apply changes so the app is reachable again (do not stop at describing the fix).
+      Use the available diagnostics to inspect the Route, Service, and related resources as you work.
+      Do not consult repository documentation (e.g., files under examples/ or docs/); rely on cluster state and the available MCP tools.

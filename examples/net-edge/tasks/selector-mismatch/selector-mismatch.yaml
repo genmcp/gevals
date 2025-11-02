@@ -13,3 +13,4 @@ steps:
     inline: |
       On the currently connected cluster, we've deployed an app and exposed it through a Route, but it’s not working.
       Diagnose the root cause and apply the necessary changes so the Route succeeds again (do not stop at describing the fix).
+      Do not consult repository documentation (e.g., files under examples/ or docs/); rely on cluster state and the available MCP tools.

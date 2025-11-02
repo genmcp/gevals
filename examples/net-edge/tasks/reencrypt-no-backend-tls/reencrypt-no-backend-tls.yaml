@@ -1,0 +1,16 @@
+kind: Task
+metadata:
+  name: "netedge-reencrypt-no-backend-tls"
+  difficulty: medium
+steps:
+  setup:
+    file: setup.sh
+  verify:
+    file: verify.sh
+  cleanup:
+    file: cleanup.sh
+  prompt:
+    inline: |
+      After enabling reencrypt termination on our Route, every request now fails even though the backend pods and service are still serving plain HTTP.
+      Diagnose why router-to-pod TLS is failing and apply the necessary changes so the Route succeeds again (do not stop at describing the fix).
+      Do not consult repository documentation (e.g., files under examples/ or docs/); rely on cluster state and the available MCP tools.
