@@ -19,15 +19,25 @@ if [[ -z "${svc_json}" ]]; then
 fi
 
 svc_type="$(printf '%s' "${svc_json}" | jq -r '.spec.type')"
-if [[ "${svc_type}" == "LoadBalancer" ]]; then
-  echo "service ${NAMESPACE}/${APP_NAME} still type LoadBalancer" >&2
-  exit 1
-fi
-
 svc_class="$(printf '%s' "${svc_json}" | jq -r '.spec.loadBalancerClass // empty')"
-if [[ "${svc_class}" == "${LOAD_BALANCER_CLASS}" ]]; then
-  echo "service ${NAMESPACE}/${APP_NAME} still using unsupported loadBalancerClass ${LOAD_BALANCER_CLASS}" >&2
-  exit 1
+
+if [[ "${svc_type}" == "LoadBalancer" ]]; then
+  if [[ "${svc_class}" == "${LOAD_BALANCER_CLASS}" ]]; then
+    echo "service ${NAMESPACE}/${APP_NAME} still using unsupported loadBalancerClass ${LOAD_BALANCER_CLASS}" >&2
+    exit 1
+  fi
+
+  ingress_host="$(printf '%s' "${svc_json}" | jq -r '.status.loadBalancer.ingress[0].hostname // empty')"
+  ingress_ip="$(printf '%s' "${svc_json}" | jq -r '.status.loadBalancer.ingress[0].ip // empty')"
+  if [[ -z "${ingress_host}" && -z "${ingress_ip}" ]]; then
+    echo "service ${NAMESPACE}/${APP_NAME} LoadBalancer still lacks an external endpoint" >&2
+    exit 1
+  fi
+else
+  if [[ "${svc_class}" == "${LOAD_BALANCER_CLASS}" ]]; then
+    echo "service ${NAMESPACE}/${APP_NAME} still using unsupported loadBalancerClass ${LOAD_BALANCER_CLASS}" >&2
+    exit 1
+  fi
 fi
 
 route_host="$(oc -n "${NAMESPACE}" get route "${APP_NAME}" -o jsonpath='{.spec.host}' 2>/dev/null || true)"
