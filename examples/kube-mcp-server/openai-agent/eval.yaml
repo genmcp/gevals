@@ -4,11 +4,16 @@ metadata:
 config:
   agentFile: agent.yaml
   mcpConfigFile: ../mcp-config.yaml
+  llmJudge:
+    env:
+      baseUrlKey: JUDGE_BASE_URL
+      apiKeyKey: JUDGE_API_KEY
+      modelNameKey: JUDGE_MODEL_NAME
   taskSets:
-    - path: ../tasks/create-pod/create-pod.yaml
+    - glob: ../tasks/*/*.yaml
       assertions:
         toolsUsed:
           - server: kubernetes
-            toolPattern: "(pods_.*|resources_.*)"  # Accept either pod-specific or generic resource tools
+            toolPattern: ".*"
         minToolCalls: 1
-        maxToolCalls: 10
+        maxToolCalls: 20
