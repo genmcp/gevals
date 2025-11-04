@@ -8,6 +8,6 @@ steps:
   verify:
     file: verify.sh
   cleanup:
-    file: verify.sh
+    file: cleanup.sh
   prompt:
     inline: "My pod homepage-pod in homepage-ns is stuck in pending state. Can you fix the issue so that pod status is in running state?"
