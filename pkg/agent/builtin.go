@@ -3,6 +3,7 @@ package agent
 var builtinTypes = map[string]BuiltinAgent{
 	"openai-agent": &OpenAIAgent{},
 	"claude-code":  &ClaudeCodeAgent{},
+	"gemini-cli":   &GeminiCLIAgent{},
 }
 
 // GetBuiltinType retrieves a builtin agent by name
