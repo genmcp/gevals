@@ -203,24 +203,37 @@ runs:
           # Download from GitHub releases
           RELEASE_URL="https://github.com/genmcp/gevals/releases/download/${{ inputs.gevals-version }}"
 
-          # Download gevals
-          if ! curl -fsSL "$RELEASE_URL/gevals-$BINARY_SUFFIX$BIN_EXT" -o "$GEVALS_BIN"; then
-            echo "❌ Failed to download gevals for $BINARY_SUFFIX"
-            echo "Release may not exist for this platform. Falling back to building from source..."
+          # Attempt to download pre-built gevals binary
+          if ! curl -fsSL "$RELEASE_URL/gevals-$BINARY_SUFFIX$BIN_EXT" -o "$GEVALS_BIN" 2>&1; then
+            echo "⚠ Failed to download pre-built gevals release for $BINARY_SUFFIX"
+            echo "Attempting to build from source using version '${{ inputs.gevals-version }}'..."
 
-            # Fallback to building from source
+            # Fallback: clone repository and build from source
             GEVALS_SRC="${{ runner.temp }}/gevals-src"
-            git clone --depth 1 --branch "${{ inputs.gevals-version }}" https://github.com/genmcp/gevals.git "$GEVALS_SRC"
-            cd "$GEVALS_SRC"
+            if ! git clone --depth 1 --branch "${{ inputs.gevals-version }}" https://github.com/genmcp/gevals.git "$GEVALS_SRC" 2>&1; then
+              echo "❌ Failed to clone gevals branch '${{ inputs.gevals-version }}'"
+              echo "   Check that the version is a valid tag or branch (e.g., v0.1.0, main, latest)"
+              exit 1
+            fi
 
+            # Build binaries from source
+            cd "$GEVALS_SRC"
+            echo "Building gevals binaries for $GOOS/$GOARCH..."
             GOOS=$GOOS GOARCH=$GOARCH go build -o "$GEVALS_BIN" ./cmd/gevals
             GOOS=$GOOS GOARCH=$GOARCH go build -o "$AGENT_BIN" ./cmd/agent
 
+            # Cleanup source directory
             cd -
             rm -rf "$GEVALS_SRC"
+
+            # Make binaries executable
+            chmod +x "$GEVALS_BIN" "$AGENT_BIN"
           else
-            # Download agent
-            curl -fsSL "$RELEASE_URL/agent-$BINARY_SUFFIX$BIN_EXT" -o "$AGENT_BIN"
+            # Download succeeded - now download agent binary
+            if ! curl -fsSL "$RELEASE_URL/agent-$BINARY_SUFFIX$BIN_EXT" -o "$AGENT_BIN" 2>&1; then
+              echo "❌ Failed to download agent binary for $BINARY_SUFFIX"
+              exit 1
+            fi
 
             # Make binaries executable (not needed on Windows, but harmless)
             chmod +x "$GEVALS_BIN" "$AGENT_BIN"
@@ -263,28 +276,35 @@ runs:
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       run: |
-        # Build command
-        CMD="${{ steps.install.outputs.gevals-path }} eval ${{ inputs.eval-config }}"
+        # Build command as array (safe from shell injection)
+        CMD=("${{ steps.install.outputs.gevals-path }}" "eval" "${{ inputs.eval-config }}")
 
-        # Add optional flags
-        [ "${{ inputs.output-format }}" != "" ] && CMD="$CMD --output ${{ inputs.output-format }}"
-        [ "${{ inputs.task-filter }}" != "" ] && CMD="$CMD --run '${{ inputs.task-filter }}'"
-        [ "${{ inputs.verbose }}" = "true" ] && CMD="$CMD --verbose"
+        # Add optional flags as separate array elements
+        if [ -n "${{ inputs.output-format }}" ]; then
+          CMD+=("--output" "${{ inputs.output-format }}")
+        fi
+        if [ -n "${{ inputs.task-filter }}" ]; then
+          CMD+=("--run" "${{ inputs.task-filter }}")
+        fi
+        if [ "${{ inputs.verbose }}" = "true" ]; then
+          CMD+=("--verbose")
+        fi
 
-        echo "Running: $CMD"
+        echo "Running: ${CMD[@]}"
         echo ""
 
-        # Run evaluation (capture exit code)
+        # Run evaluation (capture exit code, execute array directly without eval)
         set +e
-        eval $CMD
+        "${CMD[@]}"
         EXIT_CODE=$?
         set -e
 
         echo ""
         echo "=== Evaluation Results ==="
 
-        # Find results file
-        RESULTS_FILE=$(ls gevals-*-out.json 2>/dev/null | head -1 || echo "")
+        # Find results file (deterministic: pick most recently modified)
+        # ls -t sorts by modification time (newest first), ensuring deterministic selection
+        RESULTS_FILE=$(ls -t gevals-*-out.json 2>/dev/null | head -1 || echo "")
 
         if [ -n "$RESULTS_FILE" ]; then
           echo "Results file: $RESULTS_FILE"
@@ -297,48 +317,27 @@ runs:
             TASKS_PASSED=$(jq '[.[] | select(.taskPassed == true)] | length' "$RESULTS_FILE")
 
             # Count individual assertions across all tasks
-            # Sum up all the individual assertions that were evaluated
-            TOTAL_ASSERTIONS=$(jq '[.[] | select(.assertionResults != null) | .assertionResults |
-              (if .toolsUsed != null then 1 else 0 end) +
-              (if .requireAny != null then 1 else 0 end) +
-              (if .toolsNotUsed != null then 1 else 0 end) +
-              (if .minToolCalls != null then 1 else 0 end) +
-              (if .maxToolCalls != null then 1 else 0 end) +
-              (if .resourcesRead != null then 1 else 0 end) +
-              (if .resourcesNotRead != null then 1 else 0 end) +
-              (if .promptsUsed != null then 1 else 0 end) +
-              (if .promptsNotUsed != null then 1 else 0 end) +
-              (if .callOrder != null then 1 else 0 end) +
-              (if .noDuplicateCalls != null then 1 else 0 end)
-            ] | add // 0' "$RESULTS_FILE")
+            # Dynamically count all non-null assertion results (future-proof for new assertion types)
+            # Assumes all assertion objects follow the pattern { passed: bool, ... }
+            TOTAL_ASSERTIONS=$(jq '[.[] | select(.assertionResults != null)
+              | .assertionResults
+              | to_entries
+              | map(select(.value != null))
+              | length] | add // 0' "$RESULTS_FILE")
 
             # Sum up all the individual assertions that passed
-            ASSERTIONS_PASSED=$(jq '[.[] | select(.assertionResults != null) | .assertionResults |
-              (if .toolsUsed != null and .toolsUsed.passed == true then 1 else 0 end) +
-              (if .requireAny != null and .requireAny.passed == true then 1 else 0 end) +
-              (if .toolsNotUsed != null and .toolsNotUsed.passed == true then 1 else 0 end) +
-              (if .minToolCalls != null and .minToolCalls.passed == true then 1 else 0 end) +
-              (if .maxToolCalls != null and .maxToolCalls.passed == true then 1 else 0 end) +
-              (if .resourcesRead != null and .resourcesRead.passed == true then 1 else 0 end) +
-              (if .resourcesNotRead != null and .resourcesNotRead.passed == true then 1 else 0 end) +
-              (if .promptsUsed != null and .promptsUsed.passed == true then 1 else 0 end) +
-              (if .promptsNotUsed != null and .promptsNotUsed.passed == true then 1 else 0 end) +
-              (if .callOrder != null and .callOrder.passed == true then 1 else 0 end) +
-              (if .noDuplicateCalls != null and .noDuplicateCalls.passed == true then 1 else 0 end)
-            ] | add // 0' "$RESULTS_FILE")
+            # Dynamically count all passed assertion results (future-proof for new assertion types)
+            ASSERTIONS_PASSED=$(jq '[.[] | select(.assertionResults != null)
+              | .assertionResults
+              | to_entries
+              | map(select(.value != null and .value.passed == true))
+              | length] | add // 0' "$RESULTS_FILE")
 
-            # Calculate pass rates
-            if [ "$TOTAL_TASKS" -gt 0 ]; then
-              TASK_PASS_RATE=$(echo "scale=4; $TASKS_PASSED / $TOTAL_TASKS" | bc)
-            else
-              TASK_PASS_RATE="0"
-            fi
-
-            if [ "$TOTAL_ASSERTIONS" -gt 0 ]; then
-              ASSERTION_PASS_RATE=$(echo "scale=4; $ASSERTIONS_PASSED / $TOTAL_ASSERTIONS" | bc)
-            else
-              ASSERTION_PASS_RATE="0"
-            fi
+            # Calculate pass rates using awk (handles division-by-zero)
+            # Note: awk is used instead of bc for better portability across platforms,
+            # especially on Windows runners where bc may not be available
+            TASK_PASS_RATE=$(awk "BEGIN {printf \"%.4f\", $TOTAL_TASKS > 0 ? $TASKS_PASSED / $TOTAL_TASKS : 0}")
+            ASSERTION_PASS_RATE=$(awk "BEGIN {printf \"%.4f\", $TOTAL_ASSERTIONS > 0 ? $ASSERTIONS_PASSED / $TOTAL_ASSERTIONS : 0}")
 
             # Output metrics
             echo "tasks-total=$TOTAL_TASKS" >> $GITHUB_OUTPUT
@@ -348,12 +347,12 @@ runs:
             echo "task-pass-rate=$TASK_PASS_RATE" >> $GITHUB_OUTPUT
             echo "assertion-pass-rate=$ASSERTION_PASS_RATE" >> $GITHUB_OUTPUT
 
-            # Check thresholds
+            # Check thresholds using awk
             TASK_THRESHOLD="${{ inputs.task-pass-threshold }}"
             ASSERTION_THRESHOLD="${{ inputs.assertion-pass-threshold }}"
 
-            TASK_THRESHOLD_MET=$(echo "$TASK_PASS_RATE >= $TASK_THRESHOLD" | bc -l)
-            ASSERTION_THRESHOLD_MET=$(echo "$ASSERTION_PASS_RATE >= $ASSERTION_THRESHOLD" | bc -l)
+            TASK_THRESHOLD_MET=$(awk "BEGIN {print ($TASK_PASS_RATE >= $TASK_THRESHOLD ? 1 : 0)}")
+            ASSERTION_THRESHOLD_MET=$(awk "BEGIN {print ($ASSERTION_PASS_RATE >= $ASSERTION_THRESHOLD ? 1 : 0)}")
 
             if [ "$TASK_THRESHOLD_MET" -eq 1 ] && [ "$ASSERTION_THRESHOLD_MET" -eq 1 ]; then
               THRESHOLDS_PASSED="true"
