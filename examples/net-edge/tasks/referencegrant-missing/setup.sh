@@ -197,11 +197,14 @@ for _ in $(seq 1 36); do
   status_json="$(oc -n "${GATEWAY_NAMESPACE}" get httproute "${APP_NAME}" -o json 2>/dev/null || true)"
   if [[ -n "${status_json}" ]]; then
     is_unresolved="$(printf '%s' "${status_json}" | jq -r '
-      .status.parents[]?.conditions[]?
-      | select(.type=="ResolvedRefs")
-      | ((.status == "False")
-         or (.reason == "RefNotPermitted")
-         or ((.message // "") | contains("missing a ReferenceGrant")))
+      [
+        .status.parents[]?.conditions[]?
+        | select(.type=="ResolvedRefs")
+        | ((.status == "False")
+           or (.reason == "RefNotPermitted")
+           or ((.message // "") | contains("missing a ReferenceGrant")))
+      ]
+      | any
       ' 2>/dev/null || echo false)"
     if [[ "${is_unresolved}" == "true" ]]; then
       break
