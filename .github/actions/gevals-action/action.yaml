@@ -1,0 +1,428 @@
+name: 'Run gevals MCP Evaluation'
+description: 'Evaluate MCP servers using the gevals framework'
+author: 'genmcp'
+
+inputs:
+  eval-config:
+    description: 'Path to eval.yaml configuration file'
+    required: true
+
+  gevals-version:
+    description: 'Version of gevals to use (latest, main, or vX.Y.Z)'
+    required: false
+    default: 'latest'
+
+  task-filter:
+    description: 'Regular expression to filter tasks (passed to -run flag)'
+    required: false
+    default: ''
+
+  output-format:
+    description: 'Output format: text or json'
+    required: false
+    default: 'json'
+
+  verbose:
+    description: 'Enable verbose output'
+    required: false
+    default: 'false'
+
+  upload-artifacts:
+    description: 'Upload results as GitHub artifacts'
+    required: false
+    default: 'true'
+
+  artifact-name:
+    description: 'Name for uploaded artifacts'
+    required: false
+    default: 'gevals-results'
+
+  fail-on-error:
+    description: 'Fail the workflow if evaluation fails'
+    required: false
+    default: 'true'
+
+  task-pass-threshold:
+    description: 'Minimum fraction of tasks that must pass verification (0.0 to 1.0). Default 1.0 means all tasks must pass.'
+    required: false
+    default: '1.0'
+
+  assertion-pass-threshold:
+    description: 'Minimum fraction of tasks that must pass assertions (0.0 to 1.0). Default 1.0 means all tasks must pass assertions.'
+    required: false
+    default: '1.0'
+
+  working-directory:
+    description: 'Working directory for running evaluations'
+    required: false
+    default: '.'
+
+outputs:
+  results-file:
+    description: 'Path to the JSON results file'
+    value: ${{ steps.run-eval.outputs.results-file }}
+
+  passed:
+    description: 'Whether evaluations met the thresholds (true/false)'
+    value: ${{ steps.run-eval.outputs.passed }}
+
+  task-pass-rate:
+    description: 'Fraction of tasks that passed verification (0.0 to 1.0)'
+    value: ${{ steps.run-eval.outputs.task-pass-rate }}
+
+  assertion-pass-rate:
+    description: 'Fraction of tasks that passed assertions (0.0 to 1.0)'
+    value: ${{ steps.run-eval.outputs.assertion-pass-rate }}
+
+  tasks-passed:
+    description: 'Number of tasks that passed verification'
+    value: ${{ steps.run-eval.outputs.tasks-passed }}
+
+  tasks-total:
+    description: 'Total number of tasks run'
+    value: ${{ steps.run-eval.outputs.tasks-total }}
+
+  assertions-passed:
+    description: 'Number of tasks that passed assertions'
+    value: ${{ steps.run-eval.outputs.assertions-passed }}
+
+  assertions-total:
+    description: 'Total number of tasks with assertions evaluated'
+    value: ${{ steps.run-eval.outputs.assertions-total }}
+
+  gevals-path:
+    description: 'Path to the installed gevals binary'
+    value: ${{ steps.install.outputs.gevals-path }}
+
+  agent-path:
+    description: 'Path to the installed agent binary'
+    value: ${{ steps.install.outputs.agent-path }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Detect platform
+      id: platform
+      shell: bash
+      run: |
+        # Detect OS
+        OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+        case "$OS" in
+          linux*)
+            GOOS="linux"
+            ;;
+          darwin*)
+            GOOS="darwin"
+            ;;
+          mingw* | msys* | cygwin*)
+            GOOS="windows"
+            ;;
+          *)
+            echo "❌ Unsupported OS: $OS"
+            exit 1
+            ;;
+        esac
+
+        # Detect architecture
+        ARCH=$(uname -m)
+        case "$ARCH" in
+          x86_64 | amd64)
+            GOARCH="amd64"
+            ;;
+          aarch64 | arm64)
+            GOARCH="arm64"
+            ;;
+          armv7l | armv7)
+            GOARCH="arm"
+            ;;
+          i386 | i686)
+            GOARCH="386"
+            ;;
+          *)
+            echo "❌ Unsupported architecture: $ARCH"
+            exit 1
+            ;;
+        esac
+
+        echo "Detected platform: $GOOS/$GOARCH"
+        echo "goos=$GOOS" >> $GITHUB_OUTPUT
+        echo "goarch=$GOARCH" >> $GITHUB_OUTPUT
+
+        # Binary extension (for Windows)
+        if [ "$GOOS" = "windows" ]; then
+          echo "bin-ext=.exe" >> $GITHUB_OUTPUT
+        else
+          echo "bin-ext=" >> $GITHUB_OUTPUT
+        fi
+
+        # Binary name for releases
+        echo "binary-suffix=$GOOS-$GOARCH" >> $GITHUB_OUTPUT
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: '1.24.x'
+        cache: false
+
+    - name: Install gevals
+      id: install
+      shell: bash
+      env:
+        GOOS: ${{ steps.platform.outputs.goos }}
+        GOARCH: ${{ steps.platform.outputs.goarch }}
+        BIN_EXT: ${{ steps.platform.outputs.bin-ext }}
+        BINARY_SUFFIX: ${{ steps.platform.outputs.binary-suffix }}
+      run: |
+        INSTALL_DIR="${{ runner.temp }}/gevals-bin"
+        mkdir -p "$INSTALL_DIR"
+
+        GEVALS_BIN="$INSTALL_DIR/gevals$BIN_EXT"
+        AGENT_BIN="$INSTALL_DIR/agent$BIN_EXT"
+
+        if [ "${{ inputs.gevals-version }}" = "latest" ] || [ "${{ inputs.gevals-version }}" = "main" ]; then
+          echo "Building gevals from source for $GOOS/$GOARCH..."
+
+          # Clone gevals repository
+          GEVALS_SRC="${{ runner.temp }}/gevals-src"
+          git clone --depth 1 https://github.com/genmcp/gevals.git "$GEVALS_SRC"
+          cd "$GEVALS_SRC"
+
+          # Build binaries for detected platform
+          echo "Building gevals binary..."
+          GOOS=$GOOS GOARCH=$GOARCH go build -o "$GEVALS_BIN" ./cmd/gevals
+
+          echo "Building agent binary..."
+          GOOS=$GOOS GOARCH=$GOARCH go build -o "$AGENT_BIN" ./cmd/agent
+
+          # Cleanup source
+          cd -
+          rm -rf "$GEVALS_SRC"
+        else
+          echo "Downloading pre-built gevals ${{ inputs.gevals-version }} for $BINARY_SUFFIX..."
+
+          # Download from GitHub releases
+          RELEASE_URL="https://github.com/genmcp/gevals/releases/download/${{ inputs.gevals-version }}"
+
+          # Download gevals
+          if ! curl -fsSL "$RELEASE_URL/gevals-$BINARY_SUFFIX$BIN_EXT" -o "$GEVALS_BIN"; then
+            echo "❌ Failed to download gevals for $BINARY_SUFFIX"
+            echo "Release may not exist for this platform. Falling back to building from source..."
+
+            # Fallback to building from source
+            GEVALS_SRC="${{ runner.temp }}/gevals-src"
+            git clone --depth 1 --branch "${{ inputs.gevals-version }}" https://github.com/genmcp/gevals.git "$GEVALS_SRC"
+            cd "$GEVALS_SRC"
+
+            GOOS=$GOOS GOARCH=$GOARCH go build -o "$GEVALS_BIN" ./cmd/gevals
+            GOOS=$GOOS GOARCH=$GOARCH go build -o "$AGENT_BIN" ./cmd/agent
+
+            cd -
+            rm -rf "$GEVALS_SRC"
+          else
+            # Download agent
+            curl -fsSL "$RELEASE_URL/agent-$BINARY_SUFFIX$BIN_EXT" -o "$AGENT_BIN"
+
+            # Make binaries executable (not needed on Windows, but harmless)
+            chmod +x "$GEVALS_BIN" "$AGENT_BIN"
+          fi
+        fi
+
+        # Verify binaries exist
+        if [ ! -f "$GEVALS_BIN" ]; then
+          echo "❌ gevals binary not found at $GEVALS_BIN"
+          exit 1
+        fi
+
+        if [ ! -f "$AGENT_BIN" ]; then
+          echo "❌ agent binary not found at $AGENT_BIN"
+          exit 1
+        fi
+
+        # Output paths
+        echo "gevals-path=$GEVALS_BIN" >> $GITHUB_OUTPUT
+        echo "agent-path=$AGENT_BIN" >> $GITHUB_OUTPUT
+
+        # Add to PATH for subsequent steps
+        echo "$INSTALL_DIR" >> $GITHUB_PATH
+
+        echo "✓ Installed gevals to $GEVALS_BIN"
+        echo "✓ Installed agent to $AGENT_BIN"
+
+    - name: Verify gevals installation
+      shell: bash
+      run: |
+        echo "Verifying gevals installation..."
+        ${{ steps.install.outputs.gevals-path }} help
+        echo "✓ gevals installed successfully"
+        echo ""
+        echo "Platform: ${{ steps.platform.outputs.goos }}/${{ steps.platform.outputs.goarch }}"
+        echo "Version: ${{ inputs.gevals-version }}"
+
+    - name: Run evaluation
+      id: run-eval
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: |
+        # Build command
+        CMD="${{ steps.install.outputs.gevals-path }} eval ${{ inputs.eval-config }}"
+
+        # Add optional flags
+        [ "${{ inputs.output-format }}" != "" ] && CMD="$CMD --output ${{ inputs.output-format }}"
+        [ "${{ inputs.task-filter }}" != "" ] && CMD="$CMD --run '${{ inputs.task-filter }}'"
+        [ "${{ inputs.verbose }}" = "true" ] && CMD="$CMD --verbose"
+
+        echo "Running: $CMD"
+        echo ""
+
+        # Run evaluation (capture exit code)
+        set +e
+        eval $CMD
+        EXIT_CODE=$?
+        set -e
+
+        echo ""
+        echo "=== Evaluation Results ==="
+
+        # Find results file
+        RESULTS_FILE=$(ls gevals-*-out.json 2>/dev/null | head -1 || echo "")
+
+        if [ -n "$RESULTS_FILE" ]; then
+          echo "Results file: $RESULTS_FILE"
+          echo "results-file=$RESULTS_FILE" >> $GITHUB_OUTPUT
+
+          # Calculate pass rates and check thresholds (if jq is available)
+          if command -v jq &> /dev/null; then
+            # Count totals and passes for tasks
+            TOTAL_TASKS=$(jq 'length' "$RESULTS_FILE")
+            TASKS_PASSED=$(jq '[.[] | select(.taskPassed == true)] | length' "$RESULTS_FILE")
+
+            # Count individual assertions across all tasks
+            # Sum up all the individual assertions that were evaluated
+            TOTAL_ASSERTIONS=$(jq '[.[] | select(.assertionResults != null) | .assertionResults |
+              (if .toolsUsed != null then 1 else 0 end) +
+              (if .requireAny != null then 1 else 0 end) +
+              (if .toolsNotUsed != null then 1 else 0 end) +
+              (if .minToolCalls != null then 1 else 0 end) +
+              (if .maxToolCalls != null then 1 else 0 end) +
+              (if .resourcesRead != null then 1 else 0 end) +
+              (if .resourcesNotRead != null then 1 else 0 end) +
+              (if .promptsUsed != null then 1 else 0 end) +
+              (if .promptsNotUsed != null then 1 else 0 end) +
+              (if .callOrder != null then 1 else 0 end) +
+              (if .noDuplicateCalls != null then 1 else 0 end)
+            ] | add // 0' "$RESULTS_FILE")
+
+            # Sum up all the individual assertions that passed
+            ASSERTIONS_PASSED=$(jq '[.[] | select(.assertionResults != null) | .assertionResults |
+              (if .toolsUsed != null and .toolsUsed.passed == true then 1 else 0 end) +
+              (if .requireAny != null and .requireAny.passed == true then 1 else 0 end) +
+              (if .toolsNotUsed != null and .toolsNotUsed.passed == true then 1 else 0 end) +
+              (if .minToolCalls != null and .minToolCalls.passed == true then 1 else 0 end) +
+              (if .maxToolCalls != null and .maxToolCalls.passed == true then 1 else 0 end) +
+              (if .resourcesRead != null and .resourcesRead.passed == true then 1 else 0 end) +
+              (if .resourcesNotRead != null and .resourcesNotRead.passed == true then 1 else 0 end) +
+              (if .promptsUsed != null and .promptsUsed.passed == true then 1 else 0 end) +
+              (if .promptsNotUsed != null and .promptsNotUsed.passed == true then 1 else 0 end) +
+              (if .callOrder != null and .callOrder.passed == true then 1 else 0 end) +
+              (if .noDuplicateCalls != null and .noDuplicateCalls.passed == true then 1 else 0 end)
+            ] | add // 0' "$RESULTS_FILE")
+
+            # Calculate pass rates
+            if [ "$TOTAL_TASKS" -gt 0 ]; then
+              TASK_PASS_RATE=$(echo "scale=4; $TASKS_PASSED / $TOTAL_TASKS" | bc)
+            else
+              TASK_PASS_RATE="0"
+            fi
+
+            if [ "$TOTAL_ASSERTIONS" -gt 0 ]; then
+              ASSERTION_PASS_RATE=$(echo "scale=4; $ASSERTIONS_PASSED / $TOTAL_ASSERTIONS" | bc)
+            else
+              ASSERTION_PASS_RATE="0"
+            fi
+
+            # Output metrics
+            echo "tasks-total=$TOTAL_TASKS" >> $GITHUB_OUTPUT
+            echo "tasks-passed=$TASKS_PASSED" >> $GITHUB_OUTPUT
+            echo "assertions-total=$TOTAL_ASSERTIONS" >> $GITHUB_OUTPUT
+            echo "assertions-passed=$ASSERTIONS_PASSED" >> $GITHUB_OUTPUT
+            echo "task-pass-rate=$TASK_PASS_RATE" >> $GITHUB_OUTPUT
+            echo "assertion-pass-rate=$ASSERTION_PASS_RATE" >> $GITHUB_OUTPUT
+
+            # Check thresholds
+            TASK_THRESHOLD="${{ inputs.task-pass-threshold }}"
+            ASSERTION_THRESHOLD="${{ inputs.assertion-pass-threshold }}"
+
+            TASK_THRESHOLD_MET=$(echo "$TASK_PASS_RATE >= $TASK_THRESHOLD" | bc -l)
+            ASSERTION_THRESHOLD_MET=$(echo "$ASSERTION_PASS_RATE >= $ASSERTION_THRESHOLD" | bc -l)
+
+            if [ "$TASK_THRESHOLD_MET" -eq 1 ] && [ "$ASSERTION_THRESHOLD_MET" -eq 1 ]; then
+              THRESHOLDS_PASSED="true"
+            else
+              THRESHOLDS_PASSED="false"
+            fi
+
+            echo "passed=$THRESHOLDS_PASSED" >> $GITHUB_OUTPUT
+
+            # Print summary
+            echo ""
+            echo "Task Summary:"
+            jq -r '.[] | "  \(.taskName): \(if .taskPassed and .allAssertionsPassed then "✓ PASSED" else "✗ FAILED" end) (Task: \(if .taskPassed then "✓" else "✗" end), Assertions: \(if .allAssertionsPassed then "✓" else "✗" end))"' "$RESULTS_FILE"
+
+            echo ""
+            echo "=== Pass Rates ==="
+            echo "Tasks: $TASKS_PASSED/$TOTAL_TASKS ($TASK_PASS_RATE) - Threshold: $TASK_THRESHOLD $([ "$TASK_THRESHOLD_MET" -eq 1 ] && echo "✓ MET" || echo "✗ NOT MET")"
+            echo "Assertions: $ASSERTIONS_PASSED/$TOTAL_ASSERTIONS ($ASSERTION_PASS_RATE) - Threshold: $ASSERTION_THRESHOLD $([ "$ASSERTION_THRESHOLD_MET" -eq 1 ] && echo "✓ MET" || echo "✗ NOT MET")"
+            echo ""
+            echo "Overall: $([ "$THRESHOLDS_PASSED" = "true" ] && echo "✓ PASSED" || echo "✗ FAILED")"
+
+            # Print detailed failure info
+            FAILED_COUNT=$(jq '[.[] | select(.taskPassed == false or .allAssertionsPassed == false)] | length' "$RESULTS_FILE")
+            if [ "$FAILED_COUNT" -gt 0 ]; then
+              echo ""
+              echo "Failed Tasks ($FAILED_COUNT):"
+              jq -r '.[] | select(.taskPassed == false or .allAssertionsPassed == false) | "  \(.taskName):\n    Task Passed: \(.taskPassed)\n    Assertions Passed: \(.allAssertionsPassed)"' "$RESULTS_FILE"
+            fi
+          else
+            echo "passed=unknown" >> $GITHUB_OUTPUT
+            echo "task-pass-rate=0" >> $GITHUB_OUTPUT
+            echo "assertion-pass-rate=0" >> $GITHUB_OUTPUT
+            echo "tasks-passed=0" >> $GITHUB_OUTPUT
+            echo "tasks-total=0" >> $GITHUB_OUTPUT
+            echo "assertions-passed=0" >> $GITHUB_OUTPUT
+            echo "assertions-total=0" >> $GITHUB_OUTPUT
+            echo "⚠ jq not installed, cannot parse results"
+          fi
+        else
+          echo "⚠ No results file found"
+          echo "results-file=" >> $GITHUB_OUTPUT
+          echo "passed=false" >> $GITHUB_OUTPUT
+        fi
+
+        echo ""
+
+        # Handle failure
+        if [ $EXIT_CODE -ne 0 ]; then
+          echo "❌ Evaluation exited with code $EXIT_CODE"
+
+          if [ "${{ inputs.fail-on-error }}" = "true" ]; then
+            exit $EXIT_CODE
+          fi
+        else
+          echo "✓ Evaluation completed successfully"
+        fi
+
+        exit 0
+
+    - name: Upload results
+      if: always() && inputs.upload-artifacts == 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: |
+          ${{ inputs.working-directory }}/gevals-*-out.json
+          ${{ inputs.working-directory }}/*-error.txt
+        if-no-files-found: warn
+
+branding:
+  icon: 'check-circle'
+  color: 'green'
