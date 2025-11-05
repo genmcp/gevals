@@ -25,7 +25,11 @@ from_ns = os.environ.get("FROM_NS", "")
 svc_name = os.environ.get("SVC_NAME", "")
 
 cmd = ["oc", "-n", backend_ns, "get", "referencegrant", "-o", "json"]
-result = subprocess.run(cmd, capture_output=True, text=True)
+try:
+    result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+except subprocess.TimeoutExpired:
+    print("Timeout while fetching ReferenceGrant resources", file=sys.stderr)
+    sys.exit(67)
 if result.returncode != 0:
     message = result.stderr.strip() or result.stdout.strip() or "Failed to fetch ReferenceGrant resources"
     print(message, file=sys.stderr)
@@ -72,6 +76,9 @@ if [[ ${status} -eq 65 ]]; then
   exit 1
 elif [[ ${status} -eq 66 ]]; then
   echo "Failed to parse ReferenceGrant JSON in ${BACKEND_NAMESPACE}" >&2
+  exit 1
+elif [[ ${status} -eq 67 ]]; then
+  echo "Timeout while fetching ReferenceGrant resources in ${BACKEND_NAMESPACE}" >&2
   exit 1
 fi
 

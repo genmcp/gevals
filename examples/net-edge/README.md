@@ -5,7 +5,7 @@ framework and the Codex GPT-5 coding agent.
 
 ## Layout
 
-```
+```text
 net-edge/
 ├── README.md                         # This file
 ├── mcp-config.yaml                   # Launches the gen-mcp NetEdge server for gevals
@@ -27,7 +27,7 @@ net-edge/
 - Access to an OpenShift cluster where the NetEdge tools can deploy the `netedge-scenario1` namespace.
 - Codex CLI with an API key that can use the `gpt-5-codex` profile (the eval boots a temporary Codex config with the `rmcp_client` feature flag enabled for HTTP MCP).
 
-Codex requires API-key based auth for the GPT-5 profile. Start any custom config with:
+Codex requires API-key-based auth for the GPT-5 profile. Start any custom config with:
 
 ```toml
 preferred_auth_method = "apikey"

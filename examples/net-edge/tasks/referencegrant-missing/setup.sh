@@ -192,25 +192,28 @@ spec:
 YAML
 
 echo "Waiting for HTTPRoute status to indicate unresolved references"
-resolved_status=""
-resolved_reason=""
-resolved_message=""
+is_unresolved="false"
 for _ in $(seq 1 36); do
   status_json="$(oc -n "${GATEWAY_NAMESPACE}" get httproute "${APP_NAME}" -o json 2>/dev/null || true)"
   if [[ -n "${status_json}" ]]; then
-    IFS=$'\t' read -r resolved_status resolved_reason resolved_message <<<"$(printf '%s' "${status_json}" | jq -r '
+    is_unresolved="$(printf '%s' "${status_json}" | jq -r '
       .status.parents[]?.conditions[]?
       | select(.type=="ResolvedRefs")
-      | [.status // "", .reason // "", .message // ""]
-      | @tsv' 2>/dev/null || printf '\t\t')"
-    if [[ "${resolved_status}" == "False" ]] || [[ "${resolved_reason}" == "RefNotPermitted" ]] || [[ "${resolved_message}" == *"missing a ReferenceGrant"* ]]; then
+      | ((.status == "False")
+         or (.reason == "RefNotPermitted")
+         or ((.message // "") | contains("missing a ReferenceGrant")))
+      ' 2>/dev/null || echo false)"
+    if [[ "${is_unresolved}" == "true" ]]; then
       break
     fi
   fi
   sleep 5
 done
 
-if [[ "${resolved_status}" != "False" && "${resolved_reason}" != "RefNotPermitted" && "${resolved_message}" != *"missing a ReferenceGrant"* ]]; then
+if [[ "${is_unresolved}" != "true" ]]; then
+  status_json="$(oc -n "${GATEWAY_NAMESPACE}" get httproute "${APP_NAME}" -o json 2>/dev/null || true)"
+  resolved_status="$(printf '%s' "${status_json}" | jq -r '.status.parents[]?.conditions[]? | select(.type=="ResolvedRefs") | .status' 2>/dev/null || echo '')"
+  resolved_reason="$(printf '%s' "${status_json}" | jq -r '.status.parents[]?.conditions[]? | select(.type=="ResolvedRefs") | .reason' 2>/dev/null || echo '')"
   echo "HTTPRoute did not surface ResolvedRefs=False (status='${resolved_status}', reason='${resolved_reason}'); ensure the gateway controller is reporting status" >&2
   exit 1
 fi

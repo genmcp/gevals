@@ -54,6 +54,8 @@ func (a *agentSpecRunner) RunTask(ctx context.Context, prompt string) (AgentResu
 	if os.Getenv("GEVALS_DEBUG") != "" {
 		if dir, err := os.MkdirTemp("", "gevals-debug-"); err == nil {
 			debugDir = dir
+		} else {
+			fmt.Fprintf(os.Stderr, "Warning: failed to create debug directory: %v\n", err)
 		}
 	}
 

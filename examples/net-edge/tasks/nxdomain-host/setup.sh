@@ -11,7 +11,7 @@ APP_NAME="${APP_NAME:-hello}"
 APP_LABEL="${APP_LABEL:-hello}"
 IMAGE="${IMAGE:-quay.io/openshift/origin-hello-openshift:latest}"
 PORT="${PORT:-8080}"
-BREAK_HOST_TEMPLATE="${BREAK_HOST:-broken-%s.invalid}"
+BREAK_HOST_TEMPLATE="${BREAK_HOST_TEMPLATE:-broken-%s.invalid}"
 ANNOTATION_KEY="netedge-tools-original-host"
 
 echo "Preparing namespace ${NAMESPACE}"

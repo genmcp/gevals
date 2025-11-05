@@ -288,6 +288,7 @@ func extractToolText(call *mcpproxy.ToolCall) string {
 		case *mcp.ResourceLink:
 			data, err := json.MarshalIndent(v, "", "  ")
 			if err != nil {
+				builder.WriteString(fmt.Sprintf("[ResourceLink marshal error: %v]\n", err))
 				continue
 			}
 			builder.Write(data)
@@ -295,6 +296,7 @@ func extractToolText(call *mcpproxy.ToolCall) string {
 		case *mcp.EmbeddedResource:
 			data, err := json.MarshalIndent(v, "", "  ")
 			if err != nil {
+				builder.WriteString(fmt.Sprintf("[EmbeddedResource marshal error: %v]\n", err))
 				continue
 			}
 			builder.Write(data)
