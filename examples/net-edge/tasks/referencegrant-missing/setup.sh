@@ -16,13 +16,93 @@ IMAGE="${IMAGE:-quay.io/openshift/origin-hello-openshift:latest}"
 PORT="${PORT:-8080}"
 GATEWAY_CLASS="${GATEWAY_CLASS:-}"
 HOSTNAME="${HOSTNAME:-hello-scenario6.netedge.example}"
+TEMP_GATEWAY_CLASS="${TEMP_GATEWAY_CLASS:-netedge-temp-gatewayclass}"
+TEMP_GATEWAY_LABEL_KEY="${TEMP_GATEWAY_LABEL_KEY:-netedge.openshift.io/scenario}"
+TEMP_GATEWAY_LABEL_VALUE="${TEMP_GATEWAY_LABEL_VALUE:-referencegrant-missing}"
+GATEWAY_CONTROLLER_NAME="${GATEWAY_CONTROLLER_NAME:-openshift.io/gateway-controller/v1}"
 
-if [[ -z "${GATEWAY_CLASS}" ]]; then
-  GATEWAY_CLASS="$(oc get gatewayclass -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)"
-  if [[ -z "${GATEWAY_CLASS}" ]]; then
-    echo "No GatewayClass available; set GATEWAY_CLASS to a valid value before running" >&2
+tmp_err="$(mktemp)"
+gatewayclass_names="$(oc get gatewayclass -o jsonpath='{.items[*].metadata.name}' 2>"${tmp_err}" || true)"
+cmd_status=$?
+err_msg="$(<"${tmp_err}")"
+rm -f "${tmp_err}"
+
+if [[ ${cmd_status} -ne 0 ]]; then
+  if [[ "${err_msg}" == *"the server doesn't have a resource type \"gatewayclass\""* ]]; then
+    if [[ -z "${GATEWAY_CLASS}" ]]; then
+      echo "Gateway API (GatewayClass) not available on this cluster; set GATEWAY_CLASS to an existing class or enable the feature before running" >&2
+      exit 1
+    fi
+  else
+    if [[ -n "${err_msg}" ]]; then
+      echo "${err_msg}" >&2
+    fi
     exit 1
   fi
+fi
+
+if [[ -z "${GATEWAY_CLASS}" && -n "${gatewayclass_names}" ]]; then
+  GATEWAY_CLASS="${gatewayclass_names%% *}"
+fi
+
+if [[ -z "${GATEWAY_CLASS}" ]]; then
+  include_parameters_ref="false"
+  if oc -n openshift-ingress-operator get ingresscontroller default >/dev/null 2>&1; then
+    include_parameters_ref="true"
+  fi
+
+  create_gateway_class_manifest() {
+    local api_version="$1"
+    local with_params="$2"
+    cat <<YAML
+apiVersion: ${api_version}
+kind: GatewayClass
+metadata:
+  name: ${TEMP_GATEWAY_CLASS}
+  labels:
+    ${TEMP_GATEWAY_LABEL_KEY}: ${TEMP_GATEWAY_LABEL_VALUE}
+spec:
+  controllerName: ${GATEWAY_CONTROLLER_NAME}
+YAML
+    if [[ "${with_params}" == "true" ]]; then
+      cat <<YAML
+  parametersRef:
+    group: operator.openshift.io
+    kind: IngressController
+    name: default
+    namespace: openshift-ingress-operator
+YAML
+    fi
+  }
+
+  applied="false"
+  last_error=""
+  for api_version in "gateway.networking.k8s.io/v1" "gateway.networking.k8s.io/v1beta1"; do
+    if [[ "${include_parameters_ref}" == "true" ]]; then
+      if output="$(create_gateway_class_manifest "${api_version}" "true" | oc apply -f - 2>&1)"; then
+        applied="true"
+        break
+      else
+        last_error="${output}"
+      fi
+    fi
+    if output="$(create_gateway_class_manifest "${api_version}" "false" | oc apply -f - 2>&1)"; then
+      applied="true"
+      break
+    else
+      last_error="${output}"
+    fi
+  done
+
+  if [[ "${applied}" != "true" ]]; then
+    if [[ -n "${last_error}" ]]; then
+      echo "${last_error}" >&2
+    fi
+    echo "Failed to create temporary GatewayClass ${TEMP_GATEWAY_CLASS}; set GATEWAY_CLASS to a valid value before running" >&2
+    exit 1
+  fi
+
+  GATEWAY_CLASS="${TEMP_GATEWAY_CLASS}"
 fi
 
 if ! oc get gatewayclass "${GATEWAY_CLASS}" >/dev/null 2>&1; then
@@ -39,7 +119,7 @@ oc delete httproute,gateway "${APP_NAME}" -n "${GATEWAY_NAMESPACE}" --ignore-not
 
 echo "Resetting resources in ${BACKEND_NAMESPACE}"
 oc delete deploy,svc "${APP_NAME}" -n "${BACKEND_NAMESPACE}" --ignore-not-found
-oc delete referencegrant allow-${APP_NAME} -n "${BACKEND_NAMESPACE}" --ignore-not-found
+oc delete referencegrant -n "${BACKEND_NAMESPACE}" --all --ignore-not-found
 
 echo "Deploying backend workload in ${BACKEND_NAMESPACE}"
 cat <<YAML | oc -n "${BACKEND_NAMESPACE}" apply -f -
@@ -112,17 +192,26 @@ spec:
 YAML
 
 echo "Waiting for HTTPRoute status to indicate unresolved references"
-for _ in $(seq 1 24); do
-  resolved="$(oc -n "${GATEWAY_NAMESPACE}" get httproute "${APP_NAME}" -o json | jq -r '.status.parents[]?.conditions[]? | select(.type=="ResolvedRefs") | .status' 2>/dev/null || true)"
-  if [[ "${resolved}" == *"False"* ]]; then
-    break
+resolved_status=""
+resolved_reason=""
+resolved_message=""
+for _ in $(seq 1 36); do
+  status_json="$(oc -n "${GATEWAY_NAMESPACE}" get httproute "${APP_NAME}" -o json 2>/dev/null || true)"
+  if [[ -n "${status_json}" ]]; then
+    IFS=$'\t' read -r resolved_status resolved_reason resolved_message <<<"$(printf '%s' "${status_json}" | jq -r '
+      .status.parents[]?.conditions[]?
+      | select(.type=="ResolvedRefs")
+      | [.status // "", .reason // "", .message // ""]
+      | @tsv' 2>/dev/null || printf '\t\t')"
+    if [[ "${resolved_status}" == "False" ]] || [[ "${resolved_reason}" == "RefNotPermitted" ]] || [[ "${resolved_message}" == *"missing a ReferenceGrant"* ]]; then
+      break
+    fi
   fi
   sleep 5
 done
 
-resolved="$(oc -n "${GATEWAY_NAMESPACE}" get httproute "${APP_NAME}" -o json | jq -r '.status.parents[]?.conditions[]? | select(.type=="ResolvedRefs") | .status' 2>/dev/null || true)"
-if [[ "${resolved}" != *"False"* ]]; then
-  echo "HTTPRoute did not surface ResolvedRefs=False; ensure the gateway controller is reporting status" >&2
+if [[ "${resolved_status}" != "False" && "${resolved_reason}" != "RefNotPermitted" && "${resolved_message}" != *"missing a ReferenceGrant"* ]]; then
+  echo "HTTPRoute did not surface ResolvedRefs=False (status='${resolved_status}', reason='${resolved_reason}'); ensure the gateway controller is reporting status" >&2
   exit 1
 fi
 

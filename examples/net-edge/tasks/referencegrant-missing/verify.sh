@@ -12,8 +12,71 @@ GATEWAY_NAMESPACE="${GATEWAY_NAMESPACE:-netedge-scenario6}"
 BACKEND_NAMESPACE="${BACKEND_NAMESPACE:-netedge-scenario6-backend}"
 APP_NAME="${APP_NAME:-hello}"
 
-if ! oc -n "${BACKEND_NAMESPACE}" get referencegrant allow-"${APP_NAME}" >/dev/null 2>&1; then
-  echo "ReferenceGrant allow-${APP_NAME} missing in ${BACKEND_NAMESPACE}" >&2
+grant_name="$(
+  BACKEND_NS="${BACKEND_NAMESPACE}" FROM_NS="${GATEWAY_NAMESPACE}" SVC_NAME="${APP_NAME}" \
+  python - <<'PY'
+import json
+import os
+import subprocess
+import sys
+
+backend_ns = os.environ.get("BACKEND_NS", "")
+from_ns = os.environ.get("FROM_NS", "")
+svc_name = os.environ.get("SVC_NAME", "")
+
+cmd = ["oc", "-n", backend_ns, "get", "referencegrant", "-o", "json"]
+result = subprocess.run(cmd, capture_output=True, text=True)
+if result.returncode != 0:
+    message = result.stderr.strip() or result.stdout.strip() or "Failed to fetch ReferenceGrant resources"
+    print(message, file=sys.stderr)
+    sys.exit(65)
+
+raw = result.stdout.strip()
+if not raw:
+    sys.exit(0)
+
+try:
+    payload = json.loads(raw)
+except json.JSONDecodeError as exc:
+    print(f"JSON decode error: {exc}", file=sys.stderr)
+    sys.exit(66)
+
+for item in payload.get("items", []):
+    spec = item.get("spec") or {}
+    from_entries = spec.get("from") or []
+    to_entries = spec.get("to") or []
+
+    allows_from = any(
+        (entry or {}).get("group", "") == "gateway.networking.k8s.io"
+        and (entry or {}).get("kind", "") == "HTTPRoute"
+        and (entry or {}).get("namespace", "") == from_ns
+        for entry in from_entries
+    )
+
+    allows_to = any(
+        ((entry or {}).get("group") or "") in ("", "core")
+        and (entry or {}).get("kind", "") == "Service"
+        and (entry or {}).get("name", "") == svc_name
+        for entry in to_entries
+    )
+
+    if allows_from and allows_to:
+        print((item.get("metadata") or {}).get("name", ""))
+        sys.exit(0)
+PY
+)"
+
+status=$?
+if [[ ${status} -eq 65 ]]; then
+  echo "Unable to fetch ReferenceGrant resources in ${BACKEND_NAMESPACE}" >&2
+  exit 1
+elif [[ ${status} -eq 66 ]]; then
+  echo "Failed to parse ReferenceGrant JSON in ${BACKEND_NAMESPACE}" >&2
+  exit 1
+fi
+
+if [[ -z "${grant_name}" ]]; then
+  echo "No ReferenceGrant in ${BACKEND_NAMESPACE} permits HTTPRoute from ${GATEWAY_NAMESPACE} to Service ${APP_NAME}" >&2
   exit 1
 fi
 
