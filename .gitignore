@@ -34,3 +34,6 @@ go.work.sum
 # built binary
 /agent
 /gevals
+
+# gemini-cli
+.gemini
