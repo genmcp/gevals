@@ -1,0 +1,8 @@
+mcpServers:
+  netedge:
+    command: ../gen-mcp/genmcp
+    args:
+      - run
+      - -f
+      - ../gen-mcp/examples/netedge-tools/mcpfile.yaml
+    enableAllTools: true

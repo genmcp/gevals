@@ -1,0 +1,17 @@
+kind: Task
+metadata:
+  name: "netedge-networkpolicy-block"
+  difficulty: medium
+steps:
+  setup:
+    file: setup.sh
+  verify:
+    file: verify.sh
+  cleanup:
+    file: cleanup.sh
+  prompt:
+    inline: |
+      On the currently connected cluster every request to the Route now times out even though the pods and service look healthy.
+      Diagnose the root cause and apply the necessary changes so the Route succeeds again (do not stop at describing the fix).
+      Use the available diagnostics to inspect the Route, Service, and Endpoints as you work.
+      Do not consult repository documentation (e.g., files under examples/ or docs/); rely on cluster state and the available MCP tools.
