@@ -550,13 +550,20 @@ func splitWrappedLines(line string, maxLineLength int) []string {
 
 // truncateString shortens s to at most max characters, appending an ellipsis when truncated.
 func truncateString(s string, max int) string {
-	if max <= 0 || len(s) <= max {
+	if max <= 0 {
+		return s
+	}
+
+	runes := []rune(s)
+	if len(runes) <= max {
 		return s
 	}
 	if max <= 1 {
-		return s[:max]
+		return string(runes[:max])
 	}
-	return fmt.Sprintf("%s…", strings.TrimSpace(s[:max-1]))
+
+	trimmed := strings.TrimSpace(string(runes[:max-1]))
+	return fmt.Sprintf("%s…", trimmed)
 }
 
 // indentBlock prefixes each line in block with indent.
