@@ -150,15 +150,124 @@ func (r *evalRunner) collectTaskConfigs(rx *regexp.Regexp) ([]taskConfig, error)
 				continue
 			}
 
+			// Merge assertions: task assertions take precedence over eval assertions
+			mergedAssertions := r.mergeAssertions(taskSpec.Steps.Assertions, ts.Assertions, taskSpec.Metadata.Name)
+
 			taskConfigs = append(taskConfigs, taskConfig{
 				path:       path,
 				spec:       taskSpec,
-				assertions: ts.Assertions,
+				assertions: mergedAssertions,
 			})
 		}
 	}
 
 	return taskConfigs, nil
+}
+
+// mergeAssertions merges task assertions and eval assertions, with task assertions taking precedence.
+// Prints a warning if eval assertions are overridden.
+func (r *evalRunner) mergeAssertions(taskAssertions *task.TaskAssertions, evalAssertions *TaskAssertions, taskName string) *TaskAssertions {
+	// If no eval assertions, just use task assertions (or nil)
+	if evalAssertions == nil {
+		return convertTaskAssertionsToEval(taskAssertions)
+	}
+
+	// If no task assertions, use eval assertions
+	if taskAssertions == nil {
+		return evalAssertions
+	}
+
+	// Both are present - task takes precedence, print warning
+	r.progressCallback(ProgressEvent{
+		Type:    EventWarning,
+		Message: fmt.Sprintf("Task '%s' has assertions in both task.yaml and eval.yaml. Task assertions will override eval assertions.", taskName),
+	})
+
+	// Convert task assertions to eval assertions (task takes precedence)
+	return convertTaskAssertionsToEval(taskAssertions)
+}
+
+// convertTaskAssertionsToEval converts task.TaskAssertions to eval.TaskAssertions
+func convertTaskAssertionsToEval(ta *task.TaskAssertions) *TaskAssertions {
+	if ta == nil {
+		return nil
+	}
+
+	result := &TaskAssertions{
+		ToolsUsed:        convertToolAssertions(ta.ToolsUsed),
+		RequireAny:        convertToolAssertions(ta.RequireAny),
+		ToolsNotUsed:      convertToolAssertions(ta.ToolsNotUsed),
+		MinToolCalls:      ta.MinToolCalls,
+		MaxToolCalls:      ta.MaxToolCalls,
+		ResourcesRead:     convertResourceAssertions(ta.ResourcesRead),
+		ResourcesNotRead:   convertResourceAssertions(ta.ResourcesNotRead),
+		PromptsUsed:       convertPromptAssertions(ta.PromptsUsed),
+		PromptsNotUsed:    convertPromptAssertions(ta.PromptsNotUsed),
+		CallOrder:         convertCallOrderAssertions(ta.CallOrder),
+		NoDuplicateCalls:  ta.NoDuplicateCalls,
+	}
+
+	return result
+}
+
+func convertToolAssertions(ta []task.ToolAssertion) []ToolAssertion {
+	if ta == nil {
+		return nil
+	}
+	result := make([]ToolAssertion, len(ta))
+	for i, a := range ta {
+		result[i] = ToolAssertion{
+			Server:      a.Server,
+			Tool:        a.Tool,
+			ToolPattern: a.ToolPattern,
+		}
+	}
+	return result
+}
+
+func convertResourceAssertions(ra []task.ResourceAssertion) []ResourceAssertion {
+	if ra == nil {
+		return nil
+	}
+	result := make([]ResourceAssertion, len(ra))
+	for i, a := range ra {
+		result[i] = ResourceAssertion{
+			Server:      a.Server,
+			URI:         a.URI,
+			URIPattern:  a.URIPattern,
+		}
+	}
+	return result
+}
+
+func convertPromptAssertions(pa []task.PromptAssertion) []PromptAssertion {
+	if pa == nil {
+		return nil
+	}
+	result := make([]PromptAssertion, len(pa))
+	for i, a := range pa {
+		result[i] = PromptAssertion{
+			Server:         a.Server,
+			Prompt:         a.Prompt,
+			PromptPattern:  a.PromptPattern,
+		}
+	}
+	return result
+}
+
+func convertCallOrderAssertions(coa []task.CallOrderAssertion) []CallOrderAssertion {
+	if coa == nil {
+		return nil
+	}
+	result := make([]CallOrderAssertion, len(coa))
+	for i, a := range coa {
+		result[i] = CallOrderAssertion{
+			Type:   a.Type,
+			Server: a.Server,
+			Name:   a.Name,
+		}
+	}
+	return result
 }
 
 func (r *evalRunner) runTask(

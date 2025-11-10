@@ -11,3 +11,9 @@ steps:
     file: cleanup.sh
   prompt:
     inline: Please create a nginx pod named web-server in the create-pod-test namespace
+  assertions:
+    toolsUsed:
+      - server: kubernetes
+        toolPattern: ".*"
+    minToolCalls: 1
+    maxToolCalls: 20

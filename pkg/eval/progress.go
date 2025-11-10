@@ -23,6 +23,7 @@ const (
 	EventTaskComplete   ProgressEventType = "task_complete"
 	EventTaskError      ProgressEventType = "task_error"
 	EventEvalComplete   ProgressEventType = "eval_complete"
+	EventWarning        ProgressEventType = "warning"
 )
 
 // NoopProgressCallback is a progress callback that does nothing
