@@ -1,4 +1,4 @@
-// Package cli provides CLI commands for rendering and interacting with eval results.
+// Package cli provides commands for rendering and inspecting evaluation results.
 package cli
 
 import (
@@ -96,7 +96,7 @@ func loadEvalResults(path string) ([]*eval.EvalResult, error) {
 	return results, nil
 }
 
-// viewOptions controls which portions of a result are rendered and how much detail to show.
+// viewOptions controls which portions of a result are rendered and how much detail is shown.
 type viewOptions struct {
 	showTimeline   bool
 	maxEvents      int
@@ -104,7 +104,7 @@ type viewOptions struct {
 	maxLineLength  int
 }
 
-// filterResults returns only those results whose task names contain the filter substring.
+// filterResults returns the subset of results whose task names contain the filter substring.
 func filterResults(results []*eval.EvalResult, filter string) []*eval.EvalResult {
 	if filter == "" {
 		return results
@@ -120,7 +120,7 @@ func filterResults(results []*eval.EvalResult, filter string) []*eval.EvalResult
 	return filtered
 }
 
-// printEvalResult emits a formatted summary of a single evaluation result.
+// printEvalResult prints a formatted summary of a single evaluation result.
 func printEvalResult(result *eval.EvalResult, opts viewOptions) {
 	bold := color.New(color.Bold)
 	green := color.New(color.FgGreen)
@@ -171,7 +171,7 @@ func printEvalResult(result *eval.EvalResult, opts viewOptions) {
 	}
 }
 
-// printAssertions prints assertion counts and individual failures when present.
+// printAssertions prints assertion counts and any failing assertion reasons.
 func printAssertions(results *eval.CompositeAssertionResult, warn *color.Color) {
 	if results == nil {
 		return
@@ -220,7 +220,7 @@ func printAssertions(results *eval.CompositeAssertionResult, warn *color.Color) 
 	}
 }
 
-// printCallHistory renders aggregated tool/resource/prompt usage details.
+// printCallHistory emits an aggregated summary of tool/resource/prompt usage.
 func printCallHistory(history *mcpproxy.CallHistory) {
 	if history == nil {
 		return
@@ -254,7 +254,7 @@ func printCallHistory(history *mcpproxy.CallHistory) {
 	}
 }
 
-// printToolCallDetails prints detailed output for each tool invocation.
+// printToolCallDetails prints detailed tool call output for timeline inspection.
 func printToolCallDetails(calls []*mcpproxy.ToolCall) {
 	fmt.Println("    Tool output:")
 	for _, call := range calls {
@@ -280,7 +280,7 @@ func printToolCallDetails(calls []*mcpproxy.ToolCall) {
 	}
 }
 
-// extractToolText flattens tool call response content into readable text blocks.
+// extractToolText flattens the mixed content of a tool call into readable text.
 func extractToolText(call *mcpproxy.ToolCall) string {
 	if call == nil || call.Result == nil {
 		return ""
@@ -316,7 +316,7 @@ func extractToolText(call *mcpproxy.ToolCall) string {
 	return builder.String()
 }
 
-// summarizeToolCalls groups tool calls by server and success outcome.
+// summarizeToolCalls groups tool calls by server and success outcome into a compact string.
 func summarizeToolCalls(calls []*mcpproxy.ToolCall) string {
 	if len(calls) == 0 {
 		return ""
@@ -367,7 +367,7 @@ func summarizeToolCalls(calls []*mcpproxy.ToolCall) string {
 	return strings.Join(parts, ", ")
 }
 
-// agentEvent represents a single streamed event emitted by the agent JSON log.
+// agentEvent represents a single event emitted by the agent JSON log stream.
 type agentEvent struct {
 	Type    string          `json:"type"`
 	Item    json.RawMessage `json:"item,omitempty"`
@@ -388,13 +388,13 @@ type agentItem struct {
 	Items            []todoEntry `json:"items,omitempty"`
 }
 
-// todoEntry models an item inside the agent's todo_list event.
+// todoEntry models a single task entry inside an agent todo list.
 type todoEntry struct {
 	Text      string `json:"text"`
 	Completed bool   `json:"completed"`
 }
 
-// summarizeTaskOutput condenses raw JSON event lines into timeline-friendly strings.
+// summarizeTaskOutput condenses raw agent event lines into human-readable timeline entries.
 func summarizeTaskOutput(raw string, maxEvents, maxOutputLines, maxLineLength int) []string {
 	raw = strings.TrimSpace(raw)
 	if raw == "" {
@@ -429,7 +429,7 @@ func summarizeTaskOutput(raw string, maxEvents, maxOutputLines, maxLineLength in
 	return summaries
 }
 
-// formatEvent converts a single agent event into a human-readable summary string.
+// formatEvent converts an agent event into a concise timeline string, if applicable.
 func formatEvent(evt agentEvent, maxOutputLines, maxLineLength int) string {
 	switch evt.Type {
 	case "thread.started", "turn.started", "turn.completed":
@@ -509,7 +509,7 @@ func formatEvent(evt agentEvent, maxOutputLines, maxLineLength int) string {
 	}
 }
 
-// limitMultiline trims a block to the requested number of lines and line length.
+// limitMultiline trims a block to the requested number of lines and line length, wrapping as needed.
 func limitMultiline(raw string, maxLines, maxLineLength int) string {
 	raw = strings.TrimRight(raw, "\n")
 	if raw == "" {
@@ -518,23 +518,35 @@ func limitMultiline(raw string, maxLines, maxLineLength int) string {
 
 	lines := strings.Split(raw, "\n")
 	limited := make([]string, 0, len(lines))
-	for idx, line := range lines {
-		if maxLines > 0 && idx >= maxLines {
-			limited = append(limited, fmt.Sprintf("… (+%d lines)", len(lines)-idx))
-			break
-		}
-		if maxLineLength > 0 {
-			for _, wrapped := range strings.Split(wrapText(line, maxLineLength), "\n") {
-				limited = append(limited, wrapped)
+	for i, line := range lines {
+		segments := splitWrappedLines(line, maxLineLength)
+		for j, segment := range segments {
+			if maxLines > 0 && len(limited) >= maxLines {
+				remaining := len(segments) - j
+				for _, future := range lines[i+1:] {
+					remaining += len(splitWrappedLines(future, maxLineLength))
+				}
+				if remaining > 0 {
+					limited = append(limited, fmt.Sprintf("… (+%d lines)", remaining))
+				}
+				return strings.Join(limited, "\n")
 			}
-		} else {
-			limited = append(limited, line)
+			limited = append(limited, segment)
 		}
 	}
+
 	return strings.Join(limited, "\n")
 }
 
-// truncateString shortens s to at most max characters, adding an ellipsis when truncated.
+// splitWrappedLines wraps a single line to the max width and returns its segments.
+func splitWrappedLines(line string, maxLineLength int) []string {
+	if maxLineLength > 0 {
+		return strings.Split(wrapText(line, maxLineLength), "\n")
+	}
+	return []string{line}
+}
+
+// truncateString shortens s to at most max characters, appending an ellipsis when truncated.
 func truncateString(s string, max int) string {
 	if max <= 0 || len(s) <= max {
 		return s
@@ -545,7 +557,7 @@ func truncateString(s string, max int) string {
 	return fmt.Sprintf("%s…", strings.TrimSpace(s[:max-1]))
 }
 
-// indentBlock prefixes each line of block with indent.
+// indentBlock prefixes each line in block with indent.
 func indentBlock(block, indent string) string {
 	lines := strings.Split(block, "\n")
 	for i, line := range lines {
@@ -554,7 +566,7 @@ func indentBlock(block, indent string) string {
 	return strings.Join(lines, "\n")
 }
 
-// normalizeWhitespace collapses whitespace and removes simple markdown emphasis.
+// normalizeWhitespace collapses whitespace and removes simple emphasis markers.
 func normalizeWhitespace(in string) string {
 	in = strings.ReplaceAll(in, "\n", " ")
 	in = strings.ReplaceAll(in, "\t", " ")
@@ -563,7 +575,7 @@ func normalizeWhitespace(in string) string {
 	return strings.Join(fields, " ")
 }
 
-// wrapText breaks text into multiple lines no wider than width characters.
+// wrapText breaks s into multiple lines no wider than width characters.
 func wrapText(s string, width int) string {
 	if width <= 0 || len(s) <= width {
 		return s
@@ -590,7 +602,7 @@ func wrapText(s string, width int) string {
 	return strings.Join(lines, "\n")
 }
 
-// loadTaskPrompt returns the prompt text defined in the task manifest, if any.
+// loadTaskPrompt returns the prompt text defined in the task manifest, if present.
 func loadTaskPrompt(taskPath string) string {
 	if taskPath == "" {
 		return ""
@@ -609,7 +621,7 @@ func loadTaskPrompt(taskPath string) string {
 	return strings.TrimSpace(text)
 }
 
-// printMultilineField prints a label/value pair, indenting multi-line values nicely.
+// printMultilineField prints a label/value pair, indenting multi-line values neatly.
 func printMultilineField(label, value string) {
 	value = strings.TrimRight(value, "\n")
 	value = strings.ReplaceAll(value, "\n': exit status", " exit status")
@@ -625,7 +637,7 @@ func printMultilineField(label, value string) {
 	}
 }
 
-// mergeContinuationLines recombines lines that were wrapped mid-word in logs.
+// mergeContinuationLines rejoins log lines that were split across multiple rows.
 func mergeContinuationLines(lines []string) []string {
 	merged := make([]string, 0, len(lines))
 
@@ -655,7 +667,7 @@ func mergeContinuationLines(lines []string) []string {
 	return merged
 }
 
-// printTimelineLine prints a timeline entry followed by any indented child lines.
+// printTimelineLine prints a timeline entry and any subsequent indented lines.
 func printTimelineLine(entry string) {
 	parts := strings.Split(entry, "\n")
 	if len(parts) == 0 {
