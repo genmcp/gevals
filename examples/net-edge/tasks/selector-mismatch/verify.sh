@@ -3,7 +3,7 @@ set -euo pipefail
 
 NAMESPACE="${NAMESPACE:-netedge-scenario1}"
 APP_NAME="${APP_NAME:-hello}"
-EXPECTED_LABEL="${APP_LABEL:-hello}"
+EXPECTED_LABEL="${EXPECTED_LABEL:-hello}"
 
 if ! command -v oc >/dev/null 2>&1; then
   echo "oc CLI is required for verification" >&2
