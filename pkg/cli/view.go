@@ -158,7 +158,7 @@ func printEvalResult(result *eval.EvalResult, opts viewOptions) {
 	}
 
 	printAssertions(result.AssertionResults, yellow)
-	printCallHistory(result.CallHistory)
+	printCallHistory(result.CallHistory, opts)
 
 	if opts.showTimeline {
 		timeline := summarizeTaskOutput(result.TaskOutput, opts.maxEvents, opts.maxOutputLines, opts.maxLineLength)
@@ -221,7 +221,7 @@ func printAssertions(results *eval.CompositeAssertionResult, warn *color.Color) 
 }
 
 // printCallHistory emits an aggregated summary of tool/resource/prompt usage.
-func printCallHistory(history *mcpproxy.CallHistory) {
+func printCallHistory(history *mcpproxy.CallHistory, opts viewOptions) {
 	if history == nil {
 		return
 	}
@@ -250,12 +250,12 @@ func printCallHistory(history *mcpproxy.CallHistory) {
 	fmt.Println()
 
 	if toolCalls > 0 {
-		printToolCallDetails(history.ToolCalls)
+		printToolCallDetails(history.ToolCalls, opts)
 	}
 }
 
 // printToolCallDetails prints detailed tool call output for timeline inspection.
-func printToolCallDetails(calls []*mcpproxy.ToolCall) {
+func printToolCallDetails(calls []*mcpproxy.ToolCall, opts viewOptions) {
 	fmt.Println("    Tool output:")
 	for _, call := range calls {
 		status := "ok"
@@ -270,7 +270,9 @@ func printToolCallDetails(calls []*mcpproxy.ToolCall) {
 			continue
 		}
 
-		block := limitMultiline(snippet, 12, 110)
+		lineLimit := opts.maxOutputLines
+		width := opts.maxLineLength
+		block := limitMultiline(snippet, lineLimit, width)
 		for _, line := range strings.Split(block, "\n") {
 			if strings.TrimSpace(line) == "" {
 				continue
