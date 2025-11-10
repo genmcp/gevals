@@ -57,6 +57,39 @@ func NewRunner(spec *EvalSpec) (EvalRunner, error) {
 	}, nil
 }
 
+func (r *evalRunner) loadAgentSpec() (*agent.AgentSpec, error) {
+	// Check that exactly one of AgentFile or Agent is specified
+	hasAgentFile := r.spec.Config.AgentFile != ""
+	hasInlineAgent := r.spec.Config.Agent != nil
+
+	if !hasAgentFile && !hasInlineAgent {
+		return nil, fmt.Errorf("either agentFile or agent must be specified in eval config")
+	}
+
+	if hasAgentFile && hasInlineAgent {
+		return nil, fmt.Errorf("cannot specify both agentFile and agent in eval config")
+	}
+
+	// If AgentFile is specified, use the existing loading logic
+	if hasAgentFile {
+		return agent.LoadWithBuiltins(r.spec.Config.AgentFile)
+	}
+
+	// Handle inline agent configuration
+	builtinAgent, ok := agent.GetBuiltinType(r.spec.Config.Agent.Type)
+	if !ok {
+		return nil, fmt.Errorf("unknown builtin agent type: %s", r.spec.Config.Agent.Type)
+	}
+
+	// Get the default spec for this builtin agent
+	agentSpec, err := builtinAgent.GetDefaults(r.spec.Config.Agent.Model)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get defaults for builtin agent %s: %w", r.spec.Config.Agent.Type, err)
+	}
+
+	return agentSpec, nil
+}
+
 func (r *evalRunner) Run(ctx context.Context, taskPattern string) ([]*EvalResult, error) {
 	return r.RunWithProgress(ctx, taskPattern, NoopProgressCallback)
 }
@@ -85,7 +118,7 @@ func (r *evalRunner) RunWithProgress(ctx context.Context, taskPattern string, ca
 
 	r.mcpConfig = mcpConfig
 
-	agentSpec, err := agent.LoadWithBuiltins(r.spec.Config.AgentFile)
+	agentSpec, err := r.loadAgentSpec()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load agent spec: %w", err)
 	}

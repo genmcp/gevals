@@ -37,7 +37,17 @@ kind: Eval
 metadata:
   name: "kubernetes-test"
 config:
+  # Option 1: Reference an agent file
   agentFile: agent.yaml           # How to run your AI agent
+
+  # Option 2: Inline builtin agent (no separate file needed)
+  # agent:
+  #   type: "claude-code"
+  # Or for OpenAI-compatible agents:
+  # agent:
+  #   type: "openai-agent"
+  #   model: "gpt-4"
+
   mcpConfigFile: mcp-config.yaml  # Your MCP server config
   taskSets:
     - path: tasks/create-pod.yaml
@@ -226,11 +236,40 @@ Results saved to `gevals-<eval-name>-out.json`:
 
 ## Agent Configuration
 
+### Inline vs File-based Configuration
+
+You can configure agents in two ways:
+
+1. **Inline in eval.yaml** (recommended for built-in agents):
+```yaml
+kind: Eval
+config:
+  agent:
+    type: "claude-code"
+```
+
+2. **Separate agent.yaml file**:
+```yaml
+kind: Eval
+config:
+  agentFile: agent.yaml
+```
+
+Use inline configuration for simple setups with built-in agents. Use a separate file when you need custom commands or want to reuse the same agent across multiple evals.
+
 ### Built-in Agent Types
 
 gevals provides built-in configurations for popular AI agents to eliminate boilerplate:
 
-**Claude Code**:
+**Claude Code** (inline):
+```yaml
+kind: Eval
+config:
+  agent:
+    type: "claude-code"
+```
+
+**Claude Code** (file-based):
 ```yaml
 kind: Agent
 metadata:
@@ -239,7 +278,16 @@ builtin:
   type: "claude-code"
 ```
 
-**OpenAI-compatible agents**:
+**OpenAI-compatible agents** (inline):
+```yaml
+kind: Eval
+config:
+  agent:
+    type: "openai-agent"
+    model: "gpt-4"  # or any OpenAI-compatible model
+```
+
+**OpenAI-compatible agents** (file-based):
 ```yaml
 kind: Agent
 metadata:
