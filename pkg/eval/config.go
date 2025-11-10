@@ -25,13 +25,31 @@ type EvalMetadata struct {
 }
 
 type EvalConfig struct {
-	// Agent and MCP configuration
-	AgentFile     string                       `json:"agentFile"`
+	// Agent configuration
+	Agent *AgentRef `json:"agent"`
+
+	// MCP configuration
 	McpConfigFile string                       `json:"mcpConfigFile"`
 	LLMJudge      *llmjudge.LLMJudgeEvalConfig `json:"llmJudge"`
 
 	// Advanced mode: different assertion sets
 	TaskSets []TaskSet `json:"taskSets,omitempty"`
+}
+
+// AgentRef specifies how to configure the agent
+// Use "type: builtin.X" for built-in agents or "type: file" for custom agent files
+type AgentRef struct {
+	// Type specifies the agent type:
+	// - "builtin.claude-code" for Claude Code
+	// - "builtin.openai-agent" for OpenAI-compatible agents
+	// - "file" for custom agent configuration files
+	Type string `json:"type"`
+
+	// Path to agent configuration file (required when type is "file")
+	Path string `json:"path,omitempty"`
+
+	// Model name (required for some builtin types like openai-agent)
+	Model string `json:"model,omitempty"`
 }
 
 type TaskSet struct {
@@ -115,8 +133,10 @@ func Read(data []byte, basePath string) (*EvalSpec, error) {
 	}
 
 	// Convert all relative file paths to absolute paths
-	if err := resolveFilePath(&spec.Config.AgentFile, basePath); err != nil {
-		return nil, fmt.Errorf("failed to resolve agent file path: %w", err)
+	if spec.Config.Agent != nil && spec.Config.Agent.Type == "file" {
+		if err := resolveFilePath(&spec.Config.Agent.Path, basePath); err != nil {
+			return nil, fmt.Errorf("failed to resolve agent file path: %w", err)
+		}
 	}
 	if err := resolveFilePath(&spec.Config.McpConfigFile, basePath); err != nil {
 		return nil, fmt.Errorf("failed to resolve mcp config file path: %w", err)

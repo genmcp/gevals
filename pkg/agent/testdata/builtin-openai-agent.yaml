@@ -1,0 +1,6 @@
+kind: Agent
+metadata:
+  name: "openai-agent-gpt-4"
+builtin:
+  type: "openai-agent"
+  model: "gpt-4"

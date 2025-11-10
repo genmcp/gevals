@@ -9,7 +9,9 @@ kind: Eval
 metadata:
   name: "eval-name"
 config:
-  agentFile: agent.yaml
+  agent:
+    type: "file"
+    path: agent.yaml
   mcpConfigFile: mcp-config.yaml
   taskSets:
     - path: tasks/task1.yaml
@@ -38,9 +40,17 @@ config:
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `agentFile` | string | Yes | Path to agent YAML file |
+| `agent` | object | Yes | Agent configuration (see below) |
 | `mcpConfigFile` | string | Yes | Path to MCP config file |
 | `taskSets` | array | Yes | List of task sets with optional assertions |
+
+## agent Object
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `type` | string | Yes | Agent type: "builtin.claude-code", "builtin.openai-agent", or "file" |
+| `path` | string | Conditional | Path to agent YAML file (required when type is "file") |
+| `model` | string | Conditional | Model name (required for builtin.openai-agent) |
 
 ## taskSets Array Items
 
@@ -142,14 +152,36 @@ Each item in `callOrder`:
 
 ## Complete Examples
 
-### Simple Eval
+### Simple Eval with Builtin Agent
 
 ```yaml
 kind: Eval
 metadata:
   name: "kubernetes-basic"
 config:
-  agentFile: agent.yaml
+  agent:
+    type: "builtin.claude-code"
+  mcpConfigFile: mcp-config.yaml
+  taskSets:
+    - path: tasks/create-pod.yaml
+      assertions:
+        toolsUsed:
+          - server: kubernetes
+            toolPattern: "pods_.*"
+        minToolCalls: 1
+        maxToolCalls: 5
+```
+
+### Simple Eval with Custom Agent File
+
+```yaml
+kind: Eval
+metadata:
+  name: "kubernetes-basic"
+config:
+  agent:
+    type: "file"
+    path: agent.yaml
   mcpConfigFile: mcp-config.yaml
   taskSets:
     - path: tasks/create-pod.yaml
@@ -168,7 +200,9 @@ kind: Eval
 metadata:
   name: "comprehensive-eval"
 config:
-  agentFile: agents/claude-code.yaml
+  agent:
+    type: "file"
+    path: agents/claude-code.yaml
   mcpConfigFile: configs/prod-mcp.yaml
   taskSets:
     # Easy tasks: limited tool calls
@@ -206,7 +240,8 @@ kind: Eval
 metadata:
   name: "safe-operations"
 config:
-  agentFile: agent.yaml
+  agent:
+    type: "builtin.claude-code"
   mcpConfigFile: mcp-config.yaml
   taskSets:
     - glob: tasks/**/*.yaml
@@ -242,7 +277,9 @@ kind: Eval
 metadata:
   name: "flexible-eval"
 config:
-  agentFile: agent.yaml
+  agent:
+    type: "builtin.openai-agent"
+    model: "gpt-4"
   mcpConfigFile: mcp-config.yaml
   taskSets:
     - path: tasks/creative-task.yaml

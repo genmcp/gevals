@@ -1,0 +1,6 @@
+kind: Agent
+metadata:
+  name: "openai-no-model"
+builtin:
+  type: "openai-agent"
+  # Missing required model field
