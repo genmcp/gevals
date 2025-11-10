@@ -85,7 +85,7 @@ func (r *evalRunner) RunWithProgress(ctx context.Context, taskPattern string, ca
 
 	r.mcpConfig = mcpConfig
 
-	agentSpec, err := agent.FromFile(r.spec.Config.AgentFile)
+	agentSpec, err := agent.LoadWithBuiltins(r.spec.Config.AgentFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load agent spec: %w", err)
 	}
