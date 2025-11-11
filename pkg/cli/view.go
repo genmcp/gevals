@@ -403,24 +403,11 @@ func summarizeTaskOutput(raw string, maxEvents, maxOutputLines, maxLineLength in
 		return nil
 	}
 
-	lines := strings.Split(raw, "\n")
-	summaries := make([]string, 0, len(lines))
-
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-
-		var evt agentEvent
-		if err := json.Unmarshal([]byte(line), &evt); err != nil {
-			summaries = append(summaries, fmt.Sprintf("unparsed event: %s", truncateString(line, maxLineLength)))
-			continue
-		}
-
-		if summary := formatEvent(evt, maxOutputLines, maxLineLength); summary != "" {
-			summaries = append(summaries, summary)
-		}
+	var summaries []string
+	if isLikelyJSONTaskOutput(raw) {
+		summaries = summarizeJSONTaskOutput(raw, maxOutputLines, maxLineLength)
+	} else {
+		summaries = summarizePlaintextTaskOutput(raw, maxOutputLines, maxLineLength)
 	}
 
 	if maxEvents > 0 && len(summaries) > maxEvents {
@@ -509,6 +496,304 @@ func formatEvent(evt agentEvent, maxOutputLines, maxLineLength int) string {
 	default:
 		return fmt.Sprintf("%s event", item.Type)
 	}
+}
+
+func isLikelyJSONTaskOutput(raw string) bool {
+	lines := strings.Split(raw, "\n")
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+		return strings.HasPrefix(trimmed, "{")
+	}
+	return false
+}
+
+func summarizeJSONTaskOutput(raw string, maxOutputLines, maxLineLength int) []string {
+	lines := strings.Split(raw, "\n")
+	summaries := make([]string, 0, len(lines))
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+
+		var evt agentEvent
+		if err := json.Unmarshal([]byte(trimmed), &evt); err != nil {
+			summaries = append(summaries, fmt.Sprintf("unparsed event: %s", truncateString(trimmed, maxLineLength)))
+			continue
+		}
+
+		if summary := formatEvent(evt, maxOutputLines, maxLineLength); summary != "" {
+			summaries = append(summaries, summary)
+		}
+	}
+
+	return summaries
+}
+
+func summarizePlaintextTaskOutput(raw string, maxOutputLines, maxLineLength int) []string {
+	lines := strings.Split(raw, "\n")
+	i := 0
+	for i < len(lines) {
+		trimmed := strings.TrimSpace(lines[i])
+		if trimmed == "" {
+			i++
+			continue
+		}
+		if plaintextIsEventHeader(trimmed) {
+			break
+		}
+		i++
+	}
+
+	summaries := make([]string, 0, len(lines))
+	lastAssistant := ""
+
+	for i < len(lines) {
+		line := strings.TrimSpace(lines[i])
+		if line == "" {
+			i++
+			continue
+		}
+
+		header := strings.ToLower(strings.TrimSuffix(line, ":"))
+
+		switch header {
+		case "thinking", "analysis", "reasoning":
+			i++
+			block, next := collectPlaintextBlock(lines, i, false)
+			i = next
+			if len(block) == 0 {
+				continue
+			}
+
+			textParts := make([]string, 0, len(block))
+			for _, segment := range block {
+				textParts = append(textParts, stripMarkdownEmphasis(strings.TrimSpace(segment)))
+			}
+
+			text := normalizeWhitespace(strings.Join(textParts, " "))
+			if text == "" {
+				continue
+			}
+
+			wrapped := wrapText(text, maxLineLength)
+			summaries = append(summaries, fmt.Sprintf("thought: %s", wrapped))
+
+		case "plan", "todo":
+			i++
+			block, next := collectPlaintextBlock(lines, i, false)
+			i = next
+			if len(block) == 0 {
+				continue
+			}
+
+			items := make([]string, 0, len(block))
+			for _, segment := range block {
+				items = append(items, normalizeWhitespace(stripMarkdownEmphasis(segment)))
+			}
+
+			headline := wrapText(items[0], maxLineLength)
+			if len(items) == 1 {
+				summaries = append(summaries, fmt.Sprintf("plan: %s", headline))
+			} else {
+				summaries = append(summaries, fmt.Sprintf("plan: %d steps (%s)", len(items), headline))
+			}
+
+		case "exec", "command":
+			i++
+			var summaryLine string
+			if i < len(lines) {
+				summaryLine = strings.TrimSpace(lines[i])
+				i++
+			}
+
+			summary := summarizePlaintextCommand(summaryLine, maxLineLength)
+
+			output, next := collectPlaintextBlock(lines, i, true)
+			i = next
+			if len(output) > 0 {
+				block := limitMultiline(strings.Join(output, "\n"), maxOutputLines, maxLineLength)
+				if block != "" {
+					summary = fmt.Sprintf("%s\n%s", summary, indentBlock(block, "      "))
+				}
+			}
+
+			summaries = append(summaries, summary)
+
+		case "tool":
+			i++
+			var toolLine string
+			if i < len(lines) {
+				toolLine = strings.TrimSpace(lines[i])
+				i++
+			}
+
+			summary := summarizePlaintextTool(toolLine, maxLineLength)
+
+			output, next := collectPlaintextBlock(lines, i, true)
+			i = next
+			if len(output) > 0 {
+				block := limitMultiline(strings.Join(output, "\n"), maxOutputLines, maxLineLength)
+				if block != "" {
+					summary = fmt.Sprintf("%s\n%s", summary, indentBlock(block, "      "))
+				}
+			}
+
+			summaries = append(summaries, summary)
+
+		case "assistant", "codex":
+			i++
+			block, next := collectPlaintextBlock(lines, i, false)
+			i = next
+			if len(block) == 0 {
+				continue
+			}
+
+			textParts := make([]string, 0, len(block))
+			for _, segment := range block {
+				textParts = append(textParts, normalizeWhitespace(stripMarkdownEmphasis(segment)))
+			}
+
+			text := normalizeWhitespace(strings.Join(textParts, " "))
+			if text == "" {
+				continue
+			}
+
+			lastAssistant = text
+			wrapped := wrapText(text, maxLineLength)
+			summaries = append(summaries, fmt.Sprintf("assistant: %s", wrapped))
+
+		case "user", "system":
+			i++
+			_, next := collectPlaintextBlock(lines, i, false)
+			i = next
+
+		case "tokens used", "token usage":
+			i++
+			if i < len(lines) {
+				i++
+			}
+
+		default:
+			block, next := collectPlaintextBlock(lines, i, false)
+			if len(block) == 0 {
+				i++
+				continue
+			}
+
+			text := normalizeWhitespace(strings.Join(block, " "))
+			if text == "" || (lastAssistant != "" && text == lastAssistant) {
+				i = next
+				continue
+			}
+
+			wrapped := wrapText(text, maxLineLength)
+			summaries = append(summaries, fmt.Sprintf("note: %s", wrapped))
+			i = next
+		}
+	}
+
+	return summaries
+}
+
+func collectPlaintextBlock(lines []string, start int, allowBlank bool) ([]string, int) {
+	block := make([]string, 0)
+	i := start
+
+	for i < len(lines) {
+		raw := strings.TrimRight(lines[i], "\r")
+		trimmed := strings.TrimSpace(raw)
+
+		if trimmed == "" {
+			if allowBlank {
+				block = append(block, "")
+				i++
+				continue
+			}
+			i++
+			break
+		}
+
+		if plaintextIsEventHeader(trimmed) {
+			break
+		}
+
+		block = append(block, raw)
+		i++
+	}
+
+	return block, i
+}
+
+func plaintextIsEventHeader(line string) bool {
+	line = strings.TrimSpace(line)
+	line = strings.TrimSuffix(line, ":")
+	lower := strings.ToLower(line)
+
+	switch lower {
+	case "analysis", "assistant", "codex", "command", "commentary", "exec", "observation", "plan", "reasoning", "thinking", "thought", "todo", "tool", "tokens used", "token usage", "user", "system":
+		return true
+	default:
+		return false
+	}
+}
+
+func summarizePlaintextCommand(line string, maxLineLength int) string {
+	line = strings.TrimSpace(line)
+	line = strings.TrimSuffix(line, ":")
+
+	if line == "" {
+		return "command"
+	}
+
+	cmd := line
+	if idx := strings.Index(line, " in "); idx != -1 {
+		cmd = line[:idx]
+	}
+
+	status := ""
+	lower := strings.ToLower(line)
+	switch {
+	case strings.Contains(lower, "succeeded"):
+		status = "completed"
+	case strings.Contains(lower, "failed"):
+		status = "failed"
+	case strings.Contains(lower, "canceled"), strings.Contains(lower, "cancelled"):
+		status = "cancelled"
+	}
+
+	summary := fmt.Sprintf("command: %s", strings.TrimSpace(cmd))
+	if status != "" {
+		summary = fmt.Sprintf("%s (%s)", summary, status)
+	}
+
+	return wrapText(summary, maxLineLength)
+}
+
+func summarizePlaintextTool(line string, maxLineLength int) string {
+	line = strings.TrimSpace(line)
+	line = strings.TrimSuffix(line, ":")
+	if line == "" {
+		return "tool call"
+	}
+
+	base := line
+	if idx := strings.Index(line, " in "); idx != -1 {
+		base = line[:idx]
+	}
+
+	summary := fmt.Sprintf("tool: %s", strings.TrimSpace(base))
+	return wrapText(summary, maxLineLength)
+}
+
+func stripMarkdownEmphasis(s string) string {
+	s = strings.TrimSpace(s)
+	s = strings.Trim(s, "*`_")
+	return strings.TrimSpace(s)
 }
 
 // limitMultiline trims a block to the requested number of lines and line length, wrapping as needed.
