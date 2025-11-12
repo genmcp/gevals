@@ -17,7 +17,7 @@ When creating a full eval from scratch, you will need to:
 1. Create one or more tasks, see [tasks.md](tasks.md)
 2. Create a mcp config file, see [mcpConfig.md](mcpConfig.md)
 3. Create an agent file, see [agent.md](agent.md)
-4. Create a top-level eval file that references the rest of the files, see [eval.yaml](eval.yaml)
+4. Create a top-level eval file that references the rest of the files, see [eval.md](eval.md)
 
 However, in most cases you will not be creating an entirely new set of evals from scratch - you will just be modifying or
 extending an existing eval. In this case, you will only need to modify some of these files.
@@ -27,7 +27,7 @@ extending an existing eval. In this case, you will only need to modify some of t
 To run the evals, use:
 
 ```bash
-gevals run <path to eval yaml file>
+gevals eval <path to eval yaml file>
 ```
 
 The `gevals` binary may or may not be in the `$PATH`. If it is not in the path, ask the user where it is.
