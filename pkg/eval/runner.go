@@ -11,6 +11,7 @@ import (
 	"github.com/genmcp/gevals/pkg/llmjudge"
 	"github.com/genmcp/gevals/pkg/mcpproxy"
 	"github.com/genmcp/gevals/pkg/task"
+	"github.com/genmcp/gevals/pkg/util"
 )
 
 type EvalResult struct {
@@ -270,6 +271,9 @@ func (r *evalRunner) executeTaskSteps(
 
 	agentRunner = agentRunner.WithMcpServerInfo(manager)
 
+	if util.IsVerbose(ctx) {
+		fmt.Printf("  → Agent '%s' is working…\n", agentRunner.AgentName())
+	}
 	out, err := taskRunner.RunAgent(ctx, agentRunner)
 	if err != nil {
 		result.TaskPassed = false
