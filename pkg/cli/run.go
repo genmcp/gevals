@@ -269,14 +269,14 @@ func displayTextResults(results []*eval.EvalResult) error {
 	if tasksPassed == totalTasks {
 		green.Printf("Tasks Passed: %d/%d\n", tasksPassed, totalTasks)
 	} else {
-		fmt.Printf("Tasks Passed: %d/%d\n", tasksPassed, totalTasks)
+		yellow.Printf("Tasks Passed: %d/%d\n", tasksPassed, totalTasks)
 	}
 
 	if totalAssertions > 0 {
 		if passedAssertions == totalAssertions {
 			green.Printf("Assertions Passed: %d/%d\n", passedAssertions, totalAssertions)
 		} else {
-			fmt.Printf("Assertions Passed: %d/%d\n", passedAssertions, totalAssertions)
+			yellow.Printf("Assertions Passed: %d/%d\n", passedAssertions, totalAssertions)
 		}
 	}
 
@@ -294,12 +294,12 @@ func displayTextResults(results []*eval.EvalResult) error {
 	// Group by difficulty
 	fmt.Println()
 	bold.Println("=== Statistics by Difficulty ===")
-	displayStatsByDifficulty(results, green)
+	displayStatsByDifficulty(results, green, yellow)
 
 	return nil
 }
 
-func displayStatsByDifficulty(results []*eval.EvalResult, green *color.Color) {
+func displayStatsByDifficulty(results []*eval.EvalResult, green *color.Color, yellow *color.Color) {
 	// Group results by difficulty
 	type difficultyStats struct {
 		totalTasks       int
@@ -347,14 +347,14 @@ func displayStatsByDifficulty(results []*eval.EvalResult, green *color.Color) {
 		if stats.tasksPassed == stats.totalTasks {
 			green.Printf("  Tasks: %d/%d\n", stats.tasksPassed, stats.totalTasks)
 		} else {
-			fmt.Printf("  Tasks: %d/%d\n", stats.tasksPassed, stats.totalTasks)
+			yellow.Printf("  Tasks: %d/%d\n", stats.tasksPassed, stats.totalTasks)
 		}
 
 		if stats.totalAssertions > 0 {
 			if stats.passedAssertions == stats.totalAssertions {
 				green.Printf("  Assertions: %d/%d\n", stats.passedAssertions, stats.totalAssertions)
 			} else {
-				fmt.Printf("  Assertions: %d/%d\n", stats.passedAssertions, stats.totalAssertions)
+				yellow.Printf("  Assertions: %d/%d\n", stats.passedAssertions, stats.totalAssertions)
 			}
 		}
 	}
