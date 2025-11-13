@@ -45,7 +45,7 @@ type AgentCommands struct {
 	// A template command to run the agent with a prompt and some mcp servers
 	// the prompt will be in {{ .Prompt }}
 	// the servers will be in {{ .McpServerFileArgs }}
-	// the allowed tools will be in {{ .AllowedTools }}
+	// the allowed tools will be in {{ .AllowedToolArgs }}
 	RunPrompt string `json:"runPrompt"`
 
 	// An optional command to get the version of the agent
