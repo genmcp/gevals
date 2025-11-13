@@ -46,12 +46,10 @@ config:
       modelNameKey: JUDGE_MODEL_NAME # Env var name for model name
   taskSets:
     - path: tasks/create-pod.yaml
-      assertions:
-        toolsUsed:
-          - server: kubernetes
-            toolPattern: "pods_.*"  # Agent must use pod-related tools
-        minToolCalls: 1
-        maxToolCalls: 10
+      # Assertions can be in eval.yaml (here)
+      # or in tasks/*.yaml
+      assertions: # Full syntax in the "Assertions" section
+        …
 ```
 
 **mcp-config.yaml** - MCP server to test:
@@ -93,14 +91,18 @@ steps:
     file: cleanup.sh    # Deletes pod
   prompt:
     inline: Create a nginx pod named web-server in the test-namespace
+  assertions:           # Full syntax in the "Assertions" section
+    …
 ```
 
 Note: You must choose either script-based verification (`file` or `inline`) OR LLM judge verification (`contains` or `exact`), not both.
 
 ## Assertions
 
-Validate agent behavior:
+Assertions validate agent behavior and should be defined in the task file or in the eval file.
+When both are present, task assertions take precedence and a warning is printed.
 
+**In tasks/*.yaml or eval.yaml:**
 ```yaml
 assertions:
   # Must call these tools
@@ -149,6 +151,20 @@ assertions:
   # No duplicate calls
   noDuplicateCalls: true
 ```
+
+**In eval.yaml:**
+```yaml
+taskSets:
+  - path: tasks/create-pod.yaml
+    assertions:
+      toolsUsed:
+        - server: kubernetes
+          tool: pods_create
+      minToolCalls: 1
+      maxToolCalls: 10
+```
+
+**Note:** If assertions are defined in both places, task.yaml assertions take precedence and a warning is printed.
 
 ## Test Scripts
 

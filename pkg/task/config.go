@@ -32,11 +32,69 @@ type TaskSteps struct {
 	CleanupScript *util.Step  `json:"cleanup,omitempty"`
 	VerifyScript  *VerifyStep `json:"verify,omitempty"`
 	Prompt        *util.Step  `json:"prompt,omitempty"`
+	Assertions    *TaskAssertions `json:"assertions,omitempty"`
 }
 
 type VerifyStep struct {
 	*util.Step
 	*llmjudge.LLMJudgeTaskConfig
+}
+
+// TaskAssertions defines assertions for a task (duplicated from eval package to avoid circular dependency)
+type TaskAssertions struct {
+	// Tool assertions
+	ToolsUsed    []ToolAssertion `json:"toolsUsed,omitempty"`
+	RequireAny   []ToolAssertion `json:"requireAny,omitempty"`
+	ToolsNotUsed []ToolAssertion `json:"toolsNotUsed,omitempty"`
+	MinToolCalls *int            `json:"minToolCalls,omitempty"`
+	MaxToolCalls *int            `json:"maxToolCalls,omitempty"`
+
+	// Resource assertions
+	ResourcesRead    []ResourceAssertion `json:"resourcesRead,omitempty"`
+	ResourcesNotRead []ResourceAssertion `json:"resourcesNotRead,omitempty"`
+
+	// Prompt assertions
+	PromptsUsed    []PromptAssertion `json:"promptsUsed,omitempty"`
+	PromptsNotUsed []PromptAssertion `json:"promptsNotUsed,omitempty"`
+
+	// Order assertions
+	CallOrder []CallOrderAssertion `json:"callOrder,omitempty"`
+
+	// Efficiency assertions
+	NoDuplicateCalls bool `json:"noDuplicateCalls,omitempty"`
+}
+
+type ToolAssertion struct {
+	Server string `json:"server"`
+
+	// Exactly one of Tool or ToolPattern should be set
+	// If neither is set, matches any tool from the server
+	Tool        string `json:"tool,omitempty"`
+	ToolPattern string `json:"toolPattern,omitempty"` // regex pattern
+}
+
+type ResourceAssertion struct {
+	Server string `json:"server"`
+
+	// Exactly one of URI or URIPattern should be set
+	// If neither is set, matches any resource from the server
+	URI        string `json:"uri,omitempty"`
+	URIPattern string `json:"uriPattern,omitempty"` // regex pattern
+}
+
+type PromptAssertion struct {
+	Server string `json:"server"`
+
+	// Exactly one of Prompt or PromptPattern should be set
+	// If neither is set, matches any prompt from the server
+	Prompt        string `json:"prompt,omitempty"`
+	PromptPattern string `json:"promptPattern,omitempty"`
+}
+
+type CallOrderAssertion struct {
+	Type   string `json:"type"` // "tool", "resource", "prompt"
+	Server string `json:"server"`
+	Name   string `json:"name"`
 }
 
 func (v *VerifyStep) IsEmpty() bool {

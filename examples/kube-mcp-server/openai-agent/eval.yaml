@@ -11,9 +11,3 @@ config:
       modelNameKey: JUDGE_MODEL_NAME
   taskSets:
     - glob: ../tasks/*/*.yaml
-      assertions:
-        toolsUsed:
-          - server: kubernetes
-            toolPattern: ".*"
-        minToolCalls: 1
-        maxToolCalls: 20

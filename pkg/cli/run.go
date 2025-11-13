@@ -121,6 +121,9 @@ func (d *progressDisplay) handleProgress(event eval.ProgressEvent) {
 			fmt.Printf("  → Evaluating assertions...\n")
 		}
 
+	case eval.EventWarning:
+		d.yellow.Printf("  ⚠ Warning: %s\n", event.Message)
+
 	case eval.EventTaskError:
 		task := event.Task
 		d.red.Printf("  ✗ Task failed during setup\n")
