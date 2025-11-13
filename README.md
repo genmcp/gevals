@@ -57,11 +57,27 @@ config:
 **mcp-config.yaml** - MCP server to test:
 ```yaml
 mcpServers:
+  # HTTP server example
   kubernetes:
     type: http
     url: http://localhost:8080/mcp
     enableAllTools: true
+
+  # Stdio server example with environment variables
+  filesystem:
+    type: stdio
+    command: npx
+    args:
+      - "-y"
+      - "@modelcontextprotocol/server-filesystem"
+      - "/workspace"
+    env:
+      DEBUG: "true"
+      LOG_LEVEL: "${LOG_LEVEL:-info}"  # Supports ${VAR} and ${VAR:-default} expansion
+    enableAllTools: true
 ```
+
+Note: The `env` field is only applicable to stdio servers. Environment variable values support expansion using `${VAR}` (required, error if not set) or `${VAR:-default}` (optional with default value).
 
 **agent.yaml** - AI agent configuration:
 ```yaml
