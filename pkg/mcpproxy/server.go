@@ -1,10 +1,12 @@
 package mcpproxy
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"os/exec"
 	"time"
 
@@ -34,13 +36,20 @@ type server struct {
 
 	// Ready signaling
 	ready chan struct{}
+
+	// Process stderr capture (for stdio servers)
+	processStderr *bytes.Buffer
 }
 
 var _ Server = &server{}
 
 func NewProxyServerForConfig(ctx context.Context, name string, config *ServerConfig) (Server, error) {
-	cs, err := createProxyClient(ctx, config)
+	var processStderr *bytes.Buffer
+	cs, err := createProxyClient(ctx, config, &processStderr)
 	if err != nil {
+		if processStderr != nil && processStderr.Len() > 0 {
+			return nil, fmt.Errorf("failed to create proxy client for %+v: %w\nProcess stderr: %s", config, err, processStderr.String())
+		}
 		return nil, fmt.Errorf("failed to create proxy client for %+v: %w", config, err)
 	}
 
@@ -52,16 +61,17 @@ func NewProxyServerForConfig(ctx context.Context, name string, config *ServerCon
 	}
 
 	return &server{
-		name:        name,
-		proxyServer: s,
-		proxyClient: cs,
-		cfg:         config,
-		recorder:    r,
-		ready:       make(chan struct{}),
+		name:          name,
+		proxyServer:   s,
+		proxyClient:   cs,
+		cfg:           config,
+		recorder:      r,
+		ready:         make(chan struct{}),
+		processStderr: processStderr,
 	}, nil
 }
 
-func createProxyClient(ctx context.Context, config *ServerConfig) (*mcp.ClientSession, error) {
+func createProxyClient(ctx context.Context, config *ServerConfig, processStderr **bytes.Buffer) (*mcp.ClientSession, error) {
 	var transport mcp.Transport
 	if config.IsHttp() {
 		client := &http.Client{
@@ -74,6 +84,21 @@ func createProxyClient(ctx context.Context, config *ServerConfig) (*mcp.ClientSe
 		}
 	} else {
 		cmd := exec.Command(config.Command, config.Args...)
+
+		// Set up environment variables
+		if config.Env != nil {
+			env, err := buildEnv(config.Env)
+			if err != nil {
+				return nil, fmt.Errorf("failed to build environment: %w", err)
+			}
+			cmd.Env = env
+		}
+
+		// Capture stderr from the process
+		stderrBuf := &bytes.Buffer{}
+		cmd.Stderr = stderrBuf
+		*processStderr = stderrBuf
+
 		transport = &mcp.CommandTransport{Command: cmd}
 	}
 
@@ -88,6 +113,51 @@ func createProxyClient(ctx context.Context, config *ServerConfig) (*mcp.ClientSe
 	}
 
 	return cs, nil
+}
+
+// buildEnv builds the environment variable slice for a command by:
+// 1. Starting with the current process environment
+// 2. Expanding each value in env using ExpandEnv
+// 3. Merging/overriding existing env vars with expanded values
+func buildEnv(env map[string]string) ([]string, error) {
+	// Start with current environment
+	baseEnv := os.Environ()
+	
+	// Create a map for easy lookup and override
+	envMap := make(map[string]string)
+	for _, e := range baseEnv {
+		parts := splitEnvVar(e)
+		if len(parts) == 2 {
+			envMap[parts[0]] = parts[1]
+		}
+	}
+	
+	// Expand and override with config values
+	for key, value := range env {
+		expanded, err := ExpandEnv(value)
+		if err != nil {
+			return nil, fmt.Errorf("failed to expand env var %s: %w", key, err)
+		}
+		envMap[key] = expanded
+	}
+	
+	// Convert back to slice
+	result := make([]string, 0, len(envMap))
+	for k, v := range envMap {
+		result = append(result, fmt.Sprintf("%s=%s", k, v))
+	}
+	
+	return result, nil
+}
+
+// splitEnvVar splits an environment variable string "KEY=VALUE" into key and value.
+func splitEnvVar(env string) []string {
+	for i := 0; i < len(env); i++ {
+		if env[i] == '=' {
+			return []string{env[:i], env[i+1:]}
+		}
+	}
+	return []string{env}
 }
 
 func createProxyServer(ctx context.Context, cs *mcp.ClientSession, r Recorder) (*mcp.Server, error) {
@@ -263,4 +333,10 @@ func (s *server) WaitReady(ctx context.Context) error {
 	case <-ctx.Done():
 		return ctx.Err()
 	}
+}
+
+// GetProcessStderr returns the stderr output from the MCP server process (for stdio servers).
+// Returns nil if this is an HTTP server or if stderr hasn't been captured yet.
+func (s *server) GetProcessStderr() *bytes.Buffer {
+	return s.processStderr
 }
