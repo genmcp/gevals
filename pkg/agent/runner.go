@@ -15,6 +15,7 @@ import (
 type Runner interface {
 	RunTask(ctx context.Context, prompt string) (AgentResult, error)
 	WithMcpServerInfo(mcpInfo McpServerInfo) Runner
+	AgentName() string
 }
 
 type McpServerInfo interface {
@@ -175,4 +176,8 @@ func (a *agentSpecRunner) WithMcpServerInfo(mcpInfo McpServerInfo) Runner {
 		AgentSpec: a.AgentSpec,
 		mcpInfo:   mcpInfo,
 	}
+}
+
+func (a *agentSpecRunner) AgentName() string {
+	return a.Metadata.Name
 }

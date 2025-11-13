@@ -46,6 +46,7 @@ var (
 
 type LLMJudge interface {
 	EvaluateText(ctx context.Context, judgeConfig *LLMJudgeTaskConfig, prompt, output string) (*LLMJudgeResult, error)
+	ModelName() string
 }
 
 type LLMJudgeResult struct {
@@ -67,6 +68,10 @@ func (n *noopLLMJudge) EvaluateText(ctx context.Context, judgeConfig *LLMJudgeTa
 		Reason:          "noop judge always passes",
 		FailureCategory: "n/a",
 	}, nil
+}
+
+func (n *noopLLMJudge) ModelName() string {
+	return "noop"
 }
 
 func NewLLMJudge(cfg *LLMJudgeEvalConfig) (LLMJudge, error) {
@@ -169,4 +174,8 @@ func (j *llmJudge) EvaluateText(ctx context.Context, judgeConfig *LLMJudgeTaskCo
 	}
 
 	return result, nil
+}
+
+func (j *llmJudge) ModelName() string {
+	return j.model
 }
