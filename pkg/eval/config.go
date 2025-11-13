@@ -25,13 +25,25 @@ type EvalMetadata struct {
 }
 
 type EvalConfig struct {
-	// Agent and MCP configuration
-	AgentFile     string                       `json:"agentFile"`
+	// Agent configuration - use either AgentFile (for custom/override) or Agent (for inline builtin)
+	AgentFile string      `json:"agentFile,omitempty"`
+	Agent     *AgentRef   `json:"agent,omitempty"`
+
+	// MCP configuration
 	McpConfigFile string                       `json:"mcpConfigFile"`
 	LLMJudge      *llmjudge.LLMJudgeEvalConfig `json:"llmJudge"`
 
 	// Advanced mode: different assertion sets
 	TaskSets []TaskSet `json:"taskSets,omitempty"`
+}
+
+// AgentRef allows inline specification of builtin agents
+type AgentRef struct {
+	// Builtin agent type (e.g., "openai-agent", "claude-code")
+	Type string `json:"type"`
+
+	// Model name (required for some agent types like openai-agent)
+	Model string `json:"model,omitempty"`
 }
 
 type TaskSet struct {

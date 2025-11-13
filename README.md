@@ -37,7 +37,17 @@ kind: Eval
 metadata:
   name: "kubernetes-test"
 config:
+  # Option 1: Reference an agent file
   agentFile: agent.yaml           # How to run your AI agent
+
+  # Option 2: Inline builtin agent (no separate file needed)
+  # agent:
+  #   type: "claude-code"
+  # Or for OpenAI-compatible agents:
+  # agent:
+  #   type: "openai-agent"
+  #   model: "gpt-4"
+
   mcpConfigFile: mcp-config.yaml  # Your MCP server config
   llmJudge:                        # Optional: LLM judge for semantic verification
     env:
@@ -68,12 +78,24 @@ mcpServers:
 kind: Agent
 metadata:
   name: "claude-code"
-commands:
-  argTemplateMcpServer: "--mcp-config {{ .File }}"
-  argTemplateAllowedTools: "mcp__{{ .ServerName }}__{{ .ToolName }}"
-  runPrompt: |-
-    claude {{ .McpServerFileArgs }} --print "{{ .Prompt }}"
+builtin:
+  type: "claude-code"  # Use built-in Claude Code configuration
 ```
+
+Or with OpenAI-compatible agents:
+```yaml
+kind: Agent
+metadata:
+  name: "my-agent"
+builtin:
+  type: "openai-agent"
+  model: "gpt-4"
+# Set these environment variables:
+# export MODEL_BASE_URL="https://api.openai.com/v1"
+# export MODEL_KEY="sk-..."
+```
+
+For custom configurations, specify the `commands` section manually (see "Agent Configuration" below).
 
 **tasks/create-pod.yaml** - Test task:
 ```yaml
@@ -287,6 +309,115 @@ Results saved to `gevals-<eval-name>-out.json`:
     ]
   }
 }
+```
+
+## Agent Configuration
+
+### Inline vs File-based Configuration
+
+You can configure agents in two ways:
+
+1. **Inline in eval.yaml** (recommended for built-in agents):
+```yaml
+kind: Eval
+config:
+  agent:
+    type: "claude-code"
+```
+
+2. **Separate agent.yaml file**:
+```yaml
+kind: Eval
+config:
+  agentFile: agent.yaml
+```
+
+Use inline configuration for simple setups with built-in agents. Use a separate file when you need custom commands or want to reuse the same agent across multiple evals.
+
+### Built-in Agent Types
+
+gevals provides built-in configurations for popular AI agents to eliminate boilerplate:
+
+**Claude Code** (inline):
+```yaml
+kind: Eval
+config:
+  agent:
+    type: "claude-code"
+```
+
+**Claude Code** (file-based):
+```yaml
+kind: Agent
+metadata:
+  name: "claude-code"
+builtin:
+  type: "claude-code"
+```
+
+**OpenAI-compatible agents** (inline):
+```yaml
+kind: Eval
+config:
+  agent:
+    type: "openai-agent"
+    model: "gpt-4"  # or any OpenAI-compatible model
+```
+
+**OpenAI-compatible agents** (file-based):
+```yaml
+kind: Agent
+metadata:
+  name: "openai-agent"
+builtin:
+  type: "openai-agent"
+  model: "gpt-4"  # or any OpenAI-compatible model
+```
+
+Set environment variables for API access:
+```bash
+# Generic environment variables used by all OpenAI-compatible models
+export MODEL_BASE_URL="https://api.openai.com/v1"
+export MODEL_KEY="sk-..."
+
+# For other providers (e.g., granite, custom endpoints):
+# export MODEL_BASE_URL="https://your-endpoint/v1"
+# export MODEL_KEY="your-key"
+```
+
+### Available Built-in Types
+
+- `claude-code` - Anthropic's Claude Code CLI
+- `openai-agent` - OpenAI-compatible agents using direct API calls (requires model)
+
+### Custom Agent Configuration
+
+For custom setups, specify the `commands` section:
+
+```yaml
+kind: Agent
+metadata:
+  name: "custom-agent"
+commands:
+  useVirtualHome: false
+  argTemplateMcpServer: "--mcp {{ .File }}"
+  argTemplateAllowedTools: "{{ .ToolName }}"
+  runPrompt: |-
+    my-agent --mcp-config {{ .McpServerFileArgs }} --prompt "{{ .Prompt }}"
+```
+
+### Overriding Built-in Defaults
+
+You can use a built-in type and override specific settings:
+
+```yaml
+kind: Agent
+metadata:
+  name: "claude-custom"
+builtin:
+  type: "claude-code"
+commands:
+  useVirtualHome: true  # Override just this setting
 ```
 
 ## How It Works

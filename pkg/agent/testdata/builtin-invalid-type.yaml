@@ -1,0 +1,5 @@
+kind: Agent
+metadata:
+  name: "invalid"
+builtin:
+  type: "non-existent-agent"
