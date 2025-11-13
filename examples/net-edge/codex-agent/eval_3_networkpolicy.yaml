@@ -1,0 +1,13 @@
+kind: Eval
+metadata:
+  name: "netedge-networkpolicy-block"
+config:
+  agentFile: agent.yaml
+  mcpConfigFile: ../mcp-config.yaml
+  taskSets:
+    - path: ../tasks/networkpolicy-block/networkpolicy-block.yaml
+      assertions:
+        toolsUsed:
+          - server: netedge
+        minToolCalls: 1
+        maxToolCalls: 20

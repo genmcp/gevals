@@ -1,0 +1,168 @@
+kind: Agent
+metadata:
+  name: "codex-gpt-5"
+commands:
+  useVirtualHome: false
+  argTemplateMcpServer: "{{ .File }}"
+  argTemplateAllowedTools: "mcp__{{ .ServerName }}__{{ .ToolName }}"
+  allowedToolsJoinSeparator: ","
+  runPrompt: |-
+    set -euo pipefail
+
+    if ! command -v jq >/dev/null 2>&1; then
+      echo "jq is required to extract MCP server details" >&2
+      exit 1
+    fi
+
+    MCP_SERVER_FILE="{{ .McpServerFileArgs }}"
+    if [[ ! -f "${MCP_SERVER_FILE}" ]]; then
+      echo "MCP server file not found: ${MCP_SERVER_FILE}" >&2
+      exit 1
+    fi
+
+    NETEDGE_URL="$(jq -r '.mcpServers.netedge.url' "${MCP_SERVER_FILE}")"
+    if [[ -z "${NETEDGE_URL}" || "${NETEDGE_URL}" == "null" ]]; then
+      echo "Unable to parse netedge MCP URL from ${MCP_SERVER_FILE}" >&2
+      exit 1
+    fi
+
+    REPO_ROOT="$(pwd)"
+    GEN_MCP_PARENT="${REPO_ROOT}/../gen-mcp"
+    if [[ ! -d "${GEN_MCP_PARENT}" ]]; then
+      echo "Expected gen-mcp checkout at ${GEN_MCP_PARENT}" >&2
+      exit 1
+    fi
+    GEN_MCP_ROOT="$(cd "${GEN_MCP_PARENT}" && pwd)"
+
+    PROMPT_FILE="$(mktemp)"
+    printf '%b' {{ printf "%q" .Prompt }} > "${PROMPT_FILE}"
+
+    ORIGINAL_HOME="${HOME:-}"
+    TMP_HOME="$(mktemp -d)"
+    CONFIG_DIR="${TMP_HOME}/.codex"
+    mkdir -p "${CONFIG_DIR}"
+
+    # Preserve kubeconfig access inside the temporary HOME so oc commands hit the same cluster.
+    KUBECONFIG_VALUE="${KUBECONFIG:-}"
+    KUBECONFIG_SOURCE="none"
+    if [[ -n "${KUBECONFIG_VALUE}" ]]; then
+      KUBECONFIG_SOURCE="env"
+    else
+      if [[ -n "${ORIGINAL_HOME}" && -d "${ORIGINAL_HOME}/.kube" && -f "${ORIGINAL_HOME}/.kube/config" ]]; then
+        mkdir -p "${TMP_HOME}/.kube"
+        cp -R "${ORIGINAL_HOME}/.kube/." "${TMP_HOME}/.kube" 2>/dev/null || true
+        if [[ -f "${TMP_HOME}/.kube/config" ]]; then
+          KUBECONFIG_VALUE="${TMP_HOME}/.kube/config"
+          KUBECONFIG_SOURCE="copied"
+        fi
+      fi
+    fi
+
+    DEBUG_DIR="${GEVALS_DEBUG_DIR:-}"
+    cleanup() {
+      local exit_status="$1"
+
+      if [[ -n "${DEBUG_DIR}" ]]; then
+        mkdir -p "${DEBUG_DIR}"
+        if [[ -f "${CONFIG_DIR}/config.toml" ]]; then
+          cp "${CONFIG_DIR}/config.toml" "${DEBUG_DIR}/config.toml" 2>/dev/null || true
+        fi
+        if [[ -f "${PROMPT_FILE}" ]]; then
+          cp "${PROMPT_FILE}" "${DEBUG_DIR}/prompt.txt" 2>/dev/null || true
+        fi
+        if [[ -d "${TMP_HOME}" ]]; then
+          mkdir -p "${DEBUG_DIR}/codex-home"
+          cp -R "${TMP_HOME}/." "${DEBUG_DIR}/codex-home" 2>/dev/null || true
+          if [[ -f "${DEBUG_DIR}/codex-home/.codex/auth.json" ]]; then
+            printf '{\n  "OPENAI_API_KEY": "<redacted>"\n}\n' > "${DEBUG_DIR}/codex-home/.codex/auth.json"
+          fi
+          if [[ -d "${DEBUG_DIR}/codex-home/.kube" ]]; then
+            rm -rf "${DEBUG_DIR}/codex-home/.kube"
+          fi
+        fi
+        printf 'exit_status=%s\n' "${exit_status}" >> "${DEBUG_DIR}/debug.log"
+      fi
+
+      rm -rf "${TMP_HOME}"
+      rm -f "${PROMPT_FILE}"
+
+      trap - EXIT
+      exit "${exit_status}"
+    }
+    trap 'cleanup $?' EXIT
+
+    WORKSPACE_PARENT="$(dirname "${REPO_ROOT}")"
+
+    {
+      printf 'preferred_auth_method = "apikey"\n'
+      printf '\n'
+      printf '[projects."%s/*"]\n' "${WORKSPACE_PARENT%/}"
+      printf 'trust_level = "trusted"\n'
+      printf '\n'
+      printf '[projects."%s"]\n' "${GEN_MCP_ROOT%/}"
+      printf 'trust_level = "trusted"\n'
+      printf '\n'
+      printf '[features]\n'
+      printf 'rmcp_client = true\n'
+      printf '\n'
+      printf '[profiles.gpt-5-codex]\n'
+      printf 'model = "gpt-5-codex"\n'
+      printf 'model_provider = "openai"\n'
+      printf 'approval_policy = "on-failure"\n'
+      printf 'sandbox_mode = "danger-full-access"\n'
+      printf 'network_access = "true"\n'
+      printf 'model_reasoning_effort = "high"\n'
+      printf 'model_reasoning_summary = "auto"\n'
+      printf '\n'
+      printf '[mcp_servers.netedge]\n'
+      printf 'type = "http"\n'
+      printf 'url = "%s"\n' "${NETEDGE_URL}"
+      printf 'enableAllTools = true\n'
+    } > "${CONFIG_DIR}/config.toml"
+
+    PROMPT_CONTENT="$(cat "${PROMPT_FILE}")"
+    OPENAI_API_KEY_VALUE="${OPENAI_API_KEY:-}"
+
+    if [[ -z "${OPENAI_API_KEY_VALUE}" ]]; then
+      echo "OPENAI_API_KEY must be set" >&2
+      exit 1
+    fi
+
+    AUTH_FILE="${CONFIG_DIR}/auth.json"
+    {
+      printf '{\n'
+      printf '  "OPENAI_API_KEY": "%s"\n' "${OPENAI_API_KEY_VALUE}"
+      printf '}\n'
+    } > "${AUTH_FILE}"
+
+    if [[ -n "${DEBUG_DIR}" ]]; then
+      mkdir -p "${DEBUG_DIR}"
+      DEBUG_LOG="${DEBUG_DIR}/debug.log"
+      timestamp="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+      {
+        echo "--- codex exec ${timestamp} ---"
+        printf 'netedge_url=%s\n' "${NETEDGE_URL}"
+        printf 'prompt_length=%s\n' "${#PROMPT_CONTENT}"
+        printf 'tmp_home=%s\n' "${TMP_HOME}"
+        printf 'openai_api_key_length=%s\n' "${#OPENAI_API_KEY_VALUE}"
+        printf 'auth_json_created=%s\n' "$([[ -f "${AUTH_FILE}" ]] && echo 1 || echo 0)"
+        printf 'kubeconfig_source=%s\n' "${KUBECONFIG_SOURCE}"
+      } >> "${DEBUG_LOG}"
+    fi
+
+    CODEX_ARGS=(--profile=gpt-5-codex --cd "${GEN_MCP_ROOT}" --sandbox danger-full-access)
+    if [[ -n "${DEBUG_DIR}" ]]; then
+      CODEX_ARGS+=(--json)
+    fi
+    CODEX_ARGS+=("${PROMPT_CONTENT}")
+
+    ENV_PREFIX=(env HOME="${TMP_HOME}" OPENAI_API_KEY="${OPENAI_API_KEY_VALUE}")
+    if [[ -n "${KUBECONFIG_VALUE}" ]]; then
+      ENV_PREFIX+=(KUBECONFIG="${KUBECONFIG_VALUE}")
+    fi
+
+    if [[ -n "${DEBUG_DIR}" ]]; then
+      "${ENV_PREFIX[@]}" codex exec "${CODEX_ARGS[@]}" 2>&1 | tee -a "${DEBUG_DIR}/codex.log"
+    else
+      "${ENV_PREFIX[@]}" codex exec "${CODEX_ARGS[@]}"
+    fi

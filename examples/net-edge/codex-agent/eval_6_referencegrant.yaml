@@ -1,0 +1,13 @@
+kind: Eval
+metadata:
+  name: "netedge-referencegrant-missing"
+config:
+  agentFile: agent.yaml
+  mcpConfigFile: ../mcp-config.yaml
+  taskSets:
+    - path: ../tasks/referencegrant-missing/referencegrant-missing.yaml
+      assertions:
+        toolsUsed:
+          - server: netedge
+        minToolCalls: 1
+        maxToolCalls: 20
