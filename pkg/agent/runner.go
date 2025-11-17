@@ -59,6 +59,21 @@ func (a *agentSpecRunner) RunTask(ctx context.Context, prompt string) (AgentResu
 		}
 	}
 
+	// Create an empty temporary directory for agent execution to isolate it from source code
+	tempDir, err := os.MkdirTemp("", "gevals-agent-")
+	if err != nil {
+		return nil, fmt.Errorf("failed to create temporary directory for agent execution: %w", err)
+	}
+	executionSucceeded := false
+	defer func() {
+		// Clean up temp directory unless GEVALS_DEBUG is set and execution failed
+		// In that case, preserve it for debugging
+		shouldPreserve := os.Getenv("GEVALS_DEBUG") != "" && !executionSucceeded
+		if !shouldPreserve {
+			_ = os.RemoveAll(tempDir)
+		}
+	}()
+
 	argTemplateMcpServer, err := template.New("argTemplateMcpServer").Parse(a.Commands.ArgTemplateMcpServer)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse argTemplateMcpServer: %w", err)
@@ -145,6 +160,7 @@ func (a *agentSpecRunner) RunTask(ctx context.Context, prompt string) (AgentResu
 	}
 
 	cmd := exec.CommandContext(ctx, shell, "-c", formatted.String())
+	cmd.Dir = tempDir
 	envVars := os.Environ()
 	if debugDir != "" {
 		envVars = append(envVars, fmt.Sprintf("GEVALS_DEBUG_DIR=%s", debugDir))
@@ -158,8 +174,11 @@ func (a *agentSpecRunner) RunTask(ctx context.Context, prompt string) (AgentResu
 		if debugDir != "" {
 			debugSuffix = fmt.Sprintf("\n\ndebug artifacts preserved at: %s", debugDir)
 		}
+		// executionSucceeded remains false, so tempDir will be preserved if GEVALS_DEBUG is set
 		return nil, fmt.Errorf("failed to run command: %s -c %q: %w.\n\noutput: %s%s", shell, formatted.String(), err, res, debugSuffix)
 	}
+
+	executionSucceeded = true
 
 	if debugDir != "" {
 		_ = os.RemoveAll(debugDir)
