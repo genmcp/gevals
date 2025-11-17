@@ -66,11 +66,21 @@ func (a *agentSpecRunner) RunTask(ctx context.Context, prompt string) (AgentResu
 	}
 	executionSucceeded := false
 	defer func() {
-		// Clean up temp directory unless GEVALS_DEBUG is set and execution failed
+		// Clean up temp directory unless execution failed OR GEVALS_DEBUG is set
 		// In that case, preserve it for debugging
-		shouldPreserve := os.Getenv("GEVALS_DEBUG") != "" && !executionSucceeded
+		shouldPreserve := !executionSucceeded || os.Getenv("GEVALS_DEBUG") != ""
 		if !shouldPreserve {
 			_ = os.RemoveAll(tempDir)
+		} else {
+			var reason string
+			if !executionSucceeded && os.Getenv("GEVALS_DEBUG") != "" {
+				reason = "execution failed and GEVALS_DEBUG is set"
+			} else if !executionSucceeded {
+				reason = "execution failed"
+			} else {
+				reason = "GEVALS_DEBUG is set"
+			}
+			fmt.Fprintf(os.Stderr, "Preserving temporary directory %s because %s\n", tempDir, reason)
 		}
 	}()
 
@@ -174,8 +184,9 @@ func (a *agentSpecRunner) RunTask(ctx context.Context, prompt string) (AgentResu
 		if debugDir != "" {
 			debugSuffix = fmt.Sprintf("\n\ndebug artifacts preserved at: %s", debugDir)
 		}
-		// executionSucceeded remains false, so tempDir will be preserved if GEVALS_DEBUG is set
-		return nil, fmt.Errorf("failed to run command: %s -c %q: %w.\n\noutput: %s%s", shell, formatted.String(), err, res, debugSuffix)
+		// executionSucceeded remains false, so tempDir will be preserved
+		tempDirSuffix := fmt.Sprintf("\n\ntemporary directory preserved at: %s", tempDir)
+		return nil, fmt.Errorf("failed to run command: %s -c %q: %w.\n\noutput: %s%s%s", shell, formatted.String(), err, res, debugSuffix, tempDirSuffix)
 	}
 
 	executionSucceeded = true
@@ -184,8 +195,14 @@ func (a *agentSpecRunner) RunTask(ctx context.Context, prompt string) (AgentResu
 		_ = os.RemoveAll(debugDir)
 	}
 
+	output := string(res)
+	// If GEVALS_DEBUG is set, append temp directory info to output so it appears in JSON log
+	if os.Getenv("GEVALS_DEBUG") != "" {
+		output += fmt.Sprintf("\n\ntemporary directory preserved at: %s", tempDir)
+	}
+
 	return &agentSpecRunnerResult{
-		commandOutput: string(res),
+		commandOutput: output,
 	}, nil
 }
 
