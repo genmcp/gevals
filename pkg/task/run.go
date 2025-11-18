@@ -6,6 +6,7 @@ import (
 
 	"github.com/genmcp/gevals/pkg/agent"
 	"github.com/genmcp/gevals/pkg/llmjudge"
+	"github.com/genmcp/gevals/pkg/util"
 )
 
 type TaskRunner interface {
@@ -96,6 +97,10 @@ func (r *taskRunner) Verify(ctx context.Context) (string, error) {
 		return "", fmt.Errorf("cannot run LLM judge verification: RunAgent() must be called before Verify()")
 	}
 
+	if util.IsVerbose(ctx) {
+		fmt.Printf("  → LLM judge '%s' is evaluating…\n", r.judge.ModelName())
+	}
+
 	out, err := r.judge.EvaluateText(ctx, r.judgeCfg, r.prompt, r.output)
 	if err != nil {
 		// Store error from judge API call
@@ -108,6 +113,10 @@ func (r *taskRunner) Verify(ctx context.Context) (string, error) {
 
 	if !out.Passed {
 		return "", fmt.Errorf("evaluation failed for reason '%s' because '%s'", out.FailureCategory, out.Reason)
+	}
+
+	if util.IsVerbose(ctx) {
+		fmt.Printf("  → LLM judge reason: %+v\n", out.Reason)
 	}
 
 	return "", nil

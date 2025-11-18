@@ -10,6 +10,7 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/genmcp/gevals/pkg/eval"
+	"github.com/genmcp/gevals/pkg/util"
 	"github.com/spf13/cobra"
 )
 
@@ -44,6 +45,7 @@ func NewEvalCmd() *cobra.Command {
 
 			// Run with progress
 			ctx := context.Background()
+			ctx = util.WithVerbose(ctx, verbose)
 			results, err := runner.RunWithProgress(ctx, run, display.handleProgress)
 			if err != nil {
 				return fmt.Errorf("eval failed: %w", err)
