@@ -69,10 +69,12 @@ kind: Agent
 metadata:
   name: "claude-code"
 commands:
+  useVirtualHome: false
   argTemplateMcpServer: "--mcp-config {{ .File }}"
   argTemplateAllowedTools: "mcp__{{ .ServerName }}__{{ .ToolName }}"
+  allowedToolsJoinSeparator: ","
   runPrompt: |-
-    claude {{ .McpServerFileArgs }} --print "{{ .Prompt }}"
+    claude {{ .McpServerFileArgs }} --strict-mcp-config --allowedTools "{{ .AllowedToolArgs }}" --print "{{ .Prompt }}"
 ```
 
 **tasks/create-pod.yaml** - Test task:
