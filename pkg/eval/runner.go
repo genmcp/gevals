@@ -19,6 +19,8 @@ type EvalResult struct {
 	TaskPassed          bool                      `json:"taskPassed"`
 	TaskOutput          string                    `json:"taskOutput"`
 	TaskError           string                    `json:"taskError,omitempty"`
+	TaskJudgeReason     string                    `json:"taskJudgeReason,omitempty"`
+	TaskJudgeError      string                    `json:"taskJudgeError,omitempty"`
 	AgentExecutionError bool                      `json:"agentExecutionError,omitempty"` // True if agent failed to execute
 	Difficulty          string                    `json:"difficulty"`
 	AssertionResults    *CompositeAssertionResult `json:"assertionResults"`
@@ -293,6 +295,18 @@ func (r *evalRunner) executeTaskSteps(
 		result.TaskError = fmt.Sprintf("verification script failed with output '%s': %s", out, err.Error())
 	} else {
 		result.TaskPassed = true
+	}
+
+	// Capture judge results if LLM judge was used
+	judgeResult, judgeErr := taskRunner.GetJudgeResult()
+	if judgeErr != nil {
+		// Error from calling the judge API
+		result.TaskJudgeError = judgeErr.Error()
+	} else if judgeResult != nil {
+		// Judge result available (both pass and fail cases)
+		result.TaskJudgeReason = judgeResult.Reason
+		// Note: judge failure reasons go in TaskError, not TaskJudgeError
+		// TaskJudgeError is only for API call errors
 	}
 }
 

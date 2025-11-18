@@ -13,14 +13,17 @@ type TaskRunner interface {
 	Cleanup(ctx context.Context) (string, error)
 	RunAgent(ctx context.Context, agent agent.Runner) (string, error)
 	Verify(ctx context.Context) (string, error)
+	GetJudgeResult() (*llmjudge.LLMJudgeResult, error)
 }
 
 type taskRunner struct {
-	steps    TaskSteps
-	judge    llmjudge.LLMJudge
-	judgeCfg *llmjudge.LLMJudgeTaskConfig
-	prompt   string
-	output   string
+	steps        TaskSteps
+	judge        llmjudge.LLMJudge
+	judgeCfg     *llmjudge.LLMJudgeTaskConfig
+	prompt       string
+	output       string
+	judgeResult  *llmjudge.LLMJudgeResult
+	judgeError   error
 }
 
 func NewTaskRunner(cfg *TaskSpec, judge llmjudge.LLMJudge) (TaskRunner, error) {
@@ -84,6 +87,7 @@ func (r *taskRunner) RunAgent(ctx context.Context, agent agent.Runner) (string, 
 func (r *taskRunner) Verify(ctx context.Context) (string, error) {
 	// no need to verify that Verify is set - this is validated in NewTaskRunner
 	if r.steps.VerifyScript.Step != nil && !r.steps.VerifyScript.Step.IsEmpty() {
+		// Script-based verification
 		return r.steps.VerifyScript.Step.Run(ctx)
 	}
 
@@ -94,12 +98,23 @@ func (r *taskRunner) Verify(ctx context.Context) (string, error) {
 
 	out, err := r.judge.EvaluateText(ctx, r.judgeCfg, r.prompt, r.output)
 	if err != nil {
+		// Store error from judge API call
+		r.judgeError = err
 		return "", err
 	}
+
+	// Store judge result (both success and failure cases)
+	r.judgeResult = out
 
 	if !out.Passed {
 		return "", fmt.Errorf("evaluation failed for reason '%s' because '%s'", out.FailureCategory, out.Reason)
 	}
 
 	return "", nil
+}
+
+func (r *taskRunner) GetJudgeResult() (*llmjudge.LLMJudgeResult, error) {
+	// Return stored judge result and error
+	// Returns (nil, nil) when no judge was used (script-based verification)
+	return r.judgeResult, r.judgeError
 }
