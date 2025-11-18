@@ -74,7 +74,7 @@ Examples:
 
 	cmd.Flags().StringVar(&taskFilter, "task", "", "Only show results for tasks whose name contains this value")
 	cmd.Flags().BoolVar(&showTimeline, "timeline", showTimeline, "Include a condensed agent timeline derived from taskOutput")
-	cmd.Flags().IntVar(&maxEvents, "max-events", maxEvents, "Maximum number of timeline events to display (0 = unlimited)")
+	cmd.Flags().IntVar(&maxEvents, "max-events", maxEvents, "Maximum number of timeline entries (thought/command/tool/etc.) to display (0 = unlimited)")
 	cmd.Flags().IntVar(&maxOutputLines, "max-output-lines", maxOutputLines, "Maximum lines to display for command output in the timeline")
 	cmd.Flags().IntVar(&maxLineLength, "max-line-length", maxLineLength, "Maximum characters per line when formatting timeline output")
 
