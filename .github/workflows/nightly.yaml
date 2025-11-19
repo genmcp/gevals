@@ -6,6 +6,10 @@ on:
     - cron: '0 2 * * *'
   workflow_dispatch:
 
+concurrency:
+  group: nightly-release
+  cancel-in-progress: true
+
 jobs:
   check-and-create-nightly:
     runs-on: ubuntu-latest
@@ -96,7 +100,10 @@ jobs:
           if git rev-parse --verify nightly >/dev/null 2>&1; then
             echo "Deleting existing nightly tag"
             git tag -d nightly
-            git push origin :refs/tags/nightly || true
+            if ! git push origin :refs/tags/nightly; then
+              echo "Warning: Failed to delete remote nightly tag" >&2
+              exit 1
+            fi
           fi
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
