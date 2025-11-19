@@ -1,69 +1,66 @@
 name: Create Pre-Release
 
 on:
-  workflow_dispatch:
   push:
-    branches:
-      - 'release/v*.*'
+    tags:
+      - 'v*.*.*-rc.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Pre-release tag (e.g., v1.0.0-rc.1)'
+        required: true
+        type: string
 
 jobs:
   determine-version:
     runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/heads/release/v')
     permissions:
       contents: write
     outputs:
       prerelease_version: ${{ env.PRERELEASE_VERSION }}
-      skip_prerelease: ${{ env.SKIP_PRERELEASE }}
       changelog_body: ${{ env.CHANGELOG_BODY }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
-      - name: Extract version and determine z version
+      - name: Extract version from tag
         id: get_version
         run: |
-          BRANCH_NAME="${{ github.ref_name }}"
-          BASE_VERSION=$(echo "${BRANCH_NAME}" | sed 's/release\/v/v/')
-
-          # Find the latest release tag for this x.y version
-          LATEST_RELEASE=$(git tag -l "${BASE_VERSION}.*" --sort=-version:refname | head -n1)
-
-          if [ -z "$LATEST_RELEASE" ]; then
-            # No existing releases for this x.y version, start with z=0
-            Z_VERSION="0"
-            echo "No existing releases found for ${BASE_VERSION}, starting with z=0"
+          # Get version from tag (either from push event or manual input)
+          if [ "${{ github.event_name }}" = "push" ]; then
+            VERSION="${{ github.ref_name }}"
           else
-            # Check if there are new commits since the latest release
-            COMMITS_SINCE_RELEASE=$(git rev-list ${LATEST_RELEASE}..HEAD --count)
-
-            if [ "$COMMITS_SINCE_RELEASE" -eq "0" ]; then
-              echo "No new commits since ${LATEST_RELEASE}, skipping prerelease creation"
-              echo "SKIP_PRERELEASE=true" >> "$GITHUB_ENV"
-              exit 0
-            fi
-
-            # Extract z version from latest release and increment
-            LATEST_Z=$(echo "$LATEST_RELEASE" | sed "s/${BASE_VERSION}\.//")
-            Z_VERSION=$((LATEST_Z + 1))
-            echo "Found ${COMMITS_SINCE_RELEASE} new commits since ${LATEST_RELEASE}, incrementing to z=${Z_VERSION}"
+            VERSION="${{ inputs.tag }}"
           fi
 
-          PRERELEASE_VERSION="${BASE_VERSION}.${Z_VERSION}-prerelease"
-          echo "PRERELEASE_VERSION=$PRERELEASE_VERSION" >> "$GITHUB_ENV"
-          echo "Creating prerelease: $PRERELEASE_VERSION"
+          # Validate version format (vX.Y.Z-rc.N)
+          if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$ ]]; then
+            echo "Error: Tag must match format 'vX.Y.Z-rc.N' (e.g., v1.0.0-rc.1)"
+            echo "Got: $VERSION"
+            exit 1
+          fi
+
+          echo "PRERELEASE_VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "Pre-release version: $VERSION"
 
       - name: Extract changelog
         id: changelog
-        if: env.SKIP_PRERELEASE != 'true'
         run: |
-          # Extract the z release version from the prerelease version
-          RELEASE_VERSION=$(echo "${{ env.PRERELEASE_VERSION }}" | sed 's/-prerelease//')
+          VERSION="${{ env.PRERELEASE_VERSION }}"
+          # Extract the base release version (without -rc.N suffix)
+          RELEASE_VERSION=$(echo "$VERSION" | sed 's/-rc\.[0-9]*$//')
 
           # Try to extract the changelog section for this release version
           CHANGELOG_CONTENT=$(sed -n "/## \[${RELEASE_VERSION}\]/,/## \[/p" CHANGELOG.md | sed '$d' | tail -n +2 | awk '/^### /{section=$0; items=""; next} /^( *)?- /{items=items $0 "\n"; next} /^$/ && items{print section "\n" items; items=""}' | sed '/^$/d')
 
-          # If no specific version section found, provide a default prerelease message
+          # If no specific version section found, try Unreleased
+          if [ -z "$CHANGELOG_CONTENT" ]; then
+            CHANGELOG_CONTENT=$(sed -n '/## \[Unreleased\]/,/## \[/p' CHANGELOG.md | sed '$d' | tail -n +2 | awk '/^### /{section=$0; items=""; next} /^( *)?- /{items=items $0 "\n"; next} /^$/ && items{print section "\n" items; items=""}' | sed '/^$/d')
+          fi
+
+          # If still empty, provide a default prerelease message
           if [ -z "$CHANGELOG_CONTENT" ]; then
             CHANGELOG_CONTENT="Pre-release build for ${RELEASE_VERSION}. See CHANGELOG.md for details."
           fi
@@ -75,27 +72,30 @@ jobs:
             echo 'EOF'
           } >> "$GITHUB_ENV"
 
-      - name: Create or update draft release
-        if: env.SKIP_PRERELEASE != 'true'
+      - name: Create or update pre-release
         run: |
           VERSION="${{ env.PRERELEASE_VERSION }}"
 
           # Check if release already exists
           if gh release view "$VERSION" >/dev/null 2>&1; then
-            echo "Release $VERSION already exists, updating with latest changelog..."
-            gh release edit "$VERSION" \
-              --title "$VERSION" \
-              --notes "${{ env.CHANGELOG_BODY }}" \
-              --target "${{ github.sha }}" \
-              --draft \
-              --prerelease
+            echo "Pre-release $VERSION already exists, checking if changelog needs to be updated..."
+
+            # Get current release notes
+            CURRENT_NOTES=$(gh release view "$VERSION" --json body -q .body)
+
+            # Check if changelog content is already in the notes
+            if echo "$CURRENT_NOTES" | grep -qF "${{ env.CHANGELOG_BODY }}"; then
+              echo "Changelog already present in release notes, skipping update..."
+            else
+              echo "Appending changelog to existing release notes..."
+              NEW_NOTES="${CURRENT_NOTES}\n\n---\n\n${{ env.CHANGELOG_BODY }}"
+              gh release edit "$VERSION" --notes "$NEW_NOTES"
+            fi
           else
-            echo "Creating new draft pre-release $VERSION..."
+            echo "Creating pre-release $VERSION..."
             gh release create "$VERSION" \
               --title "$VERSION" \
               --notes "${{ env.CHANGELOG_BODY }}" \
-              --target "${{ github.sha }}" \
-              --draft \
               --prerelease
           fi
         env:
@@ -103,7 +103,6 @@ jobs:
 
   build-and-upload:
     needs: determine-version
-    if: needs.determine-version.outputs.skip_prerelease != 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -115,6 +114,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -122,67 +123,27 @@ jobs:
           go-version-file: 'go.mod'
 
       - name: Install cosign
-        uses: sigstore/cosign-installer@v3
+        uses: sigstore/cosign-installer@v4.0.0
 
-      - name: Build gevals
+      - name: Build release artifacts
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
-        run: |
-          BINARY_NAME="gevals"
-          if [ "${GOOS}" == "windows" ]; then
-            OUTPUT_NAME="${BINARY_NAME}-${GOOS}-${GOARCH}.exe"
-          else
-            OUTPUT_NAME="${BINARY_NAME}-${GOOS}-${GOARCH}"
-          fi
+          VERSION: ${{ needs.determine-version.outputs.prerelease_version }}
+        run: make build-release package-release
 
-          echo "Building ${OUTPUT_NAME}..."
-          GOOS=${GOOS} GOARCH=${GOARCH} go build -trimpath -ldflags="-s -w" -o "${OUTPUT_NAME}" ./cmd/gevals
-
-          zip "${BINARY_NAME}-${GOOS}-${GOARCH}.zip" "${OUTPUT_NAME}"
-
-      - name: Build agent
+      - name: Sign release artifacts
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
-        run: |
-          BINARY_NAME="agent"
-          if [ "${GOOS}" == "windows" ]; then
-            OUTPUT_NAME="${BINARY_NAME}-${GOOS}-${GOARCH}.exe"
-          else
-            OUTPUT_NAME="${BINARY_NAME}-${GOOS}-${GOARCH}"
-          fi
-
-          echo "Building ${OUTPUT_NAME}..."
-          GOOS=${GOOS} GOARCH=${GOARCH} go build -trimpath -ldflags="-s -w" -o "${OUTPUT_NAME}" ./cmd/agent
-
-          zip "${BINARY_NAME}-${GOOS}-${GOARCH}.zip" "${OUTPUT_NAME}"
-
-      - name: Sign gevals and agent ZIP files
-        env:
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
-        run: |
-          # Define file names
-          GEVALS_ZIP="gevals-${GOOS}-${GOARCH}.zip"
-          AGENT_ZIP="agent-${GOOS}-${GOARCH}.zip"
-
-          echo "Signing ${GEVALS_ZIP}..."
-          cosign sign-blob --yes "${GEVALS_ZIP}" \
-            --output-signature "${GEVALS_ZIP}.sig" \
-            --output-certificate "${GEVALS_ZIP}.pem"
-
-          echo "Signing ${AGENT_ZIP}..."
-          cosign sign-blob --yes "${AGENT_ZIP}" \
-            --output-signature "${AGENT_ZIP}.sig" \
-            --output-certificate "${AGENT_ZIP}.pem"
+        run: make sign-release
 
       - name: Upload assets to release
         run: |
           VERSION="${{ needs.determine-version.outputs.prerelease_version }}"
 
-          # Upload all zips, signatures (.sig), and certificates (.pem)
-          for file in *.zip *.sig *.pem; do
+          # Upload all zips and bundles
+          for file in dist/*.zip dist/*.bundle; do
             if [ -f "$file" ]; then
               echo "Uploading $file..."
               gh release upload "$VERSION" "$file" --clobber

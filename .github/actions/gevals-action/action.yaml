@@ -202,9 +202,11 @@ runs:
 
           # Download from GitHub releases
           RELEASE_URL="https://github.com/genmcp/gevals/releases/download/${{ inputs.gevals-version }}"
+          DOWNLOAD_DIR="${{ runner.temp }}/gevals-download"
+          mkdir -p "$DOWNLOAD_DIR"
 
-          # Attempt to download pre-built gevals binary
-          if ! curl -fsSL "$RELEASE_URL/gevals-$BINARY_SUFFIX$BIN_EXT" -o "$GEVALS_BIN" 2>&1; then
+          # Attempt to download pre-built gevals zip
+          if ! curl -fsSL "$RELEASE_URL/gevals-$BINARY_SUFFIX.zip" -o "$DOWNLOAD_DIR/gevals.zip" 2>&1; then
             echo "⚠ Failed to download pre-built gevals release for $BINARY_SUFFIX"
             echo "Attempting to build from source using version '${{ inputs.gevals-version }}'..."
 
@@ -229,14 +231,26 @@ runs:
             # Make binaries executable
             chmod +x "$GEVALS_BIN" "$AGENT_BIN"
           else
-            # Download succeeded - now download agent binary
-            if ! curl -fsSL "$RELEASE_URL/agent-$BINARY_SUFFIX$BIN_EXT" -o "$AGENT_BIN" 2>&1; then
+            # Download succeeded - now download agent zip
+            if ! curl -fsSL "$RELEASE_URL/agent-$BINARY_SUFFIX.zip" -o "$DOWNLOAD_DIR/agent.zip" 2>&1; then
               echo "❌ Failed to download agent binary for $BINARY_SUFFIX"
               exit 1
             fi
 
+            # Extract zips
+            echo "Extracting gevals..."
+            unzip -q "$DOWNLOAD_DIR/gevals.zip" -d "$DOWNLOAD_DIR"
+            mv "$DOWNLOAD_DIR/gevals-$BINARY_SUFFIX$BIN_EXT" "$GEVALS_BIN"
+
+            echo "Extracting agent..."
+            unzip -q "$DOWNLOAD_DIR/agent.zip" -d "$DOWNLOAD_DIR"
+            mv "$DOWNLOAD_DIR/agent-$BINARY_SUFFIX$BIN_EXT" "$AGENT_BIN"
+
             # Make binaries executable (not needed on Windows, but harmless)
             chmod +x "$GEVALS_BIN" "$AGENT_BIN"
+
+            # Cleanup download directory
+            rm -rf "$DOWNLOAD_DIR"
           fi
         fi
 

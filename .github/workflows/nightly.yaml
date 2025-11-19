@@ -137,67 +137,27 @@ jobs:
           go-version-file: 'go.mod'
 
       - name: Install cosign
-        uses: sigstore/cosign-installer@v3
+        uses: sigstore/cosign-installer@v4.0.0
 
-      - name: Build gevals
+      - name: Build release artifacts
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
-        run: |
-          BINARY_NAME="gevals"
-          if [ "${GOOS}" == "windows" ]; then
-            OUTPUT_NAME="${BINARY_NAME}-${GOOS}-${GOARCH}.exe"
-          else
-            OUTPUT_NAME="${BINARY_NAME}-${GOOS}-${GOARCH}"
-          fi
+          VERSION: ${{ needs.check-and-create-nightly.outputs.nightly_version }}
+        run: make build-release package-release
 
-          echo "Building ${OUTPUT_NAME}..."
-          GOOS=${GOOS} GOARCH=${GOARCH} go build -trimpath -ldflags="-s -w" -o "${OUTPUT_NAME}" ./cmd/gevals
-
-          zip "${BINARY_NAME}-${GOOS}-${GOARCH}.zip" "${OUTPUT_NAME}"
-
-      - name: Build agent
+      - name: Sign release artifacts
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
-        run: |
-          BINARY_NAME="agent"
-          if [ "${GOOS}" == "windows" ]; then
-            OUTPUT_NAME="${BINARY_NAME}-${GOOS}-${GOARCH}.exe"
-          else
-            OUTPUT_NAME="${BINARY_NAME}-${GOOS}-${GOARCH}"
-          fi
-
-          echo "Building ${OUTPUT_NAME}..."
-          GOOS=${GOOS} GOARCH=${GOARCH} go build -trimpath -ldflags="-s -w" -o "${OUTPUT_NAME}" ./cmd/agent
-
-          zip "${BINARY_NAME}-${GOOS}-${GOARCH}.zip" "${OUTPUT_NAME}"
-
-      - name: Sign gevals and agent ZIP files
-        env:
-          GOOS: ${{ matrix.goos }}
-          GOARCH: ${{ matrix.goarch }}
-        run: |
-          # Define file names
-          GEVALS_ZIP="gevals-${GOOS}-${GOARCH}.zip"
-          AGENT_ZIP="agent-${GOOS}-${GOARCH}.zip"
-
-          echo "Signing ${GEVALS_ZIP}..."
-          cosign sign-blob --yes "${GEVALS_ZIP}" \
-            --output-signature "${GEVALS_ZIP}.sig" \
-            --output-certificate "${GEVALS_ZIP}.pem"
-
-          echo "Signing ${AGENT_ZIP}..."
-          cosign sign-blob --yes "${AGENT_ZIP}" \
-            --output-signature "${AGENT_ZIP}.sig" \
-            --output-certificate "${AGENT_ZIP}.pem"
+        run: make sign-release
 
       - name: Upload assets to nightly release
         run: |
           VERSION="${{ needs.check-and-create-nightly.outputs.nightly_version }}"
 
-          # Upload all zips, signatures (.sig), and certificates (.pem)
-          for file in *.zip *.sig *.pem; do
+          # Upload all zips and bundles
+          for file in dist/*.zip dist/*.bundle; do
             if [ -f "$file" ]; then
               echo "Uploading $file..."
               gh release upload "$VERSION" "$file" --clobber
