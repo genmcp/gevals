@@ -150,7 +150,6 @@ jobs:
         env:
           GOOS: ${{ matrix.goos }}
           GOARCH: ${{ matrix.goarch }}
-          VERSION: ${{ needs.check-and-create-nightly.outputs.nightly_version }}
         run: make build-release package-release
 
       - name: Sign release artifacts
