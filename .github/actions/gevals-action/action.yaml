@@ -187,12 +187,12 @@ runs:
           git clone --depth 1 https://github.com/genmcp/gevals.git "$GEVALS_SRC"
           cd "$GEVALS_SRC"
 
-          # Build binaries for detected platform
-          echo "Building gevals binary..."
-          GOOS=$GOOS GOARCH=$GOARCH go build -o "$GEVALS_BIN" ./cmd/gevals
+          # Build binaries
+          make build GOOS=$GOOS GOARCH=$GOARCH
 
-          echo "Building agent binary..."
-          GOOS=$GOOS GOARCH=$GOARCH go build -o "$AGENT_BIN" ./cmd/agent
+          # Copy built binaries to install directory
+          mv gevals$BIN_EXT "$GEVALS_BIN"
+          mv agent$BIN_EXT "$AGENT_BIN"
 
           # Cleanup source
           cd -
@@ -221,8 +221,11 @@ runs:
             # Build binaries from source
             cd "$GEVALS_SRC"
             echo "Building gevals binaries for $GOOS/$GOARCH..."
-            GOOS=$GOOS GOARCH=$GOARCH go build -o "$GEVALS_BIN" ./cmd/gevals
-            GOOS=$GOOS GOARCH=$GOARCH go build -o "$AGENT_BIN" ./cmd/agent
+            make build GOOS=$GOOS GOARCH=$GOARCH
+
+            # Copy built binaries to install directory
+            mv gevals$BIN_EXT "$GEVALS_BIN"
+            mv agent$BIN_EXT "$AGENT_BIN"
 
             # Cleanup source directory
             cd -
