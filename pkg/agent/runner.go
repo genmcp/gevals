@@ -45,6 +45,13 @@ func NewRunnerForSpec(spec *AgentSpec) (Runner, error) {
 		return nil, fmt.Errorf("cannot create a Runner for a nil AgentSpec")
 	}
 
+	// Check if this is an OpenAI agent with builtin configuration
+	if spec.Builtin != nil && spec.Builtin.Type == "openai-agent" {
+		// Use the custom OpenAI agent runner
+		return NewOpenAIAgentRunner(spec.Builtin.Model, spec.Builtin.BaseURL, spec.Builtin.APIKey)
+	}
+
+	// Use the standard shell-based runner for all other agents
 	return &agentSpecRunner{
 		AgentSpec: spec,
 	}, nil
@@ -106,15 +113,28 @@ func (a *agentSpecRunner) RunTask(ctx context.Context, prompt string) (AgentResu
 		return nil, fmt.Errorf("failed to get the mcp server files: %w", err)
 	}
 
-	for _, f := range filesRaw {
+	// Get servers to extract URLs
+	servers := a.mcpInfo.GetMcpServers()
+	if len(filesRaw) != len(servers) {
+		return nil, fmt.Errorf("mismatch between number of server files (%d) and servers (%d)", len(filesRaw), len(servers))
+	}
+
+	for i, f := range filesRaw {
+		serverCfg, err := servers[i].GetConfig()
+		if err != nil {
+			return nil, fmt.Errorf("failed to get config for server %s: %w", servers[i].GetName(), err)
+		}
+
 		tmp := struct {
 			File string
+			URL  string
 		}{
 			File: f,
+			URL:  serverCfg.URL,
 		}
 
 		formatted := bytes.NewBuffer(nil)
-		err := argTemplateMcpServer.Execute(formatted, tmp)
+		err = argTemplateMcpServer.Execute(formatted, tmp)
 		if err != nil {
 			return nil, fmt.Errorf("failed to execute argTemplateMcpServer: %w", err)
 		}

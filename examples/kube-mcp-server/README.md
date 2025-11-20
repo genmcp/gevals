@@ -15,11 +15,12 @@ kube-mcp-server/
 │   └── cleanup.sh
 ├── claude-code/                 # Claude Code agent configuration
 │   ├── agent.yaml
-│   └── eval.yaml
+│   ├── eval.yaml
+│   └── eval-inline.yaml
 └── openai-agent/                # OpenAI-compatible agent configuration
     ├── agent.yaml
-    ├── agent-wrapper.sh
-    └── eval.yaml
+    ├── eval.yaml
+    └── eval-inline.yaml
 ```
 
 ## What This Tests
@@ -92,13 +93,12 @@ commands:
 
 ### OpenAI Agent (openai-agent/agent.yaml)
 ```yaml
-commands:
-  argTemplateMcpServer: "{{ .File }}"
-  runPrompt: |-
-    examples/kube-mcp-server/openai-agent/agent-wrapper.sh {{ .McpServerFileArgs }} "{{ .Prompt }}"
+builtin:
+  type: "openai-agent"
+  model: "gpt-4"
 ```
 
-The wrapper script extracts the proxy URL from the config file since the `agent` binary requires `--mcp-url` directly.
+Uses the built-in OpenAI agent with model configuration.
 
 ## Expected Results
 

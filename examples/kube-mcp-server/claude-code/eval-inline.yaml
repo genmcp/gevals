@@ -2,9 +2,9 @@ kind: Eval
 metadata:
   name: "kubernetes-basic-operations"
 config:
+  # Inline agent configuration - no separate agent.yaml file needed
   agent:
-    type: "file"
-    path: agent.yaml
+    type: "builtin.claude-code"
   mcpConfigFile: ../mcp-config.yaml
   llmJudge:
     env:

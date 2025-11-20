@@ -2,7 +2,9 @@ kind: Eval
 metadata:
   name: "openai-agent-kubernetes-test"
 config:
-  agentFile: agent.yaml
+  agent:
+    type: "file"
+    path: agent.yaml
   mcpConfigFile: ../mcp-config.yaml
   llmJudge:
     env:

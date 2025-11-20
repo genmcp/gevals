@@ -60,6 +60,53 @@ func NewRunner(spec *EvalSpec) (EvalRunner, error) {
 	}, nil
 }
 
+func (r *evalRunner) loadAgentSpec() (*agent.AgentSpec, error) {
+	if r.spec.Config.Agent == nil {
+		return nil, fmt.Errorf("agent must be specified in eval config")
+	}
+
+	agentRef := r.spec.Config.Agent
+
+	// Handle file-based agent configuration
+	if agentRef.Type == "file" {
+		if agentRef.Path == "" {
+			return nil, fmt.Errorf("path must be specified when agent type is 'file'")
+		}
+		return agent.LoadWithBuiltins(agentRef.Path)
+	}
+
+	// Handle builtin agent configuration
+	// Type should be in format "builtin.X" where X is the builtin type
+	const builtinPrefix = "builtin."
+	if len(agentRef.Type) <= len(builtinPrefix) || agentRef.Type[:len(builtinPrefix)] != builtinPrefix {
+		return nil, fmt.Errorf("agent type must be either 'file' or 'builtin.X' format, got: %s", agentRef.Type)
+	}
+
+	builtinType := agentRef.Type[len(builtinPrefix):]
+	builtinAgent, ok := agent.GetBuiltinType(builtinType)
+	if !ok {
+		return nil, fmt.Errorf("unknown builtin agent type: %s", builtinType)
+	}
+
+	// Enforce model requirement for this builtin type
+	if builtinAgent.RequiresModel() && agentRef.Model == "" {
+		return nil, fmt.Errorf("builtin type '%s' requires a model to be specified", builtinType)
+	}
+
+	// Validate environment (binaries, env vars, etc.) before using the agent
+	if err := builtinAgent.ValidateEnvironment(); err != nil {
+		return nil, fmt.Errorf("builtin type '%s' environment validation failed: %w", builtinType, err)
+	}
+
+	// Get the default spec for this builtin agent
+	agentSpec, err := builtinAgent.GetDefaults(agentRef.Model)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get defaults for builtin agent %s: %w", builtinType, err)
+	}
+
+	return agentSpec, nil
+}
+
 func (r *evalRunner) Run(ctx context.Context, taskPattern string) ([]*EvalResult, error) {
 	return r.RunWithProgress(ctx, taskPattern, NoopProgressCallback)
 }
@@ -88,7 +135,7 @@ func (r *evalRunner) RunWithProgress(ctx context.Context, taskPattern string, ca
 
 	r.mcpConfig = mcpConfig
 
-	agentSpec, err := agent.FromFile(r.spec.Config.AgentFile)
+	agentSpec, err := r.loadAgentSpec()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load agent spec: %w", err)
 	}
