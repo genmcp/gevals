@@ -144,7 +144,8 @@ func TestOpenAIAgent(t *testing.T) {
 		assert.Equal(t, "test-key", spec.Builtin.APIKey)
 
 		// Check commands
-		assert.False(t, spec.Commands.UseVirtualHome)
+		require.NotNil(t, spec.Commands.UseVirtualHome)
+		assert.False(t, *spec.Commands.UseVirtualHome)
 		assert.Equal(t, "{{ .URL }}", spec.Commands.ArgTemplateMcpServer)
 		// RunPrompt is empty for OpenAI agents - they use a custom runner
 		assert.Empty(t, spec.Commands.RunPrompt)
@@ -177,7 +178,8 @@ func TestClaudeCodeAgent(t *testing.T) {
 		assert.Equal(t, "claude-code", spec.Metadata.Name)
 
 		// Check commands
-		assert.False(t, spec.Commands.UseVirtualHome)
+		require.NotNil(t, spec.Commands.UseVirtualHome)
+		assert.False(t, *spec.Commands.UseVirtualHome)
 		assert.Equal(t, "--mcp-config {{ .File }}", spec.Commands.ArgTemplateMcpServer)
 		assert.Equal(t, "mcp__{{ .ServerName }}__{{ .ToolName }}", spec.Commands.ArgTemplateAllowedTools)
 		assert.Contains(t, spec.Commands.RunPrompt, "claude")

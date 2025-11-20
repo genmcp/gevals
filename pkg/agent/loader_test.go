@@ -21,7 +21,8 @@ func TestLoadWithBuiltins(t *testing.T) {
 			file: "builtin-claude-code.yaml",
 			validate: func(t *testing.T, spec *AgentSpec) {
 				assert.Equal(t, "claude-code", spec.Metadata.Name)
-				assert.False(t, spec.Commands.UseVirtualHome)
+				require.NotNil(t, spec.Commands.UseVirtualHome)
+				assert.False(t, *spec.Commands.UseVirtualHome)
 				assert.Contains(t, spec.Commands.RunPrompt, "claude")
 			},
 		},
@@ -58,9 +59,9 @@ func TestLoadWithBuiltins(t *testing.T) {
 			validate: func(t *testing.T, spec *AgentSpec) {
 				// Name should be overridden
 				assert.Equal(t, "custom-openai", spec.Metadata.Name)
-				// UseVirtualHome is false because the merge logic doesn't detect
-				// commands as specified when only UseVirtualHome is set
-				assert.False(t, spec.Commands.UseVirtualHome)
+				// UseVirtualHome should be true as specified in the YAML override
+				require.NotNil(t, spec.Commands.UseVirtualHome)
+				assert.True(t, *spec.Commands.UseVirtualHome)
 				// Builtin configuration should be present
 				require.NotNil(t, spec.Builtin)
 				assert.Equal(t, "openai-agent", spec.Builtin.Type)
@@ -139,23 +140,26 @@ func TestMergeAgentSpecs(t *testing.T) {
 	})
 
 	t.Run("override commands", func(t *testing.T) {
+		baseUseVirtualHome := false
+		overrideUseVirtualHome := true
 		base := &AgentSpec{
 			Commands: AgentCommands{
-				UseVirtualHome:       false,
+				UseVirtualHome:       &baseUseVirtualHome,
 				ArgTemplateMcpServer: "{{ .File }}",
 				RunPrompt:            "base command",
 			},
 		}
 		override := &AgentSpec{
 			Commands: AgentCommands{
-				UseVirtualHome: true,
+				UseVirtualHome: &overrideUseVirtualHome,
 				RunPrompt:      "override command",
 			},
 		}
 		result := mergeAgentSpecs(base, override)
 
 		// Overridden fields
-		assert.True(t, result.Commands.UseVirtualHome)
+		require.NotNil(t, result.Commands.UseVirtualHome)
+		assert.True(t, *result.Commands.UseVirtualHome)
 		assert.Equal(t, "override command", result.Commands.RunPrompt)
 
 		// Non-overridden fields should keep base value

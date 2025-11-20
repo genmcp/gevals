@@ -43,7 +43,7 @@ type AgentMetadata struct {
 
 type AgentCommands struct {
 	// Whether or not to create a virtual $HOME for executing the agent without existing config
-	UseVirtualHome bool `json:"useVirtualHome"`
+	UseVirtualHome *bool `json:"useVirtualHome,omitempty"`
 
 	// A template for how the mcp servers config files should be provided to the prompt
 	// the server file will be in {{ .File }}

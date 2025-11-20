@@ -55,13 +55,35 @@ func mergeAgentSpecs(defaults, overrides *AgentSpec) *AgentSpec {
 		result.Metadata.Version = overrides.Metadata.Version
 	}
 
+	// Merge builtin configuration: YAML overrides defaults where set
+	if overrides.Builtin != nil {
+		if result.Builtin == nil {
+			// No defaults; take everything from overrides
+			result.Builtin = overrides.Builtin
+		} else {
+			if overrides.Builtin.Type != "" {
+				result.Builtin.Type = overrides.Builtin.Type
+			}
+			if overrides.Builtin.Model != "" {
+				result.Builtin.Model = overrides.Builtin.Model
+			}
+			if overrides.Builtin.BaseURL != "" {
+				result.Builtin.BaseURL = overrides.Builtin.BaseURL
+			}
+			if overrides.Builtin.APIKey != "" {
+				result.Builtin.APIKey = overrides.Builtin.APIKey
+			}
+		}
+	}
+
 	// Determine if commands were specified in overrides
 	// We consider commands specified if any non-zero field is set
 	commandsSpecified := overrides.Commands.ArgTemplateMcpServer != "" ||
 		overrides.Commands.ArgTemplateAllowedTools != "" ||
 		overrides.Commands.RunPrompt != "" ||
 		overrides.Commands.AllowedToolsJoinSeparator != nil ||
-		overrides.Commands.GetVersion != nil
+		overrides.Commands.GetVersion != nil ||
+		overrides.Commands.UseVirtualHome != nil
 
 	if commandsSpecified {
 		// Override individual command fields if they are non-empty
@@ -80,8 +102,10 @@ func mergeAgentSpecs(defaults, overrides *AgentSpec) *AgentSpec {
 		if overrides.Commands.GetVersion != nil {
 			result.Commands.GetVersion = overrides.Commands.GetVersion
 		}
-		// UseVirtualHome is always taken from overrides if commands are specified
-		result.Commands.UseVirtualHome = overrides.Commands.UseVirtualHome
+		// Only override UseVirtualHome when explicitly set in overrides
+		if overrides.Commands.UseVirtualHome != nil {
+			result.Commands.UseVirtualHome = overrides.Commands.UseVirtualHome
+		}
 	}
 
 	return &result

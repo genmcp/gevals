@@ -28,12 +28,13 @@ func (a *ClaudeCodeAgent) ValidateEnvironment() error {
 
 func (a *ClaudeCodeAgent) GetDefaults(model string) (*AgentSpec, error) {
 	separator := ","
+	useVirtualHome := false
 	return &AgentSpec{
 		Metadata: AgentMetadata{
 			Name: "claude-code",
 		},
 		Commands: AgentCommands{
-			UseVirtualHome:            false,
+			UseVirtualHome:            &useVirtualHome,
 			ArgTemplateMcpServer:      "--mcp-config {{ .File }}",
 			ArgTemplateAllowedTools:   "mcp__{{ .ServerName }}__{{ .ToolName }}",
 			AllowedToolsJoinSeparator: &separator,

@@ -37,6 +37,7 @@ func (a *OpenAIAgent) GetDefaults(model string) (*AgentSpec, error) {
 		return nil, fmt.Errorf("environment variables MODEL_BASE_URL and MODEL_KEY must be set")
 	}
 
+	useVirtualHome := false
 	return &AgentSpec{
 		Metadata: AgentMetadata{
 			Name: fmt.Sprintf("openai-agent-%s", model),
@@ -50,7 +51,7 @@ func (a *OpenAIAgent) GetDefaults(model string) (*AgentSpec, error) {
 			APIKey:  apiKey,
 		},
 		Commands: AgentCommands{
-			UseVirtualHome:       false,
+			UseVirtualHome:       &useVirtualHome,
 			ArgTemplateMcpServer: "{{ .URL }}",
 			// RunPrompt is not used for OpenAI agents - they use a custom runner
 			RunPrompt: "",
