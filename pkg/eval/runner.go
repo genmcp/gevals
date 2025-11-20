@@ -88,6 +88,16 @@ func (r *evalRunner) loadAgentSpec() (*agent.AgentSpec, error) {
 		return nil, fmt.Errorf("unknown builtin agent type: %s", builtinType)
 	}
 
+	// Enforce model requirement for this builtin type
+	if builtinAgent.RequiresModel() && agentRef.Model == "" {
+		return nil, fmt.Errorf("builtin type '%s' requires a model to be specified", builtinType)
+	}
+
+	// Validate environment (binaries, env vars, etc.) before using the agent
+	if err := builtinAgent.ValidateEnvironment(); err != nil {
+		return nil, fmt.Errorf("builtin type '%s' environment validation failed: %w", builtinType, err)
+	}
+
 	// Get the default spec for this builtin agent
 	agentSpec, err := builtinAgent.GetDefaults(agentRef.Model)
 	if err != nil {
