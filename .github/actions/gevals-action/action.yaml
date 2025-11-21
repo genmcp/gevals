@@ -330,8 +330,8 @@ runs:
           # Calculate pass rates and check thresholds (if jq is available)
           if command -v jq &> /dev/null; then
             # Count totals and passes for tasks
-            TOTAL_TASKS=$(jq 'length' "$RESULTS_FILE")
-            TASKS_PASSED=$(jq '[.[] | select(.taskPassed == true)] | length' "$RESULTS_FILE")
+            TOTAL_TASKS=$(jq 'length' "$RESULTS_FILE" || echo "0")
+            TASKS_PASSED=$(jq '[.[] | select(.taskPassed == true)] | length' "$RESULTS_FILE" || echo "0")
 
             # Count individual assertions across all tasks
             # Dynamically count all non-null assertion results (future-proof for new assertion types)
@@ -340,7 +340,7 @@ runs:
               | .assertionResults
               | to_entries
               | map(select(.value != null))
-              | length] | add // 0' "$RESULTS_FILE")
+              | length] | add // 0' "$RESULTS_FILE" || echo "0")
 
             # Sum up all the individual assertions that passed
             # Dynamically count all passed assertion results (future-proof for new assertion types)
@@ -348,13 +348,13 @@ runs:
               | .assertionResults
               | to_entries
               | map(select(.value != null and .value.passed == true))
-              | length] | add // 0' "$RESULTS_FILE")
+              | length] | add // 0' "$RESULTS_FILE" || echo "0")
 
             # Calculate pass rates using awk (handles division-by-zero)
             # Note: awk is used instead of bc for better portability across platforms,
             # especially on Windows runners where bc may not be available
-            TASK_PASS_RATE=$(awk "BEGIN {printf \"%.4f\", $TOTAL_TASKS > 0 ? $TASKS_PASSED / $TOTAL_TASKS : 0}")
-            ASSERTION_PASS_RATE=$(awk "BEGIN {printf \"%.4f\", $TOTAL_ASSERTIONS > 0 ? $ASSERTIONS_PASSED / $TOTAL_ASSERTIONS : 0}")
+            TASK_PASS_RATE=$(awk -v total="$TOTAL_TASKS" -v passed="$TASKS_PASSED" 'BEGIN {printf "%.4f", total > 0 ? passed / total : 0}')
+            ASSERTION_PASS_RATE=$(awk -v total="$TOTAL_ASSERTIONS" -v passed="$ASSERTIONS_PASSED" 'BEGIN {printf "%.4f", total > 0 ? passed / total : 0}')
 
             # Output metrics
             echo "tasks-total=$TOTAL_TASKS" >> $GITHUB_OUTPUT
@@ -368,8 +368,8 @@ runs:
             TASK_THRESHOLD="${{ inputs.task-pass-threshold }}"
             ASSERTION_THRESHOLD="${{ inputs.assertion-pass-threshold }}"
 
-            TASK_THRESHOLD_MET=$(awk "BEGIN {print ($TASK_PASS_RATE >= $TASK_THRESHOLD ? 1 : 0)}")
-            ASSERTION_THRESHOLD_MET=$(awk "BEGIN {print ($ASSERTION_PASS_RATE >= $ASSERTION_THRESHOLD ? 1 : 0)}")
+            TASK_THRESHOLD_MET=$(awk -v rate="$TASK_PASS_RATE" -v threshold="$TASK_THRESHOLD" 'BEGIN {print (rate >= threshold ? 1 : 0)}')
+            ASSERTION_THRESHOLD_MET=$(awk -v rate="$ASSERTION_PASS_RATE" -v threshold="$ASSERTION_THRESHOLD" 'BEGIN {print (rate >= threshold ? 1 : 0)}')
 
             if [ "$TASK_THRESHOLD_MET" -eq 1 ] && [ "$ASSERTION_THRESHOLD_MET" -eq 1 ]; then
               THRESHOLDS_PASSED="true"
@@ -378,6 +378,9 @@ runs:
             fi
 
             echo "passed=$THRESHOLDS_PASSED" >> $GITHUB_OUTPUT
+
+            # Store for later use in failure handling
+            EVALUATION_PASSED="$THRESHOLDS_PASSED"
 
             # Print summary
             echo ""
@@ -392,7 +395,7 @@ runs:
             echo "Overall: $([ "$THRESHOLDS_PASSED" = "true" ] && echo "✓ PASSED" || echo "✗ FAILED")"
 
             # Print detailed failure info
-            FAILED_COUNT=$(jq '[.[] | select(.taskPassed == false or .allAssertionsPassed == false)] | length' "$RESULTS_FILE")
+            FAILED_COUNT=$(jq '[.[] | select(.taskPassed == false or .allAssertionsPassed == false)] | length' "$RESULTS_FILE" || echo "0")
             if [ "$FAILED_COUNT" -gt 0 ]; then
               echo ""
               echo "Failed Tasks ($FAILED_COUNT):"
@@ -407,24 +410,32 @@ runs:
             echo "assertions-passed=0" >> $GITHUB_OUTPUT
             echo "assertions-total=0" >> $GITHUB_OUTPUT
             echo "⚠ jq not installed, cannot parse results"
+            EVALUATION_PASSED="unknown"
           fi
         else
           echo "⚠ No results file found"
           echo "results-file=" >> $GITHUB_OUTPUT
           echo "passed=false" >> $GITHUB_OUTPUT
+          EVALUATION_PASSED="false"
         fi
 
         echo ""
 
         # Handle failure
+        SHOULD_FAIL=0
+
         if [ $EXIT_CODE -ne 0 ]; then
           echo "❌ Evaluation exited with code $EXIT_CODE"
-
-          if [ "${{ inputs.fail-on-error }}" = "true" ]; then
-            exit $EXIT_CODE
-          fi
+          SHOULD_FAIL=$EXIT_CODE
+        elif [ "${EVALUATION_PASSED:-unknown}" = "false" ]; then
+          echo "❌ Evaluation thresholds not met"
+          SHOULD_FAIL=1
         else
           echo "✓ Evaluation completed successfully"
+        fi
+
+        if [ $SHOULD_FAIL -ne 0 ] && [ "${{ inputs.fail-on-error }}" = "true" ]; then
+          exit $SHOULD_FAIL
         fi
 
         exit 0
