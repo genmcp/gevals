@@ -72,13 +72,8 @@ jobs:
         id: changelog
         if: env.SKIP_NIGHTLY != 'true'
         run: |
-          # Extract the Unreleased section from CHANGELOG.md
-          CHANGELOG_CONTENT=$(sed -n '/## \[Unreleased\]/,/## \[/p' CHANGELOG.md | sed '$d' | tail -n +2 | awk '/^### /{section=$0; items=""; next} /^( *)?- /{items=items $0 "\n"; next} /^$/ && items{print section "\n" items; items=""}' | sed '/^$/d')
-
-          # If changelog content is empty, provide a default message
-          if [ -z "$CHANGELOG_CONTENT" ]; then
-            CHANGELOG_CONTENT="See CHANGELOG.md for details."
-          fi
+          # Extract the Unreleased section from CHANGELOG.md using make target
+          CHANGELOG_CONTENT=$(make extract-changelog-unreleased)
 
           # Save to environment variable, handling multiline content
           {
@@ -159,15 +154,6 @@ jobs:
         run: make sign-release
 
       - name: Upload assets to nightly release
-        run: |
-          VERSION="${{ needs.check-and-create-nightly.outputs.nightly_version }}"
-
-          # Upload all zips and bundles
-          for file in dist/*.zip dist/*.bundle; do
-            if [ -f "$file" ]; then
-              echo "Uploading $file..."
-              gh release upload "$VERSION" "$file" --clobber
-            fi
-          done
+        run: make upload-release-assets VERSION="${{ needs.check-and-create-nightly.outputs.nightly_version }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
