@@ -34,3 +34,8 @@ go.work.sum
 # built binary
 /agent
 /gevals
+
+# release artifacts
+dist/
+*.zip
+*.bundle

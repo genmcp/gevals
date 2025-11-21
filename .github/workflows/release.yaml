@@ -1,0 +1,164 @@
+name: Publish Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+      - '!v*.*.*-*'  # Exclude pre-releases
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag (e.g., v1.0.0)'
+        required: true
+        type: string
+
+jobs:
+  determine-version:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      version: ${{ env.VERSION }}
+      changelog_body: ${{ env.CHANGELOG_BODY }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Extract version from tag
+        id: get_version
+        run: |
+          # Get version from tag (either from push event or manual input)
+          if [ "${{ github.event_name }}" = "push" ]; then
+            VERSION="${{ github.ref_name }}"
+          else
+            VERSION="${{ inputs.tag }}"
+          fi
+
+          # Validate version format (vX.Y.Z without any suffix)
+          if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Error: Tag must match format 'vX.Y.Z' (e.g., v1.0.0)"
+            echo "Got: $VERSION"
+            exit 1
+          fi
+
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "Release version: $VERSION"
+
+      - name: Validate CHANGELOG has version section
+        run: |
+          VERSION="${{ env.VERSION }}"
+          if ! grep -q "## \[${VERSION}\]" CHANGELOG.md; then
+            echo "Error: CHANGELOG.md must contain a section for version ${VERSION}"
+            echo "Expected format: ## [${VERSION}]"
+            echo "Current CHANGELOG sections:"
+            grep "^## \[" CHANGELOG.md || echo "No version sections found"
+            exit 1
+          fi
+          echo "CHANGELOG validation passed for version ${VERSION}"
+
+      - name: Extract changelog for release
+        id: changelog
+        run: |
+          VERSION="${{ env.VERSION }}"
+          # Extract the specific version section from CHANGELOG.md
+          CHANGELOG_CONTENT=$(sed -n "/## \[${VERSION}\]/,/## \[/p" CHANGELOG.md | sed '$d' | tail -n +2 | awk '/^### /{section=$0; items=""; next} /^( *)?- /{items=items $0 "\n"; next} /^$/ && items{print section "\n" items; items=""}' | sed '/^$/d')
+
+          # If changelog content is empty, provide a default message
+          if [ -z "$CHANGELOG_CONTENT" ]; then
+            CHANGELOG_CONTENT="See CHANGELOG.md for details."
+          fi
+
+          # Save to environment variable, handling multiline content
+          {
+            echo 'CHANGELOG_BODY<<EOF'
+            echo "$CHANGELOG_CONTENT"
+            echo 'EOF'
+          } >> "$GITHUB_ENV"
+
+      - name: Run tests
+        run: |
+          echo "Running all tests..."
+          go test ./...
+          echo "All tests passed!"
+
+      - name: Create or update release
+        run: |
+          VERSION="${{ env.VERSION }}"
+
+          # Check if release already exists
+          if gh release view "$VERSION" >/dev/null 2>&1; then
+            echo "Release $VERSION already exists, checking if changelog needs to be updated..."
+
+            # Get current release notes
+            CURRENT_NOTES=$(gh release view "$VERSION" --json body -q .body)
+
+            # Check if changelog content is already in the notes
+            if echo "$CURRENT_NOTES" | grep -qF "${{ env.CHANGELOG_BODY }}"; then
+              echo "Changelog already present in release notes, skipping update..."
+            else
+              echo "Appending changelog to existing release notes..."
+              NEW_NOTES="${CURRENT_NOTES}\n\n---\n\n${{ env.CHANGELOG_BODY }}"
+              gh release edit "$VERSION" --notes "$NEW_NOTES"
+            fi
+          else
+            echo "Creating release $VERSION..."
+            gh release create "$VERSION" \
+              --title "$VERSION" \
+              --notes "${{ env.CHANGELOG_BODY }}" \
+              --latest
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-and-upload:
+    needs: determine-version
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write  # Permission for keyless signing
+    strategy:
+      matrix:
+        goos: [linux, windows, darwin]
+        goarch: [amd64, arm64]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v4.0.0
+
+      - name: Build release artifacts
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+          VERSION: ${{ needs.determine-version.outputs.version }}
+        run: make build-release package-release
+
+      - name: Sign release artifacts
+        env:
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
+        run: make sign-release
+
+      - name: Upload assets to release
+        run: |
+          VERSION="${{ needs.determine-version.outputs.version }}"
+
+          # Upload all zips and bundles
+          for file in dist/*.zip dist/*.bundle; do
+            if [ -f "$file" ]; then
+              echo "Uploading $file..."
+              gh release upload "$VERSION" "$file" --clobber
+            fi
+          done
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
