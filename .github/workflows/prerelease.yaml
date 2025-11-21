@@ -35,12 +35,8 @@ jobs:
             VERSION="${{ inputs.tag }}"
           fi
 
-          # Validate version format (vX.Y.Z-rc.N)
-          if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$ ]]; then
-            echo "Error: Tag must match format 'vX.Y.Z-rc.N' (e.g., v1.0.0-rc.1)"
-            echo "Got: $VERSION"
-            exit 1
-          fi
+          # Validate version format using make target
+          make validate-prerelease-tag VERSION="$VERSION"
 
           echo "PRERELEASE_VERSION=$VERSION" >> "$GITHUB_ENV"
           echo "Pre-release version: $VERSION"
@@ -52,18 +48,8 @@ jobs:
           # Extract the base release version (without -rc.N suffix)
           RELEASE_VERSION=$(echo "$VERSION" | sed 's/-rc\.[0-9]*$//')
 
-          # Try to extract the changelog section for this release version
-          CHANGELOG_CONTENT=$(sed -n "/## \[${RELEASE_VERSION}\]/,/## \[/p" CHANGELOG.md | sed '$d' | tail -n +2 | awk '/^### /{section=$0; items=""; next} /^( *)?- /{items=items $0 "\n"; next} /^$/ && items{print section "\n" items; items=""}' | sed '/^$/d')
-
-          # If no specific version section found, try Unreleased
-          if [ -z "$CHANGELOG_CONTENT" ]; then
-            CHANGELOG_CONTENT=$(sed -n '/## \[Unreleased\]/,/## \[/p' CHANGELOG.md | sed '$d' | tail -n +2 | awk '/^### /{section=$0; items=""; next} /^( *)?- /{items=items $0 "\n"; next} /^$/ && items{print section "\n" items; items=""}' | sed '/^$/d')
-          fi
-
-          # If still empty, provide a default prerelease message
-          if [ -z "$CHANGELOG_CONTENT" ]; then
-            CHANGELOG_CONTENT="Pre-release build for ${RELEASE_VERSION}. See CHANGELOG.md for details."
-          fi
+          # Extract changelog using make target (tries version-specific, then unreleased)
+          CHANGELOG_CONTENT=$(make extract-changelog-version VERSION="$RELEASE_VERSION" 2>/dev/null || echo "Pre-release build for ${RELEASE_VERSION}. See CHANGELOG.md for details.")
 
           # Save to environment variable, handling multiline content
           {
@@ -139,15 +125,6 @@ jobs:
         run: make sign-release
 
       - name: Upload assets to release
-        run: |
-          VERSION="${{ needs.determine-version.outputs.prerelease_version }}"
-
-          # Upload all zips and bundles
-          for file in dist/*.zip dist/*.bundle; do
-            if [ -f "$file" ]; then
-              echo "Uploading $file..."
-              gh release upload "$VERSION" "$file" --clobber
-            fi
-          done
+        run: make upload-release-assets VERSION="${{ needs.determine-version.outputs.prerelease_version }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -36,39 +36,21 @@ jobs:
             VERSION="${{ inputs.tag }}"
           fi
 
-          # Validate version format (vX.Y.Z without any suffix)
-          if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "Error: Tag must match format 'vX.Y.Z' (e.g., v1.0.0)"
-            echo "Got: $VERSION"
-            exit 1
-          fi
+          # Validate version format using make target
+          make validate-release-tag VERSION="$VERSION"
 
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           echo "Release version: $VERSION"
 
       - name: Validate CHANGELOG has version section
-        run: |
-          VERSION="${{ env.VERSION }}"
-          if ! grep -q "## \[${VERSION}\]" CHANGELOG.md; then
-            echo "Error: CHANGELOG.md must contain a section for version ${VERSION}"
-            echo "Expected format: ## [${VERSION}]"
-            echo "Current CHANGELOG sections:"
-            grep "^## \[" CHANGELOG.md || echo "No version sections found"
-            exit 1
-          fi
-          echo "CHANGELOG validation passed for version ${VERSION}"
+        run: make validate-changelog-has-version VERSION="${{ env.VERSION }}"
 
       - name: Extract changelog for release
         id: changelog
         run: |
           VERSION="${{ env.VERSION }}"
-          # Extract the specific version section from CHANGELOG.md
-          CHANGELOG_CONTENT=$(sed -n "/## \[${VERSION}\]/,/## \[/p" CHANGELOG.md | sed '$d' | tail -n +2 | awk '/^### /{section=$0; items=""; next} /^( *)?- /{items=items $0 "\n"; next} /^$/ && items{print section "\n" items; items=""}' | sed '/^$/d')
-
-          # If changelog content is empty, provide a default message
-          if [ -z "$CHANGELOG_CONTENT" ]; then
-            CHANGELOG_CONTENT="See CHANGELOG.md for details."
-          fi
+          # Extract the specific version section from CHANGELOG.md using make target
+          CHANGELOG_CONTENT=$(make extract-changelog-version VERSION="$VERSION")
 
           # Save to environment variable, handling multiline content
           {
@@ -150,15 +132,6 @@ jobs:
         run: make sign-release
 
       - name: Upload assets to release
-        run: |
-          VERSION="${{ needs.determine-version.outputs.version }}"
-
-          # Upload all zips and bundles
-          for file in dist/*.zip dist/*.bundle; do
-            if [ -f "$file" ]; then
-              echo "Uploading $file..."
-              gh release upload "$VERSION" "$file" --clobber
-            fi
-          done
+        run: make upload-release-assets VERSION="${{ needs.determine-version.outputs.version }}"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
