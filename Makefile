@@ -6,6 +6,11 @@ VERSION ?= dev
 GOOS ?= $(shell go env GOOS)
 GOARCH ?= $(shell go env GOARCH)
 
+# Changelog parsing pipeline: removes section boundaries, formats sections with their items
+define CHANGELOG_PIPELINE
+sed '$$d' | tail -n +2 | sed -e '$$G' | awk '/^### /{section=$$0; items=""; next} /^( *)?- /{items=items $$0 "\n"; next} /^$$/ && items{print section "\n" items; items=""}' | sed '/^$$/d'
+endef
+
 .PHONY: clean
 clean:
 	rm -f $(AGENT_BINARY_NAME) $(GEVALS_BINARY_NAME)
@@ -67,7 +72,7 @@ release: build-release package-release sign-release
 .PHONY: extract-changelog-unreleased
 extract-changelog-unreleased:
 	@echo "Extracting unreleased changelog section..."
-	@CHANGELOG_CONTENT=$$(sed -n '/## \[Unreleased\]/,/## \[/p' CHANGELOG.md | sed '$$d' | tail -n +2 | awk '/^### /{section=$$0; items=""; next} /^( *)?- /{items=items $$0 "\n"; next} /^$$/ && items{print section "\n" items; items=""}' | sed '/^$$/d'); \
+	@CHANGELOG_CONTENT=$$(sed -n '/## \[Unreleased\]/,/## \[/p' CHANGELOG.md | $(CHANGELOG_PIPELINE)); \
 	if [ -z "$$CHANGELOG_CONTENT" ]; then \
 		CHANGELOG_CONTENT="See CHANGELOG.md for details."; \
 	fi; \
@@ -81,9 +86,9 @@ extract-changelog-version:
 	fi
 	@echo "Extracting changelog for version $(VERSION)..."
 	@VERSION_NO_V=$$(echo "$(VERSION)" | sed 's/^v//'); \
-	CHANGELOG_CONTENT=$$(sed -n "/## \[$${VERSION_NO_V}\]/,/## \[/p" CHANGELOG.md | sed '$$d' | tail -n +2 | awk '/^### /{section=$$0; items=""; next} /^( *)?- /{items=items $$0 "\n"; next} /^$$/ && items{print section "\n" items; items=""}' | sed '/^$$/d'); \
+	CHANGELOG_CONTENT=$$(sed -n "/## \[$${VERSION_NO_V}\]/,/## \[/p" CHANGELOG.md | $(CHANGELOG_PIPELINE)); \
 	if [ -z "$$CHANGELOG_CONTENT" ]; then \
-		CHANGELOG_CONTENT=$$(sed -n '/## \[Unreleased\]/,/## \[/p' CHANGELOG.md | sed '$$d' | tail -n +2 | awk '/^### /{section=$$0; items=""; next} /^( *)?- /{items=items $$0 "\n"; next} /^$$/ && items{print section "\n" items; items=""}' | sed '/^$$/d'); \
+		CHANGELOG_CONTENT=$$(sed -n '/## \[Unreleased\]/,/## \[/p' CHANGELOG.md | $(CHANGELOG_PIPELINE)); \
 	fi; \
 	if [ -z "$$CHANGELOG_CONTENT" ]; then \
 		CHANGELOG_CONTENT="See CHANGELOG.md for details."; \
