@@ -6,6 +6,11 @@ VERSION ?= dev
 GOOS ?= $(shell go env GOOS)
 GOARCH ?= $(shell go env GOARCH)
 
+# Changelog parsing pipeline: removes section boundaries, formats sections with their items
+define CHANGELOG_PIPELINE
+sed '$$d' | tail -n +2 | sed -e '$$G' | awk '/^### /{section=$$0; items=""; next} /^( *)?- /{items=items $$0 "\n"; next} /^$$/ && items{print section "\n" items; items=""}' | sed '/^$$/d'
+endef
+
 .PHONY: clean
 clean:
 	rm -f $(AGENT_BINARY_NAME) $(GEVALS_BINARY_NAME)
@@ -62,4 +67,146 @@ sign-release:
 .PHONY: release
 release: build-release package-release sign-release
 	@echo "Release build complete for $(GOOS)/$(GOARCH)!"
+
+# Changelog extraction targets
+.PHONY: extract-changelog-unreleased
+extract-changelog-unreleased:
+	@echo "Extracting unreleased changelog section..."
+	@CHANGELOG_CONTENT=$$(sed -n '/## \[Unreleased\]/,/## \[/p' CHANGELOG.md | $(CHANGELOG_PIPELINE)); \
+	if [ -z "$$CHANGELOG_CONTENT" ]; then \
+		CHANGELOG_CONTENT="See CHANGELOG.md for details."; \
+	fi; \
+	printf '%s\n' "$$CHANGELOG_CONTENT"
+
+.PHONY: extract-changelog-version
+extract-changelog-version:
+	@if [ -z "$(VERSION)" ]; then \
+		echo "Error: VERSION is required. Usage: make extract-changelog-version VERSION=v1.0.0"; \
+		exit 1; \
+	fi
+	@echo "Extracting changelog for version $(VERSION)..."
+	@VERSION_NO_V=$$(echo "$(VERSION)" | sed 's/^v//'); \
+	CHANGELOG_CONTENT=$$(sed -n "/## \[$${VERSION_NO_V}\]/,/## \[/p" CHANGELOG.md | $(CHANGELOG_PIPELINE)); \
+	if [ -z "$$CHANGELOG_CONTENT" ]; then \
+		CHANGELOG_CONTENT=$$(sed -n '/## \[Unreleased\]/,/## \[/p' CHANGELOG.md | $(CHANGELOG_PIPELINE)); \
+	fi; \
+	if [ -z "$$CHANGELOG_CONTENT" ]; then \
+		CHANGELOG_CONTENT="See CHANGELOG.md for details."; \
+	fi; \
+	printf '%s\n' "$$CHANGELOG_CONTENT"
+
+# Version validation targets
+.PHONY: validate-version-tag
+validate-version-tag:
+	@if [ -z "$(VERSION)" ]; then \
+		echo "Error: VERSION is required. Usage: make validate-version-tag VERSION=v1.0.0"; \
+		exit 1; \
+	fi
+	@echo "Validating version tag format: $(VERSION)"
+	@if echo "$(VERSION)" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?$$'; then \
+		echo "✓ Version tag $(VERSION) is valid"; \
+	else \
+		echo "✗ Error: Version tag must match format 'vX.Y.Z' or 'vX.Y.Z-rc.N'"; \
+		echo "  Got: $(VERSION)"; \
+		exit 1; \
+	fi
+
+.PHONY: validate-release-tag
+validate-release-tag:
+	@if [ -z "$(VERSION)" ]; then \
+		echo "Error: VERSION is required. Usage: make validate-release-tag VERSION=v1.0.0"; \
+		exit 1; \
+	fi
+	@echo "Validating release tag format: $(VERSION)"
+	@if echo "$(VERSION)" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$$'; then \
+		echo "✓ Release tag $(VERSION) is valid"; \
+	else \
+		echo "✗ Error: Release tag must match format 'vX.Y.Z' (no suffixes)"; \
+		echo "  Got: $(VERSION)"; \
+		exit 1; \
+	fi
+
+.PHONY: validate-prerelease-tag
+validate-prerelease-tag:
+	@if [ -z "$(VERSION)" ]; then \
+		echo "Error: VERSION is required. Usage: make validate-prerelease-tag VERSION=v1.0.0-rc.1"; \
+		exit 1; \
+	fi
+	@echo "Validating prerelease tag format: $(VERSION)"
+	@if echo "$(VERSION)" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$$'; then \
+		echo "✓ Prerelease tag $(VERSION) is valid"; \
+	else \
+		echo "✗ Error: Prerelease tag must match format 'vX.Y.Z-rc.N'"; \
+		echo "  Got: $(VERSION)"; \
+		exit 1; \
+	fi
+
+.PHONY: validate-changelog-has-version
+validate-changelog-has-version:
+	@if [ -z "$(VERSION)" ]; then \
+		echo "Error: VERSION is required. Usage: make validate-changelog-has-version VERSION=v1.0.0"; \
+		exit 1; \
+	fi
+	@VERSION_NO_V=$$(echo "$(VERSION)" | sed 's/^v//'); \
+	echo "Checking if CHANGELOG.md contains section for version $${VERSION_NO_V}..."; \
+	if grep -q "## \[$${VERSION_NO_V}\]" CHANGELOG.md; then \
+		echo "✓ CHANGELOG.md contains section for version $${VERSION_NO_V}"; \
+	else \
+		echo "✗ Error: CHANGELOG.md must contain a section for version $${VERSION_NO_V}"; \
+		echo "  Expected format: ## [$${VERSION_NO_V}]"; \
+		echo "  Current CHANGELOG sections:"; \
+		grep "^## \[" CHANGELOG.md || echo "  No version sections found"; \
+		exit 1; \
+	fi
+
+# Release management targets
+.PHONY: upload-release-assets
+upload-release-assets:
+	@if [ -z "$(VERSION)" ]; then \
+		echo "Error: VERSION is required. Usage: make upload-release-assets VERSION=v1.0.0"; \
+		exit 1; \
+	fi
+	@if [ -z "$(GITHUB_TOKEN)" ]; then \
+		echo "Error: GITHUB_TOKEN environment variable is required"; \
+		exit 1; \
+	fi
+	@echo "Uploading release assets for $(VERSION)..."
+	@for file in dist/*.zip dist/*.bundle; do \
+		if [ -f "$$file" ]; then \
+			echo "Uploading $$file..."; \
+			gh release upload "$(VERSION)" "$$file" --clobber; \
+		fi; \
+	done
+	@echo "✓ All assets uploaded successfully"
+
+# Check if there are new commits since the latest release
+# Outputs: HAS_NEW_COMMITS=true/false to GITHUB_OUTPUT (in CI) or stdout (locally)
+# Used by CI to prevent creating releases when there's nothing new to release
+.PHONY: check-commits-since-release
+check-commits-since-release:
+	@echo "Checking for commits since latest release..."
+	@LATEST_RELEASE=$$(git tag -l 'v*.*.*' --sort=-version:refname | grep -vE '\-rc' | grep -v '^nightly' | head -n1); \
+	if [ -z "$$LATEST_RELEASE" ]; then \
+		echo "No existing releases found"; \
+		COMMITS_SINCE_RELEASE=$$(git rev-list HEAD --count); \
+	else \
+		echo "Latest release: $$LATEST_RELEASE"; \
+		COMMITS_SINCE_RELEASE=$$(git rev-list $${LATEST_RELEASE}..HEAD --count); \
+	fi; \
+	echo "Commits since latest release: $$COMMITS_SINCE_RELEASE"; \
+	if [ "$$COMMITS_SINCE_RELEASE" -eq "0" ]; then \
+		echo "No new commits since latest release - skipping release"; \
+		if [ -n "$$GITHUB_OUTPUT" ]; then \
+			echo "HAS_NEW_COMMITS=false" >> "$$GITHUB_OUTPUT"; \
+		else \
+			echo "HAS_NEW_COMMITS=false"; \
+		fi; \
+	else \
+		echo "Found new commits - proceeding with release"; \
+		if [ -n "$$GITHUB_OUTPUT" ]; then \
+			echo "HAS_NEW_COMMITS=true" >> "$$GITHUB_OUTPUT"; \
+		else \
+			echo "HAS_NEW_COMMITS=true"; \
+		fi; \
+	fi
 
