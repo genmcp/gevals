@@ -13,9 +13,10 @@ const (
 )
 
 type AgentSpec struct {
-	Metadata AgentMetadata `json:"metadata"`
-	Builtin  *BuiltinRef   `json:"builtin,omitempty"`
-	Commands AgentCommands `json:"commands"`
+	util.TypeMeta `json:",inline"`
+	Metadata      AgentMetadata `json:"metadata"`
+	Builtin       *BuiltinRef   `json:"builtin,omitempty"`
+	Commands      AgentCommands `json:"commands"`
 }
 
 // BuiltinRef references a built-in agent type with optional model
@@ -70,18 +71,15 @@ type AgentCommands struct {
 	GetVersion *string `json:"getVersion,omitempty"`
 }
 
-func (a *AgentSpec) UnmarshalJSON(data []byte) error {
-	type Doppleganger AgentSpec
-
-	tmp := (*Doppleganger)(a)
-	return util.UnmarshalWithKind(data, tmp, KindAgent)
-}
-
 func Read(data []byte) (*AgentSpec, error) {
 	spec := &AgentSpec{}
 
 	err := yaml.Unmarshal(data, spec)
 	if err != nil {
+		return nil, err
+	}
+
+	if err := spec.TypeMeta.Validate(KindAgent); err != nil {
 		return nil, err
 	}
 

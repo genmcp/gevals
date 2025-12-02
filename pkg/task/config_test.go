@@ -21,6 +21,9 @@ func TestFromFile(t *testing.T) {
 		"create pod inline": {
 			file: "create-pod-inline.yaml",
 			expected: &TaskSpec{
+				TypeMeta: util.TypeMeta{
+					Kind: KindTask,
+				},
 				Metadata: TaskMetadata{
 					Name:       "create pod inline",
 					Difficulty: DifficultyEasy,

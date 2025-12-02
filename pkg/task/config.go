@@ -18,8 +18,9 @@ const (
 )
 
 type TaskSpec struct {
-	Metadata TaskMetadata `json:"metadata"`
-	Steps    TaskSteps    `json:"steps"`
+	util.TypeMeta `json:",inline"`
+	Metadata      TaskMetadata `json:"metadata"`
+	Steps         TaskSteps    `json:"steps"`
 }
 
 type TaskMetadata struct {
@@ -77,18 +78,15 @@ func (v *VerifyStep) Validate() error {
 	return nil
 }
 
-func (t *TaskSpec) UnmarshalJSON(data []byte) error {
-	type Doppleganger TaskSpec
-
-	tmp := (*Doppleganger)(t)
-	return util.UnmarshalWithKind(data, tmp, KindTask)
-}
-
 func Read(data []byte, basePath string) (*TaskSpec, error) {
 	spec := &TaskSpec{}
 
 	err := yaml.Unmarshal(data, spec)
 	if err != nil {
+		return nil, err
+	}
+
+	if err := spec.TypeMeta.Validate(KindTask); err != nil {
 		return nil, err
 	}
 

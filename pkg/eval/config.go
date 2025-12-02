@@ -16,8 +16,9 @@ const (
 )
 
 type EvalSpec struct {
-	Metadata EvalMetadata `json:"metadata"`
-	Config   EvalConfig   `json:"config"`
+	util.TypeMeta `json:",inline"`
+	Metadata      EvalMetadata `json:"metadata"`
+	Config        EvalConfig   `json:"config"`
 }
 
 type EvalMetadata struct {
@@ -117,18 +118,15 @@ type CallOrderAssertion struct {
 	Name   string `json:"name"`
 }
 
-func (e *EvalSpec) UnmarshalJSON(data []byte) error {
-	type Doppleganger EvalSpec
-
-	tmp := (*Doppleganger)(e)
-	return util.UnmarshalWithKind(data, tmp, KindEval)
-}
-
 func Read(data []byte, basePath string) (*EvalSpec, error) {
 	spec := &EvalSpec{}
 
 	err := yaml.Unmarshal(data, spec)
 	if err != nil {
+		return nil, err
+	}
+
+	if err := spec.TypeMeta.Validate(KindEval); err != nil {
 		return nil, err
 	}
 
