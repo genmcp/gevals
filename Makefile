@@ -71,7 +71,7 @@ release: build-release package-release sign-release
 # Changelog extraction targets
 .PHONY: extract-changelog-unreleased
 extract-changelog-unreleased:
-	@echo "Extracting unreleased changelog section..."
+	@echo "Extracting unreleased changelog section..." >&2
 	@CHANGELOG_CONTENT=$$(sed -n '/## \[Unreleased\]/,/## \[/p' CHANGELOG.md | $(CHANGELOG_PIPELINE)); \
 	if [ -z "$$CHANGELOG_CONTENT" ]; then \
 		CHANGELOG_CONTENT="See CHANGELOG.md for details."; \
@@ -84,7 +84,7 @@ extract-changelog-version:
 		echo "Error: VERSION is required. Usage: make extract-changelog-version VERSION=v1.0.0"; \
 		exit 1; \
 	fi
-	@echo "Extracting changelog for version $(VERSION)..."
+	@echo "Extracting changelog for version $(VERSION)..." >&2
 	@VERSION_NO_V=$$(echo "$(VERSION)" | sed 's/^v//'); \
 	CHANGELOG_CONTENT=$$(sed -n "/## \[$${VERSION_NO_V}\]/,/## \[/p" CHANGELOG.md | $(CHANGELOG_PIPELINE)); \
 	if [ -z "$$CHANGELOG_CONTENT" ]; then \
