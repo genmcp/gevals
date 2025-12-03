@@ -45,7 +45,7 @@ var (
 )
 
 type LLMJudge interface {
-	EvaluateText(ctx context.Context, judgeConfig *LLMJudgeTaskConfig, prompt, output string) (*LLMJudgeResult, error)
+	EvaluateText(ctx context.Context, judgeConfig *LLMJudgeStepConfig, prompt, output string) (*LLMJudgeResult, error)
 	ModelName() string
 }
 
@@ -62,7 +62,7 @@ type llmJudge struct {
 
 type noopLLMJudge struct{}
 
-func (n *noopLLMJudge) EvaluateText(ctx context.Context, judgeConfig *LLMJudgeTaskConfig, prompt, output string) (*LLMJudgeResult, error) {
+func (n *noopLLMJudge) EvaluateText(ctx context.Context, judgeConfig *LLMJudgeStepConfig, prompt, output string) (*LLMJudgeResult, error) {
 	return &LLMJudgeResult{
 		Passed:          true,
 		Reason:          "noop judge always passes",
@@ -111,7 +111,7 @@ func NewLLMJudge(cfg *LLMJudgeEvalConfig) (LLMJudge, error) {
 	}, nil
 }
 
-func (j *llmJudge) EvaluateText(ctx context.Context, judgeConfig *LLMJudgeTaskConfig, prompt, output string) (*LLMJudgeResult, error) {
+func (j *llmJudge) EvaluateText(ctx context.Context, judgeConfig *LLMJudgeStepConfig, prompt, output string) (*LLMJudgeResult, error) {
 	systemPrompt, err := BuildSystemPrompt(SystemPromptData{
 		EvaluationMode:  judgeConfig.EvaluationMode(),
 		ReferenceAnswer: judgeConfig.ReferenceAnswer(),

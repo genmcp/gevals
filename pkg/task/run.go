@@ -2,10 +2,12 @@ package task
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/genmcp/gevals/pkg/agent"
 	"github.com/genmcp/gevals/pkg/llmjudge"
+	"github.com/genmcp/gevals/pkg/steps"
 	"github.com/genmcp/gevals/pkg/util"
 )
 
@@ -14,66 +16,96 @@ type TaskRunner interface {
 	Cleanup(ctx context.Context) (string, error)
 	RunAgent(ctx context.Context, agent agent.Runner) (string, error)
 	Verify(ctx context.Context) (string, error)
-	GetJudgeResult() (*llmjudge.LLMJudgeResult, error)
 }
 
 type taskRunner struct {
-	steps        TaskSteps
-	judge        llmjudge.LLMJudge
-	judgeCfg     *llmjudge.LLMJudgeTaskConfig
-	prompt       string
-	output       string
-	judgeResult  *llmjudge.LLMJudgeResult
-	judgeError   error
+	setup   []steps.StepRunner
+	verify  []steps.StepRunner
+	cleanup []steps.StepRunner
+	prompt  string
+	output  string
+	baseDir string
 }
 
-func NewTaskRunner(cfg *TaskSpec, judge llmjudge.LLMJudge) (TaskRunner, error) {
-	if cfg.Steps.Prompt.IsEmpty() {
+func NewTaskRunner(cfg *TaskConfig, judge llmjudge.LLMJudge) (TaskRunner, error) {
+	if cfg.Spec.Prompt.IsEmpty() {
 		return nil, fmt.Errorf("prompt.inline or prompt.file must be set on a task to run it")
 	}
 
-	// Validate the verify step
-	if err := cfg.Steps.VerifyScript.Validate(); err != nil {
-		return nil, err
+	var err error
+	r := &taskRunner{
+		setup:   make([]steps.StepRunner, len(cfg.Spec.Setup)),
+		verify:  make([]steps.StepRunner, len(cfg.Spec.Verify)),
+		cleanup: make([]steps.StepRunner, len(cfg.Spec.Cleanup)),
+		baseDir: cfg.basePath,
 	}
 
-	// If judge is nil and there is a llm judge task config, report an error
-	if cfg.Steps.VerifyScript.LLMJudgeTaskConfig != nil && judge == nil {
-		return nil, fmt.Errorf("verify.exact and verify.contains require that the eval contains an llm judge config")
+	for i, stepCfg := range cfg.Spec.Setup {
+		var stepErr error
+		r.setup[i], stepErr = steps.DefaultRegistry.Parse(stepCfg)
+		if stepErr != nil {
+			err = errors.Join(err, fmt.Errorf("failed to parse setup[%d]: %w", i, stepErr))
+		}
 	}
 
-	return &taskRunner{
-		steps:    cfg.Steps,
-		judge:    judge,
-		judgeCfg: cfg.Steps.VerifyScript.LLMJudgeTaskConfig,
-	}, nil
+	for i, stepCfg := range cfg.Spec.Verify {
+		var stepErr error
+		r.setup[i], stepErr = steps.DefaultRegistry.Parse(stepCfg)
+		if stepErr != nil {
+			err = errors.Join(err, fmt.Errorf("failed to parse verify[%d]: %w", i, stepErr))
+		}
+	}
+
+	for i, stepCfg := range cfg.Spec.Cleanup {
+		var stepErr error
+		r.setup[i], stepErr = steps.DefaultRegistry.Parse(stepCfg)
+		if stepErr != nil {
+			err = errors.Join(err, fmt.Errorf("failed to parse cleanup[%d]: %w", i, stepErr))
+		}
+	}
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse task steps: %w", err)
+	}
+
+	r.prompt, err = cfg.Spec.Prompt.GetValue()
+	if err != nil {
+		return nil, fmt.Errorf("failed to get prompt for task: %w", err)
+	}
+
+	return r, nil
 }
 
 func (r *taskRunner) Setup(ctx context.Context) (string, error) {
-	if r.steps.SetupScript.IsEmpty() {
-		return "no setup", nil
+	for i, s := range r.setup {
+		_, err := s.Execute(ctx, &steps.StepInput{
+			Workdir: r.baseDir,
+		})
+
+		if err != nil {
+			return "", fmt.Errorf("setup[%d] failed: %w", i, err)
+		}
 	}
 
-	return r.steps.SetupScript.Run(ctx)
+	return "", nil
 }
 
 func (r *taskRunner) Cleanup(ctx context.Context) (string, error) {
-	if r.steps.CleanupScript.IsEmpty() {
-		return "no cleanup", nil
+	for i, s := range r.cleanup {
+		_, err := s.Execute(ctx, &steps.StepInput{
+			Workdir: r.baseDir,
+		})
+
+		if err != nil {
+			return "", fmt.Errorf("cleanup[%d] failed: %w", i, err)
+		}
 	}
 
-	return r.steps.CleanupScript.Run(ctx)
+	return "", nil
 }
 
 func (r *taskRunner) RunAgent(ctx context.Context, agent agent.Runner) (string, error) {
-	prompt, err := r.steps.Prompt.GetValue()
-	if err != nil {
-		return "", fmt.Errorf("failed to get prompt: %w", err)
-	}
-
-	r.prompt = prompt
-
-	result, err := agent.RunTask(ctx, prompt)
+	result, err := agent.RunTask(ctx, r.prompt)
 	if err != nil {
 		return "", fmt.Errorf("failed to run agent: %w", err)
 	}
@@ -86,44 +118,19 @@ func (r *taskRunner) RunAgent(ctx context.Context, agent agent.Runner) (string, 
 }
 
 func (r *taskRunner) Verify(ctx context.Context) (string, error) {
-	// no need to verify that Verify is set - this is validated in NewTaskRunner
-	if r.steps.VerifyScript.Step != nil && !r.steps.VerifyScript.Step.IsEmpty() {
-		// Script-based verification
-		return r.steps.VerifyScript.Step.Run(ctx)
-	}
+	for i, s := range r.verify {
+		_, err := s.Execute(ctx, &steps.StepInput{
+			Agent: &steps.AgentContext{
+				Prompt: r.prompt,
+				Output: r.output,
+			},
+			Workdir: r.baseDir,
+		})
 
-	// Using LLM judge - validate that state exists
-	if r.prompt == "" || r.output == "" {
-		return "", fmt.Errorf("cannot run LLM judge verification: RunAgent() must be called before Verify()")
-	}
-
-	if util.IsVerbose(ctx) {
-		fmt.Printf("  → LLM judge '%s' is evaluating…\n", r.judge.ModelName())
-	}
-
-	out, err := r.judge.EvaluateText(ctx, r.judgeCfg, r.prompt, r.output)
-	if err != nil {
-		// Store error from judge API call
-		r.judgeError = err
-		return "", err
-	}
-
-	// Store judge result (both success and failure cases)
-	r.judgeResult = out
-
-	if !out.Passed {
-		return "", fmt.Errorf("evaluation failed for reason '%s' because '%s'", out.FailureCategory, out.Reason)
-	}
-
-	if util.IsVerbose(ctx) {
-		fmt.Printf("  → LLM judge reason: %+v\n", out.Reason)
+		if err != nil {
+			return "", fmt.Errorf("verify[%d] failed: %w", i, err)
+		}
 	}
 
 	return "", nil
-}
-
-func (r *taskRunner) GetJudgeResult() (*llmjudge.LLMJudgeResult, error) {
-	// Return stored judge result and error
-	// Returns (nil, nil) when no judge was used (script-based verification)
-	return r.judgeResult, r.judgeError
 }

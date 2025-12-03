@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/genmcp/gevals/pkg/util"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/utils/ptr"
 )
@@ -21,6 +22,9 @@ func TestFromFile(t *testing.T) {
 		"claude": {
 			file: "claude-agent.yaml",
 			expected: &AgentSpec{
+				TypeMeta: util.TypeMeta{
+					Kind: KindAgent,
+				},
 				Metadata: AgentMetadata{
 					Name:    "claude",
 					Version: ptr.To("2.0.x"),
