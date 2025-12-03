@@ -44,7 +44,7 @@ var _ EvalRunner = &evalRunner{}
 
 type taskConfig struct {
 	path       string
-	spec       *task.TaskSpec
+	spec       *task.TaskConfig
 	assertions *TaskAssertions
 }
 

@@ -15,12 +15,12 @@ const (
 func TestFromFile(t *testing.T) {
 	tt := map[string]struct {
 		file      string
-		expected  *TaskSpec
+		expected  *TaskConfig
 		expectErr bool
 	}{
 		"create pod inline": {
 			file: "create-pod-inline.yaml",
-			expected: &TaskSpec{
+			expected: &TaskConfig{
 				TypeMeta: util.TypeMeta{
 					Kind: KindTask,
 				},
@@ -28,7 +28,7 @@ func TestFromFile(t *testing.T) {
 					Name:       "create pod inline",
 					Difficulty: DifficultyEasy,
 				},
-				Steps: TaskSteps{
+				Spec: TaskSpec{
 					SetupScript: &util.Step{
 						Inline: `#!/usr/bin/env bash
 kubectl delete namespace create-pod-test --ignore-not-found
