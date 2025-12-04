@@ -27,6 +27,10 @@ build-gevals: clean
 .PHONY: build
 build: build-agent build-gevals
 
+.PHONY: test
+test:
+	go test ./...
+
 # Release targets for CI/CD
 .PHONY: build-release
 build-release:
