@@ -45,6 +45,11 @@ jobs:
       - name: Validate CHANGELOG has version section
         run: make validate-changelog-has-version VERSION="${{ env.VERSION }}"
 
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: 'go.mod'
+
       - name: Extract changelog for release
         id: changelog
         run: |
@@ -111,7 +116,7 @@ jobs:
           fetch-depth: 0
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: 'go.mod'
 
