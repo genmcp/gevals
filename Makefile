@@ -179,34 +179,3 @@ upload-release-assets:
 	done
 	@echo "✓ All assets uploaded successfully"
 
-# Check if there are new commits since the latest release
-# Outputs: HAS_NEW_COMMITS=true/false to GITHUB_OUTPUT (in CI) or stdout (locally)
-# Used by CI to prevent creating releases when there's nothing new to release
-.PHONY: check-commits-since-release
-check-commits-since-release:
-	@echo "Checking for commits since latest release..."
-	@LATEST_RELEASE=$$(git tag -l 'v*.*.*' --sort=-version:refname | grep -vE '\-rc' | grep -v '^nightly' | head -n1); \
-	if [ -z "$$LATEST_RELEASE" ]; then \
-		echo "No existing releases found"; \
-		COMMITS_SINCE_RELEASE=$$(git rev-list HEAD --count); \
-	else \
-		echo "Latest release: $$LATEST_RELEASE"; \
-		COMMITS_SINCE_RELEASE=$$(git rev-list $${LATEST_RELEASE}..HEAD --count); \
-	fi; \
-	echo "Commits since latest release: $$COMMITS_SINCE_RELEASE"; \
-	if [ "$$COMMITS_SINCE_RELEASE" -eq "0" ]; then \
-		echo "No new commits since latest release - skipping release"; \
-		if [ -n "$$GITHUB_OUTPUT" ]; then \
-			echo "HAS_NEW_COMMITS=false" >> "$$GITHUB_OUTPUT"; \
-		else \
-			echo "HAS_NEW_COMMITS=false"; \
-		fi; \
-	else \
-		echo "Found new commits - proceeding with release"; \
-		if [ -n "$$GITHUB_OUTPUT" ]; then \
-			echo "HAS_NEW_COMMITS=true" >> "$$GITHUB_OUTPUT"; \
-		else \
-			echo "HAS_NEW_COMMITS=true"; \
-		fi; \
-	fi
-
