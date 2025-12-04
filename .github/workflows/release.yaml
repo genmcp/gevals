@@ -65,10 +65,7 @@ jobs:
           } >> "$GITHUB_ENV"
 
       - name: Run tests
-        run: |
-          echo "Running all tests..."
-          go test ./...
-          echo "All tests passed!"
+        run: make test
 
       - name: Create or update release
         run: |
