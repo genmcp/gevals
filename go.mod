@@ -1,6 +1,6 @@
 module github.com/genmcp/gevals
 
-go 1.24.4
+go 1.24.10
 
 require (
 	github.com/fatih/color v1.18.0
