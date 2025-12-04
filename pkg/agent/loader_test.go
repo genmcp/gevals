@@ -2,6 +2,7 @@ package agent
 
 import (
 	"os"
+	"os/exec"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -16,6 +17,7 @@ func TestLoadWithBuiltins(t *testing.T) {
 		expectErr   bool
 		errContains string
 		validate    func(t *testing.T, spec *AgentSpec)
+		shouldSkip  bool
 	}{
 		"claude-code builtin": {
 			file: "builtin-claude-code.yaml",
@@ -25,6 +27,10 @@ func TestLoadWithBuiltins(t *testing.T) {
 				assert.False(t, *spec.Commands.UseVirtualHome)
 				assert.Contains(t, spec.Commands.RunPrompt, "claude")
 			},
+			shouldSkip: func() bool {
+				_, err := exec.LookPath("claude")
+				return err != nil
+			}(),
 		},
 		"openai-agent builtin with valid env": {
 			file: "builtin-openai-agent.yaml",
@@ -100,6 +106,10 @@ func TestLoadWithBuiltins(t *testing.T) {
 
 	for name, tc := range tests {
 		t.Run(name, func(t *testing.T) {
+			if tc.shouldSkip {
+				t.Skipf("skipping test %s because shouldSkip=true", name)
+			}
+
 			if tc.setupEnv != nil {
 				tc.setupEnv()
 			}
