@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	APIVersionV1Alpha1 = "gevals/v1alpah1"
+	APIVersionV1Alpha1 = "gevals/v1alpha1"
 	APIVersionV1Alpha2 = "gevals/v1alpha2"
 )
 

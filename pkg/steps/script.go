@@ -58,7 +58,7 @@ func NewScriptStep(cfg *ScriptStepConfig) (*ScriptStep, error) {
 		}
 		step.Timeout = timeout
 	} else {
-		step.Timeout = DefaultTimout
+		step.Timeout = DefaultTimeout
 	}
 
 	return step, nil
@@ -98,6 +98,7 @@ func (s *ScriptStep) Execute(ctx context.Context, input *StepInput) (*StepOutput
 	}
 
 	return &StepOutput{
+		Type:    "script",
 		Success: true,
 		Message: string(out),
 	}, nil
@@ -107,7 +108,7 @@ func (s *ScriptStep) Execute(ctx context.Context, input *StepInput) (*StepOutput
 // Scripts with shebangs are written to temp files in the current directory to preserve relative paths.
 func (s *ScriptStep) createInlineCommand(ctx context.Context, workdir string) (*exec.Cmd, error) {
 	if strings.HasPrefix(strings.TrimSpace(s.Inline), "#!") {
-		tmpFile, err := os.CreateTemp(".", ".gevals-step-*.sh")
+		tmpFile, err := os.CreateTemp(workdir, ".gevals-step-*.sh")
 		if err != nil {
 			return nil, fmt.Errorf("failed to create temp script file: %w", err)
 		}
@@ -126,6 +127,7 @@ func (s *ScriptStep) createInlineCommand(ctx context.Context, workdir string) (*
 		}
 
 		cmd := exec.CommandContext(ctx, tmpPath)
+		cmd.Dir = workdir
 		go func() {
 			<-ctx.Done()
 			os.Remove(tmpPath)
@@ -162,6 +164,7 @@ func (s *ScriptStep) createFileCommand(ctx context.Context, workdir string) (*ex
 func (s *ScriptStep) handleError(err error) (*StepOutput, error) {
 	if s.ContinueOnError {
 		return &StepOutput{
+			Type:    "script",
 			Success: false,
 			Error:   err.Error(),
 		}, nil

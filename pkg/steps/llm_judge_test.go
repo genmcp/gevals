@@ -127,6 +127,7 @@ func TestLLMJudgeStep_Execute(t *testing.T) {
 				},
 			},
 			expected: &StepOutput{
+				Type:    "llmJudge",
 				Success: true,
 				Message: "output contains expected content",
 			},
@@ -151,6 +152,7 @@ func TestLLMJudgeStep_Execute(t *testing.T) {
 				},
 			},
 			expected: &StepOutput{
+				Type:    "llmJudge",
 				Success: false,
 				Message: "output does not match exactly",
 				Error:   "llm judge failed for reason 'semantic_mismatch': output does not match exactly",

@@ -27,6 +27,12 @@ type EvalResult struct {
 	AssertionResults    *CompositeAssertionResult `json:"assertionResults"`
 	AllAssertionsPassed bool                      `json:"allAssertionsPassed"`
 	CallHistory         *mcpproxy.CallHistory     `json:"callHistory"`
+
+	// Phase outputs from task execution
+	SetupOutput   *task.PhaseOutput `json:"setupOutput,omitempty"`
+	AgentOutput   *task.PhaseOutput `json:"agentOutput,omitempty"`
+	VerifyOutput  *task.PhaseOutput `json:"verifyOutput,omitempty"`
+	CleanupOutput *task.PhaseOutput `json:"cleanupOutput,omitempty"`
 }
 
 type EvalRunner interface {
@@ -150,6 +156,8 @@ func (r *evalRunner) RunWithProgress(ctx context.Context, taskPattern string, ca
 		return nil, fmt.Errorf("failed to create llm judge from spec: %w", err)
 	}
 
+	ctx = llmjudge.WithJudge(ctx, judge)
+
 	taskConfigs, err := r.collectTaskConfigs(taskMatcher)
 	if err != nil {
 		return nil, err
@@ -158,7 +166,7 @@ func (r *evalRunner) RunWithProgress(ctx context.Context, taskPattern string, ca
 	results := make([]*EvalResult, 0, len(taskConfigs))
 	var runErr error
 	for _, tc := range taskConfigs {
-		result, err := r.runTask(ctx, runner, mcpConfig, judge, tc)
+		result, err := r.runTask(ctx, runner, mcpConfig, tc)
 		if err != nil {
 			runErr = errors.Join(runErr, err)
 		} else {
@@ -215,7 +223,6 @@ func (r *evalRunner) runTask(
 	ctx context.Context,
 	agentRunner agent.Runner,
 	mcpConfig *mcpproxy.MCPConfig,
-	judge llmjudge.LLMJudge,
 	tc taskConfig,
 ) (*EvalResult, error) {
 	result := &EvalResult{
@@ -236,7 +243,7 @@ func (r *evalRunner) runTask(
 		Task:    result,
 	})
 
-	taskRunner, manager, cleanup, err := r.setupTaskResources(ctx, tc, mcpConfig, judge)
+	taskRunner, manager, cleanup, err := r.setupTaskResources(ctx, tc, mcpConfig, result)
 	if err != nil {
 		result.TaskPassed = false
 		result.TaskError = err.Error()
@@ -274,9 +281,9 @@ func (r *evalRunner) setupTaskResources(
 	ctx context.Context,
 	tc taskConfig,
 	mcpConfig *mcpproxy.MCPConfig,
-	judge llmjudge.LLMJudge,
+	result *EvalResult,
 ) (task.TaskRunner, mcpproxy.ServerManager, func(), error) {
-	taskRunner, err := task.NewTaskRunner(tc.spec, judge)
+	taskRunner, err := task.NewTaskRunner(tc.spec)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to create task runner for task '%s': %w", tc.spec.Metadata.Name, err)
 	}
@@ -290,15 +297,16 @@ func (r *evalRunner) setupTaskResources(
 		return nil, nil, nil, fmt.Errorf("failed to start mcp proxy servers: %w", err)
 	}
 
-	out, err := taskRunner.Setup(ctx)
+	setupOutput, err := taskRunner.Setup(ctx)
+	result.SetupOutput = setupOutput
 	if err != nil {
 		manager.Close()
-		return nil, nil, nil, fmt.Errorf("failed to setup task, got output %s: %w", out, err)
+		return nil, nil, nil, fmt.Errorf("failed to setup task: %w", err)
 	}
 
 	cleanup := func() {
-		// TODO: find a way to surface cleanup failures
-		_, _ = taskRunner.Cleanup(ctx)
+		cleanupOutput, _ := taskRunner.Cleanup(ctx)
+		result.CleanupOutput = cleanupOutput
 		manager.Close()
 	}
 
@@ -323,16 +331,27 @@ func (r *evalRunner) executeTaskSteps(
 	if util.IsVerbose(ctx) {
 		fmt.Printf("  → Agent '%s' is working…\n", agentRunner.AgentName())
 	}
-	out, err := taskRunner.RunAgent(ctx, agentRunner)
+	agentOutput, err := taskRunner.RunAgent(ctx, agentRunner)
+	result.AgentOutput = agentOutput
 	if err != nil {
 		result.TaskPassed = false
-		result.TaskOutput = out
 		result.TaskError = err.Error()
 		result.AgentExecutionError = true
+		// Extract agent output from phase output for backwards compatibility
+		if agentOutput != nil && len(agentOutput.Steps) > 0 {
+			if out, ok := agentOutput.Steps[0].Outputs["output"]; ok {
+				result.TaskOutput = out
+			}
+		}
 		return
 	}
 
-	result.TaskOutput = out
+	// Extract agent output from phase output for backwards compatibility
+	if agentOutput != nil && len(agentOutput.Steps) > 0 {
+		if out, ok := agentOutput.Steps[0].Outputs["output"]; ok {
+			result.TaskOutput = out
+		}
+	}
 
 	r.progressCallback(ProgressEvent{
 		Type:    EventTaskVerifying,
@@ -340,24 +359,37 @@ func (r *evalRunner) executeTaskSteps(
 		Task:    result,
 	})
 
-	out, err = taskRunner.Verify(ctx)
+	verifyOutput, err := taskRunner.Verify(ctx)
+	result.VerifyOutput = verifyOutput
 	if err != nil {
 		result.TaskPassed = false
-		result.TaskError = fmt.Sprintf("verification script failed with output '%s': %s", out, err.Error())
+		result.TaskError = fmt.Sprintf("verification failed: %s", err.Error())
+	} else if verifyOutput != nil && !verifyOutput.Success {
+		result.TaskPassed = false
+		result.TaskError = "one or more verification steps failed"
 	} else {
 		result.TaskPassed = true
 	}
 
-	// Capture judge results if LLM judge was used
-	judgeResult, judgeErr := taskRunner.GetJudgeResult()
-	if judgeErr != nil {
-		// Error from calling the judge API
-		result.TaskJudgeError = judgeErr.Error()
-	} else if judgeResult != nil {
-		// Judge result available (both pass and fail cases)
-		result.TaskJudgeReason = judgeResult.Reason
-		// Note: judge failure reasons go in TaskError, not TaskJudgeError
-		// TaskJudgeError is only for API call errors
+	// Extract judge results from verify phase output if LLM judge was used
+	r.extractJudgeResults(verifyOutput, result)
+}
+
+func (r *evalRunner) extractJudgeResults(verifyOutput *task.PhaseOutput, result *EvalResult) {
+	if verifyOutput == nil {
+		return
+	}
+
+	// Look for llmJudge step outputs and extract their results
+	for _, step := range verifyOutput.Steps {
+		if step == nil || step.Type != "llmJudge" {
+			continue
+		}
+		// The judge's reason is in Message for both pass and fail
+		result.TaskJudgeReason = step.Message
+		// If there was a judge error (API failure), it would have caused an error return
+		// so we don't need to check for TaskJudgeError here - the verify phase would have failed
+		break // Only capture first llmJudge result
 	}
 }
 

@@ -1,18 +1,37 @@
 package task
 
 import (
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 
+	"github.com/genmcp/gevals/pkg/steps"
 	"github.com/genmcp/gevals/pkg/util"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 const (
-	basePath = "testdata"
+	testCasePath = "testdata"
 )
 
+// mustMarshalStep marshals a util.Step to json.RawMessage for test expectations
+func mustMarshalStep(step *util.Step) json.RawMessage {
+	raw, err := json.Marshal(step)
+	if err != nil {
+		panic(err)
+	}
+	return raw
+}
+
 func TestFromFile(t *testing.T) {
+	basePath, err := os.Getwd()
+	require.NoError(t, err)
+
+	basePath = filepath.Join(basePath, testCasePath)
+
 	tt := map[string]struct {
 		file      string
 		expected  *TaskConfig
@@ -28,31 +47,36 @@ func TestFromFile(t *testing.T) {
 					Name:       "create pod inline",
 					Difficulty: DifficultyEasy,
 				},
-				Spec: TaskSpec{
-					SetupScript: &util.Step{
-						Inline: `#!/usr/bin/env bash
+				Spec: &TaskSpec{
+					Setup: []steps.StepConfig{{
+						"script": mustMarshalStep(&util.Step{
+							Inline: `#!/usr/bin/env bash
 kubectl delete namespace create-pod-test --ignore-not-found
 kubectl create namespace create-pod-test`,
-					},
-					VerifyScript: &VerifyStep{
-						Step: &util.Step{
+						}),
+					}},
+					Verify: []steps.StepConfig{{
+						"script": mustMarshalStep(&util.Step{
 							Inline: `#!/usr/bin/env bash
 if kubectl wait --for=condition=Ready pod/web-server -n create-pod-test --timeout=120s; then
     exit 0
 else
     exit 1
 fi`,
-						},
-					},
-					CleanupScript: &util.Step{
-						Inline: `#!/usr/bin/env bash
+						}),
+					}},
+					Cleanup: []steps.StepConfig{{
+						"script": mustMarshalStep(&util.Step{
+							Inline: `#!/usr/bin/env bash
 kubectl delete pod web-server -n create-pod-test --ignore-not-found
 kubectl delete namespace create-pod-test --ignore-not-found`,
-					},
+						}),
+					}},
 					Prompt: &util.Step{
 						Inline: "Please create a nginx pod named web-server in the create-pod-test namespace",
 					},
 				},
+				basePath: basePath,
 			},
 		},
 	}

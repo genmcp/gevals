@@ -6,16 +6,28 @@ import (
 	"fmt"
 
 	"github.com/genmcp/gevals/pkg/agent"
-	"github.com/genmcp/gevals/pkg/llmjudge"
 	"github.com/genmcp/gevals/pkg/steps"
-	"github.com/genmcp/gevals/pkg/util"
 )
 
+// PhaseOutput represents the output from a task phase (setup, agent, verify, or cleanup).
+// It contains both the individual step outputs and the overall phase result.
+type PhaseOutput struct {
+	// Steps contains the ordered outputs from each step executed in this phase.
+	// For the agent phase, this will contain a single synthetic step output.
+	Steps []*steps.StepOutput
+
+	// Success indicates whether the phase completed successfully.
+	Success bool
+
+	// Error contains the error message if the phase failed.
+	Error string
+}
+
 type TaskRunner interface {
-	Setup(ctx context.Context) (string, error)
-	Cleanup(ctx context.Context) (string, error)
-	RunAgent(ctx context.Context, agent agent.Runner) (string, error)
-	Verify(ctx context.Context) (string, error)
+	Setup(ctx context.Context) (*PhaseOutput, error)
+	Cleanup(ctx context.Context) (*PhaseOutput, error)
+	RunAgent(ctx context.Context, agent agent.Runner) (*PhaseOutput, error)
+	Verify(ctx context.Context) (*PhaseOutput, error)
 }
 
 type taskRunner struct {
@@ -27,7 +39,7 @@ type taskRunner struct {
 	baseDir string
 }
 
-func NewTaskRunner(cfg *TaskConfig, judge llmjudge.LLMJudge) (TaskRunner, error) {
+func NewTaskRunner(cfg *TaskConfig) (TaskRunner, error) {
 	if cfg.Spec.Prompt.IsEmpty() {
 		return nil, fmt.Errorf("prompt.inline or prompt.file must be set on a task to run it")
 	}
@@ -50,7 +62,7 @@ func NewTaskRunner(cfg *TaskConfig, judge llmjudge.LLMJudge) (TaskRunner, error)
 
 	for i, stepCfg := range cfg.Spec.Verify {
 		var stepErr error
-		r.setup[i], stepErr = steps.DefaultRegistry.Parse(stepCfg)
+		r.verify[i], stepErr = steps.DefaultRegistry.Parse(stepCfg)
 		if stepErr != nil {
 			err = errors.Join(err, fmt.Errorf("failed to parse verify[%d]: %w", i, stepErr))
 		}
@@ -58,7 +70,7 @@ func NewTaskRunner(cfg *TaskConfig, judge llmjudge.LLMJudge) (TaskRunner, error)
 
 	for i, stepCfg := range cfg.Spec.Cleanup {
 		var stepErr error
-		r.setup[i], stepErr = steps.DefaultRegistry.Parse(stepCfg)
+		r.cleanup[i], stepErr = steps.DefaultRegistry.Parse(stepCfg)
 		if stepErr != nil {
 			err = errors.Join(err, fmt.Errorf("failed to parse cleanup[%d]: %w", i, stepErr))
 		}
@@ -76,50 +88,99 @@ func NewTaskRunner(cfg *TaskConfig, judge llmjudge.LLMJudge) (TaskRunner, error)
 	return r, nil
 }
 
-func (r *taskRunner) Setup(ctx context.Context) (string, error) {
+func (r *taskRunner) Setup(ctx context.Context) (*PhaseOutput, error) {
+	out := &PhaseOutput{
+		Steps:   make([]*steps.StepOutput, 0),
+		Success: true,
+	}
+
 	for i, s := range r.setup {
-		_, err := s.Execute(ctx, &steps.StepInput{
+		res, err := s.Execute(ctx, &steps.StepInput{
 			Workdir: r.baseDir,
 		})
 
+		out.Steps = append(out.Steps, res)
 		if err != nil {
-			return "", fmt.Errorf("setup[%d] failed: %w", i, err)
+			out.Success = false
+			out.Error = err.Error()
+			return out, fmt.Errorf("setup[%d] failed: %w", i, err)
+		}
+		if res != nil && !res.Success {
+			out.Success = false
 		}
 	}
 
-	return "", nil
+	return out, nil
 }
 
-func (r *taskRunner) Cleanup(ctx context.Context) (string, error) {
+func (r *taskRunner) Cleanup(ctx context.Context) (*PhaseOutput, error) {
+	out := &PhaseOutput{
+		Steps:   make([]*steps.StepOutput, 0),
+		Success: true,
+	}
+
 	for i, s := range r.cleanup {
-		_, err := s.Execute(ctx, &steps.StepInput{
+		res, err := s.Execute(ctx, &steps.StepInput{
 			Workdir: r.baseDir,
 		})
 
+		out.Steps = append(out.Steps, res)
 		if err != nil {
-			return "", fmt.Errorf("cleanup[%d] failed: %w", i, err)
+			out.Success = false
+			out.Error = err.Error()
+			return out, fmt.Errorf("cleanup[%d] failed: %w", i, err)
+		}
+		if res != nil && !res.Success {
+			out.Success = false
 		}
 	}
 
-	return "", nil
+	return out, nil
 }
 
-func (r *taskRunner) RunAgent(ctx context.Context, agent agent.Runner) (string, error) {
+func (r *taskRunner) RunAgent(ctx context.Context, agent agent.Runner) (*PhaseOutput, error) {
 	result, err := agent.RunTask(ctx, r.prompt)
 	if err != nil {
-		return "", fmt.Errorf("failed to run agent: %w", err)
+		detailErr := fmt.Errorf("failed to run agent: %w", err)
+		return &PhaseOutput{
+			Success: false,
+			Error:   detailErr.Error(),
+			Steps: []*steps.StepOutput{{
+				Type:    "agent",
+				Success: false,
+				Error:   detailErr.Error(),
+				Outputs: map[string]string{
+					"output": err.Error(),
+				},
+			}},
+		}, detailErr
 	}
 
 	output := result.GetOutput()
 
 	r.output = output
 
-	return output, nil
+	return &PhaseOutput{
+		Success: true,
+		Steps: []*steps.StepOutput{{
+			Type:    "agent",
+			Success: true,
+			Message: output,
+			Outputs: map[string]string{
+				"output": output,
+			},
+		}},
+	}, nil
 }
 
-func (r *taskRunner) Verify(ctx context.Context) (string, error) {
+func (r *taskRunner) Verify(ctx context.Context) (*PhaseOutput, error) {
+	out := &PhaseOutput{
+		Steps:   make([]*steps.StepOutput, 0),
+		Success: true,
+	}
+
 	for i, s := range r.verify {
-		_, err := s.Execute(ctx, &steps.StepInput{
+		res, err := s.Execute(ctx, &steps.StepInput{
 			Agent: &steps.AgentContext{
 				Prompt: r.prompt,
 				Output: r.output,
@@ -127,10 +188,16 @@ func (r *taskRunner) Verify(ctx context.Context) (string, error) {
 			Workdir: r.baseDir,
 		})
 
+		out.Steps = append(out.Steps, res)
 		if err != nil {
-			return "", fmt.Errorf("verify[%d] failed: %w", i, err)
+			out.Success = false
+			out.Error = err.Error()
+			return out, fmt.Errorf("verify[%d] failed: %w", i, err)
+		}
+		if res != nil && !res.Success {
+			out.Success = false
 		}
 	}
 
-	return "", nil
+	return out, nil
 }

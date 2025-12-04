@@ -21,7 +21,7 @@ const (
 type TaskConfig struct {
 	util.TypeMeta `json:",inline"`
 	Metadata      TaskMetadata `json:"metadata"`
-	Spec          *TaskSpec    `json:"steps"`
+	Spec          *TaskSpec    `json:"spec"`
 
 	basePath string
 }
@@ -108,7 +108,11 @@ func Read(data []byte, basePath string) (*TaskConfig, error) {
 
 	spec.basePath = basePath
 
-	if wrapper.APIVersion == util.APIVersionV1Alpha1 {
+	if wrapper.GetAPIVersion() == util.APIVersionV1Alpha1 {
+		if wrapper.Steps == nil {
+			return nil, fmt.Errorf("v1alpha1 requires steps field")
+		}
+
 		if err := resolveStepPath(wrapper.Steps.SetupScript, basePath); err != nil {
 			return nil, fmt.Errorf("failed to resolve setup script path: %w", err)
 		}

@@ -7,7 +7,7 @@ import (
 )
 
 const (
-	DefaultTimout = 5 * time.Minute
+	DefaultTimeout = 5 * time.Minute
 )
 
 var (
@@ -27,10 +27,11 @@ type StepInput struct {
 }
 
 type StepOutput struct {
-	Success bool
-	Message string
-	Outputs map[string]string
-	Error   string
+	Type    string            `json:"type,omitempty"`
+	Success bool              `json:"success"`
+	Message string            `json:"message,omitempty"`
+	Outputs map[string]string `json:"outputs,omitempty"`
+	Error   string            `json:"error,omitempty"`
 }
 
 type AgentContext struct {

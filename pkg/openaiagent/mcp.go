@@ -110,8 +110,18 @@ func convertMCPToolToOpenAI(tool mcpsdk.Tool) openai.ChatCompletionToolUnionPara
 		// The MCP tool schema should be compatible with JSON Schema
 		// which OpenAI function calling expects
 		if params, ok := tool.InputSchema.(map[string]interface{}); ok {
+			// Ensure properties field exists (OpenAI requires it)
+			if _, hasProps := params["properties"]; !hasProps {
+				params["properties"] = map[string]interface{}{}
+			}
 			function.Parameters = shared.FunctionParameters(params)
 		}
+	} else {
+		// OpenAI requires parameters with at least an empty properties object
+		function.Parameters = shared.FunctionParameters(map[string]interface{}{
+			"type":       "object",
+			"properties": map[string]interface{}{},
+		})
 	}
 
 	// Use the helper function to create the tool
