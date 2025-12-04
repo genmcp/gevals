@@ -20,7 +20,6 @@ jobs:
     outputs:
       version: ${{ env.VERSION }}
       changelog_body: ${{ env.CHANGELOG_BODY }}
-      has_new_commits: ${{ steps.check_commits.outputs.HAS_NEW_COMMITS }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
@@ -46,12 +45,7 @@ jobs:
       - name: Validate CHANGELOG has version section
         run: make validate-changelog-has-version VERSION="${{ env.VERSION }}"
 
-      - name: Check for new commits since last release
-        id: check_commits
-        run: make check-commits-since-release
-
       - name: Extract changelog for release
-        if: steps.check_commits.outputs.HAS_NEW_COMMITS == 'true'
         id: changelog
         run: |
           VERSION="${{ env.VERSION }}"
@@ -66,14 +60,12 @@ jobs:
           } >> "$GITHUB_ENV"
 
       - name: Run tests
-        if: steps.check_commits.outputs.HAS_NEW_COMMITS == 'true'
         run: |
           echo "Running all tests..."
           go test ./...
           echo "All tests passed!"
 
       - name: Create or update release
-        if: steps.check_commits.outputs.HAS_NEW_COMMITS == 'true'
         run: |
           VERSION="${{ env.VERSION }}"
 
@@ -104,7 +96,6 @@ jobs:
 
   build-and-upload:
     needs: determine-version
-    if: needs.determine-version.outputs.has_new_commits == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
