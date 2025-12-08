@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"reflect"
 	"sort"
 	"strings"
 
@@ -190,31 +191,24 @@ func printAssertions(results *eval.CompositeAssertionResult, warn *color.Color) 
 
 	warn.Printf("  Assertions: %d/%d passed\n", total-failed, total)
 
-	type entry struct {
-		name   string
-		result *eval.SingleAssertionResult
-	}
+	val := reflect.ValueOf(results).Elem()
+	typ := val.Type()
 
-	all := []entry{
-		{"ToolsUsed", results.ToolsUsed},
-		{"RequireAny", results.RequireAny},
-		{"ToolsNotUsed", results.ToolsNotUsed},
-		{"MinToolCalls", results.MinToolCalls},
-		{"MaxToolCalls", results.MaxToolCalls},
-		{"ResourcesRead", results.ResourcesRead},
-		{"ResourcesNotRead", results.ResourcesNotRead},
-		{"PromptsUsed", results.PromptsUsed},
-		{"PromptsNotUsed", results.PromptsNotUsed},
-		{"CallOrder", results.CallOrder},
-		{"NoDuplicateCalls", results.NoDuplicateCalls},
-	}
+	for i := 0; i < val.NumField(); i++ {
+		field := val.Field(i)
+		fieldType := typ.Field(i)
 
-	for _, entry := range all {
-		if entry.result == nil || entry.result.Passed {
+		if field.Kind() != reflect.Ptr || field.IsNil() {
 			continue
 		}
-		fmt.Printf("    • %s: %s\n", entry.name, entry.result.Reason)
-		for _, detail := range entry.result.Details {
+
+		res, ok := field.Interface().(*eval.SingleAssertionResult)
+		if !ok || res.Passed {
+			continue
+		}
+
+		fmt.Printf("    • %s: %s\n", fieldType.Name, res.Reason)
+		for _, detail := range res.Details {
 			fmt.Printf("      %s\n", detail)
 		}
 	}
@@ -978,6 +972,7 @@ func loadTaskPrompt(taskPath string) string {
 // printMultilineField prints a label/value pair, indenting multi-line values neatly.
 func printMultilineField(label, value string) {
 	value = strings.TrimRight(value, "\n")
+	// Clean up specific artifact from some agent logs where exit status wraps oddly
 	value = strings.ReplaceAll(value, "\n': exit status", " exit status")
 	if !strings.Contains(value, "\n") {
 		fmt.Printf("  %s: %s\n", label, value)
@@ -992,6 +987,8 @@ func printMultilineField(label, value string) {
 }
 
 // mergeContinuationLines rejoins log lines that were split across multiple rows.
+// This handles cases where error messages or specific log formats wrap unexpectedly,
+// often starting the next line with a punctuation mark like ' or :.
 func mergeContinuationLines(lines []string) []string {
 	merged := make([]string, 0, len(lines))
 
