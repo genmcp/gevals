@@ -83,7 +83,7 @@ commands:
     PROMPT_CONTENT="$(cat "${PROMPT_FILE}")"
 
     # Run Gemini
-    GEMINI_ARGS=("--approval-mode" "yolo")
+    GEMINI_ARGS=("--approval-mode" "yolo" "--output-format" "stream-json")
     if [[ -n "${DEBUG_DIR}" ]]; then
       GEMINI_ARGS+=(-d)
     fi
