@@ -1,0 +1,13 @@
+kind: Eval
+metadata:
+  name: "gemini-netedge-reencrypt-no-backend-tls"
+config:
+  agentFile: agent.yaml
+  mcpConfigFile: ../mcp-config.yaml
+  taskSets:
+    - path: ../tasks/reencrypt-no-backend-tls/reencrypt-no-backend-tls.yaml
+      assertions:
+        toolsUsed:
+          - server: netedge
+        minToolCalls: 1
+        maxToolCalls: 20
