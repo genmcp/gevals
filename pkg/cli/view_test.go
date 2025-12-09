@@ -77,6 +77,22 @@ Line 7
 				"command: long_command\n      Line 1", // We only check start of block because "Line 6" might be further down
 			},
 		},
+		{
+			name: "Claude Headerless Output",
+			input: `The most requested feature for your app is **Dark Mode** with **142 upvotes**.
+
+## Feature Details
+
+**Title:** Dark Mode
+
+**Status:** Not completed`,
+			maxEvents: 0,
+			expectedItems: []string{
+				"note: The most requested feature for your app is Dark Mode with 142 upvotes.",
+				"note: ## Feature Details",
+				"note: Title: Dark Mode",
+			},
+		},
 	}
 
 	for _, tt := range tests {

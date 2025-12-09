@@ -590,17 +590,28 @@ func summarizeJSONTaskOutput(raw string, maxOutputLines, maxLineLength int) []st
 
 func summarizePlaintextTaskOutput(raw string, maxOutputLines, maxLineLength int) []string {
 	lines := strings.Split(raw, "\n")
-	i := 0
-	for i < len(lines) {
-		trimmed := strings.TrimSpace(lines[i])
-		if trimmed == "" {
-			i++
-			continue
-		}
-		if plaintextIsEventHeader(trimmed) {
+	// Check if we have any known headers; if not, treat the whole thing as content
+	hasHeaders := false
+	for _, line := range lines {
+		if plaintextIsEventHeader(line) {
+			hasHeaders = true
 			break
 		}
-		i++
+	}
+
+	i := 0
+	if hasHeaders {
+		for i < len(lines) {
+			trimmed := strings.TrimSpace(lines[i])
+			if trimmed == "" {
+				i++
+				continue
+			}
+			if plaintextIsEventHeader(trimmed) {
+				break
+			}
+			i++
+		}
 	}
 
 	summaries := make([]string, 0, len(lines))
