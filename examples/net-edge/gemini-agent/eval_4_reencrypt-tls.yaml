@@ -2,7 +2,9 @@ kind: Eval
 metadata:
   name: "gemini-netedge-reencrypt-no-backend-tls"
 config:
-  agentFile: agent.yaml
+  agent:
+    type: file
+    path: agent.yaml
   mcpConfigFile: ../mcp-config.yaml
   taskSets:
     - path: ../tasks/reencrypt-no-backend-tls/reencrypt-no-backend-tls.yaml

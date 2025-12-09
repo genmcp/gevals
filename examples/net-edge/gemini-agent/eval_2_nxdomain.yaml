@@ -2,7 +2,9 @@ kind: Eval
 metadata:
   name: "gemini-netedge-nxdomain-host"
 config:
-  agentFile: agent.yaml
+  agent:
+    type: file
+    path: agent.yaml
   mcpConfigFile: ../mcp-config.yaml
   taskSets:
     - path: ../tasks/nxdomain-host/nxdomain-host.yaml
