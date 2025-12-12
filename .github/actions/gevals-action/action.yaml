@@ -159,7 +159,7 @@ runs:
         echo "binary-suffix=$GOOS-$GOARCH" >> $GITHUB_OUTPUT
 
     - name: Set up Go
-      uses: actions/setup-go@v5
+      uses: actions/setup-go@v6
       with:
         go-version: '1.24.x'
         cache: false
@@ -443,7 +443,7 @@ runs:
 
     - name: Upload results
       if: always() && inputs.upload-artifacts == 'true'
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: ${{ inputs.artifact-name }}
         path: |
