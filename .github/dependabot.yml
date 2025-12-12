@@ -4,13 +4,25 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    groups:
+      go-dependencies:
+        patterns:
+          - "*"
 
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
 
   - package-ecosystem: "github-actions"
     directory: "/.github/actions/gevals-action"
     schedule:
       interval: "weekly"
+    groups:
+      gevals-action-dependencies:
+        patterns:
+          - "*"
