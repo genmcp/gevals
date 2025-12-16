@@ -31,6 +31,15 @@ build: build-agent build-gevals
 test:
 	go test ./...
 
+# Internal target - builds mock agent for e2e tests
+.PHONY: _build-mock-agent
+_build-mock-agent:
+	go build -o e2e/mock-agent ./e2e/servers/agent/cmd
+
+.PHONY: e2e
+e2e: build _build-mock-agent ## Run e2e tests
+	GEVALS_BINARY=$(CURDIR)/gevals MOCK_AGENT_BINARY=$(CURDIR)/e2e/mock-agent go test -v ./e2e/...
+
 # Release targets for CI/CD
 .PHONY: build-release
 build-release:

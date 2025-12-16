@@ -39,3 +39,6 @@ go.work.sum
 dist/
 *.zip
 *.bundle
+
+mock-agent
+e2e/mock-agent
