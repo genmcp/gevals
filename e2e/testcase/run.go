@@ -82,6 +82,8 @@ func (r *Runner) setup(ctx context.Context) error {
 		server := builder.Build()
 		url, err := server.Start()
 		if err != nil {
+			// Stop any already-started servers before returning
+			r.stopStartedServers()
 			return err
 		}
 		r.mcpServers[name] = server
@@ -93,11 +95,29 @@ func (r *Runner) setup(ctx context.Context) error {
 		r.judgeServer = r.tc.judgeMock.Build()
 		_, err := r.judgeServer.Start()
 		if err != nil {
+			// Stop any already-started MCP servers before returning
+			r.stopStartedServers()
 			return err
 		}
 	}
 
 	return nil
+}
+
+// stopStartedServers stops all servers that have been started during setup.
+// This is called when setup fails partway through to clean up resources.
+func (r *Runner) stopStartedServers() {
+	// Stop MCP servers
+	for _, server := range r.mcpServers {
+		if server != nil {
+			server.Stop()
+		}
+	}
+
+	// Stop judge server if it was started
+	if r.judgeServer != nil {
+		r.judgeServer.Stop()
+	}
 }
 
 func (r *Runner) cleanup() {

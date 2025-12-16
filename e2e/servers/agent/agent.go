@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"sort"
 	"strings"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -297,10 +298,15 @@ func executeToolCalls(ctx context.Context, mcpConfig *MCPConfig, toolCalls []Too
 				serverURL = serverCfg.URL
 			}
 		} else {
-			// Use the first server if no specific server is specified
-			for _, serverCfg := range mcpConfig.MCPServers {
-				serverURL = serverCfg.URL
-				break
+			// Deterministically select the first server (alphabetically by name)
+			// when no specific server is specified
+			var serverNames []string
+			for name := range mcpConfig.MCPServers {
+				serverNames = append(serverNames, name)
+			}
+			sort.Strings(serverNames)
+			if len(serverNames) > 0 {
+				serverURL = mcpConfig.MCPServers[serverNames[0]].URL
 			}
 		}
 
