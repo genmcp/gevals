@@ -38,7 +38,7 @@ _build-mock-agent:
 
 .PHONY: e2e
 e2e: build _build-mock-agent ## Run e2e tests
-	GEVALS_BINARY=$(CURDIR)/gevals MOCK_AGENT_BINARY=$(CURDIR)/e2e/mock-agent go test -v ./e2e/...
+	GEVALS_BINARY=$(CURDIR)/gevals MOCK_AGENT_BINARY=$(CURDIR)/e2e/mock-agent go test -v -tags e2e ./e2e/...
 
 # Release targets for CI/CD
 .PHONY: build-release
