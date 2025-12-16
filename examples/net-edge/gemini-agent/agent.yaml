@@ -78,7 +78,7 @@ commands:
     cd "${TMP_HOME}"
 
     # Configure MCP server for Gemini
-    gemini mcp add netedge "${NETEDGE_URL}" >/dev/null
+    gemini mcp add netedge "${NETEDGE_URL}" --transport http >/dev/null
 
     PROMPT_CONTENT="$(cat "${PROMPT_FILE}")"
 
