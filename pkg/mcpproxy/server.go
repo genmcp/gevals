@@ -33,7 +33,8 @@ type server struct {
 	recorder Recorder
 
 	// Ready signaling
-	ready chan struct{}
+	ready    chan struct{}
+	startErr error // Stores any error that occurred during startup
 }
 
 var _ Server = &server{}
@@ -177,12 +178,12 @@ func (s *server) Run(ctx context.Context) error {
 
 	listener, err := net.Listen("tcp", "localhost:0")
 	if err != nil {
-		return fmt.Errorf("failed to start listen: %w", err)
+		s.startErr = fmt.Errorf("failed to start listen: %w", err)
+		close(s.ready)
+		return s.startErr
 	}
 
-	port := listener.Addr().(*net.TCPAddr).Port
-
-	s.url = fmt.Sprintf("http://localhost:%d/mcp", port)
+	s.url = fmt.Sprintf("http://%s/mcp", listener.Addr().String())
 
 	// Signal that the server is ready (URL is set and listener is ready)
 	close(s.ready)
@@ -259,7 +260,7 @@ func (s *server) GetCallHistory() CallHistory {
 func (s *server) WaitReady(ctx context.Context) error {
 	select {
 	case <-s.ready:
-		return nil
+		return s.startErr
 	case <-ctx.Done():
 		return ctx.Err()
 	}
