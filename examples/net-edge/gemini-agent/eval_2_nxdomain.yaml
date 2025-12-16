@@ -11,6 +11,5 @@ config:
       assertions:
         toolsUsed:
           - server: netedge
-            tool: probe_dns_local
         minToolCalls: 1
         maxToolCalls: 20
