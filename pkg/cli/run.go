@@ -19,6 +19,8 @@ func NewEvalCmd() *cobra.Command {
 	var outputFormat string
 	var verbose bool
 	var run string
+	var mcpConfigFile string
+	var agentFile string
 
 	cmd := &cobra.Command{
 		Use:   "eval [eval-config-file]",
@@ -32,6 +34,37 @@ func NewEvalCmd() *cobra.Command {
 			spec, err := eval.FromFile(configFile)
 			if err != nil {
 				return fmt.Errorf("failed to load eval config: %w", err)
+			}
+
+			overrideFile := func(specFile *string, fileName string) error {
+				if !filepath.IsAbs(fileName) {
+					absPath, err := filepath.Abs(fileName)
+					if err != nil {
+						return err
+					}
+					fileName = absPath
+				}
+				*specFile = fileName
+				return nil
+			}
+			// Override MCP config file if flag is specified
+			if mcpConfigFile != "" {
+				err = overrideFile(&spec.Config.McpConfigFile, mcpConfigFile)
+				if err != nil {
+					return fmt.Errorf("failed to resolve mcp config file: %w", err)
+				}
+			}
+
+			// Override agent file if flag is specified
+			if agentFile != "" {
+				if spec.Config.Agent == nil {
+					spec.Config.Agent = &eval.AgentRef{}
+				}
+				spec.Config.Agent.Type = "file"
+				err = overrideFile(&spec.Config.Agent.Path, agentFile)
+				if err != nil {
+					return fmt.Errorf("failed to resolve agent file: %w", err)
+				}
 			}
 
 			// Create runner
@@ -70,6 +103,8 @@ func NewEvalCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&outputFormat, "output", "o", "text", "Output format (text, json)")
 	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Verbose output")
 	cmd.Flags().StringVarP(&run, "run", "r", "", "Regular expression to match task names to run (unanchored, like go test -run)")
+	cmd.Flags().StringVar(&mcpConfigFile, "mcp-config-file", "", "Path to MCP config file (overrides value in eval config)")
+	cmd.Flags().StringVar(&agentFile, "agent-file", "", "Path to agent file (overrides value in eval config)")
 
 	return cmd
 }
