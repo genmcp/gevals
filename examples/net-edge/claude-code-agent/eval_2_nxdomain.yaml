@@ -1,0 +1,14 @@
+kind: Eval
+metadata:
+  name: "claude-code-netedge-nxdomain-host"
+config:
+  agent:
+    type: "builtin.claude-code"
+  mcpConfigFile: ../mcp-config.yaml
+  taskSets:
+    - path: ../tasks/nxdomain-host/nxdomain-host.yaml
+      assertions:
+        toolsUsed:
+          - server: netedge
+        minToolCalls: 1
+        maxToolCalls: 20

@@ -1,0 +1,14 @@
+kind: Eval
+metadata:
+  name: "claude-code-netedge-selector-mismatch"
+config:
+  agent:
+    type: "builtin.claude-code"
+  mcpConfigFile: ../mcp-config.yaml
+  taskSets:
+    - path: ../tasks/selector-mismatch/selector-mismatch.yaml
+      assertions:
+        toolsUsed:
+          - server: netedge
+        minToolCalls: 1
+        maxToolCalls: 20

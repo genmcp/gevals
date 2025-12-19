@@ -169,14 +169,22 @@ func (a *agentSpecRunner) RunTask(ctx context.Context, prompt string) (AgentResu
 		allowedToolsSeparator = *a.Commands.AllowedToolsJoinSeparator
 	}
 
+	// Default to false if not specified
+	dangerouslySkipPermissions := false
+	if a.Commands.DangerouslySkipPermissions != nil {
+		dangerouslySkipPermissions = *a.Commands.DangerouslySkipPermissions
+	}
+
 	tmp := struct {
-		McpServerFileArgs string
-		AllowedToolArgs   string
-		Prompt            string
+		McpServerFileArgs          string
+		AllowedToolArgs            string
+		Prompt                     string
+		DangerouslySkipPermissions bool
 	}{
-		McpServerFileArgs: strings.Join(serverFiles, " "),
-		AllowedToolArgs:   strings.Join(allowedTools, allowedToolsSeparator),
-		Prompt:            prompt,
+		McpServerFileArgs:          strings.Join(serverFiles, " "),
+		AllowedToolArgs:            strings.Join(allowedTools, allowedToolsSeparator),
+		Prompt:                     prompt,
+		DangerouslySkipPermissions: dangerouslySkipPermissions,
 	}
 
 	formatted := bytes.NewBuffer(nil)

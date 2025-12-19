@@ -29,16 +29,18 @@ func (a *ClaudeCodeAgent) ValidateEnvironment() error {
 func (a *ClaudeCodeAgent) GetDefaults(model string) (*AgentSpec, error) {
 	separator := ","
 	useVirtualHome := false
+	dangerouslySkipPermissions := false
 	return &AgentSpec{
 		Metadata: AgentMetadata{
 			Name: "claude-code",
 		},
 		Commands: AgentCommands{
-			UseVirtualHome:            &useVirtualHome,
-			ArgTemplateMcpServer:      "--mcp-config {{ .File }}",
-			ArgTemplateAllowedTools:   "mcp__{{ .ServerName }}__{{ .ToolName }}",
-			AllowedToolsJoinSeparator: &separator,
-			RunPrompt:                 `claude {{ .McpServerFileArgs }} --strict-mcp-config --allowedTools "{{ .AllowedToolArgs }}" --print "{{ .Prompt }}"`,
+			UseVirtualHome:             &useVirtualHome,
+			ArgTemplateMcpServer:       "--mcp-config {{ .File }}",
+			ArgTemplateAllowedTools:    "mcp__{{ .ServerName }}__{{ .ToolName }}",
+			AllowedToolsJoinSeparator:  &separator,
+			DangerouslySkipPermissions: &dangerouslySkipPermissions,
+			RunPrompt:                  `claude {{ .McpServerFileArgs }} --strict-mcp-config --allowedTools "{{ .AllowedToolArgs }}" -p "{{ .Prompt }}"{{ if .DangerouslySkipPermissions }} --dangerously-skip-permissions{{ end }} --output-format stream-json --verbose`,
 		},
 	}, nil
 }
