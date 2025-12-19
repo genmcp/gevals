@@ -5,4 +5,6 @@ mcpServers:
       - run
       - -f
       - ../gen-mcp/examples/netedge-tools/mcpfile.yaml
+      - -s
+      - ../gen-mcp/examples/netedge-tools/mcpserver.yaml
     enableAllTools: true

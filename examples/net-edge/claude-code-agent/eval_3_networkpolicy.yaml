@@ -1,0 +1,14 @@
+kind: Eval
+metadata:
+  name: "claude-code-netedge-networkpolicy-block"
+config:
+  agent:
+    type: "builtin.claude-code"
+  mcpConfigFile: ../mcp-config.yaml
+  taskSets:
+    - path: ../tasks/networkpolicy-block/networkpolicy-block.yaml
+      assertions:
+        toolsUsed:
+          - server: netedge
+        minToolCalls: 1
+        maxToolCalls: 20

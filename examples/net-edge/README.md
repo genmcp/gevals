@@ -11,7 +11,9 @@ net-edge/
 ├── mcp-config.yaml                   # Launches the gen-mcp NetEdge server for gevals
 ├── codex-agent/
 │   ├── agent.yaml                    # Codex CLI wiring
-│   └── eval.yaml                     # Eval definition (scenario 1)
+│   └── eval_*.yaml                   # Eval definitions
+├── claude-code-agent/
+│   └── eval_*.yaml                   # Eval definitions (uses builtin claude-code agent)
 └── tasks/
     └── selector-mismatch/            # Task definition and helper scripts
         ├── selector-mismatch.yaml
@@ -57,7 +59,7 @@ Provide the key at runtime, for example:
 export OPENAI_API_KEY=sk-...
 ```
 
-## Running the eval
+## Running with Codex
 
 1. Build the project (from repo root): `make build`
 2. Ensure your current shell can reach the OpenShift cluster (`oc whoami` should succeed).
@@ -65,7 +67,21 @@ export OPENAI_API_KEY=sk-...
 4. Run the evaluation:
 
  ```bash
- ./gevals run examples/net-edge/codex-agent/eval.yaml
+ ./gevals eval examples/net-edge/codex-agent/eval_1_selector-mismatch.yaml
+ ```
+
+## Running with Claude Code
+
+1. Build the project (from repo root): `make build`
+2. Ensure `claude` CLI is in your `PATH`.
+3. Ensure your current shell can reach the OpenShift cluster (`oc whoami` should succeed).
+4. **Authentication:** If using Vertex AI, ensure you have GCP credentials configured:
+   - Set `GOOGLE_APPLICATION_CREDENTIALS` environment variable, OR
+   - Run `gcloud auth application-default login`
+5. Run the evaluation:
+
+ ```bash
+ ./gevals eval examples/net-edge/claude-code-agent/eval_1_selector-mismatch.yaml
  ```
 
 `setup.sh` deploys the hello workload, then intentionally breaks the Service selector so the Route loses its
