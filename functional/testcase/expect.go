@@ -5,8 +5,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/genmcp/gevals/e2e/servers/mcp"
-	"github.com/genmcp/gevals/e2e/servers/openai"
+	"github.com/genmcp/gevals/functional/servers/mcp"
+	"github.com/genmcp/gevals/functional/servers/openai"
 	"github.com/genmcp/gevals/pkg/eval"
 )
 

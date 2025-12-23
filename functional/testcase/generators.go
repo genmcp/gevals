@@ -8,7 +8,7 @@ import (
 
 	"sigs.k8s.io/yaml"
 
-	"github.com/genmcp/gevals/e2e/servers/agent"
+	"github.com/genmcp/gevals/functional/servers/agent"
 	"github.com/genmcp/gevals/pkg/eval"
 	"github.com/genmcp/gevals/pkg/task"
 )
@@ -31,7 +31,7 @@ type Generator struct {
 
 // NewGenerator creates a new generator with a temporary directory
 func NewGenerator(t *testing.T) (*Generator, error) {
-	tempDir, err := os.MkdirTemp("", "gevals-e2e-*")
+	tempDir, err := os.MkdirTemp("", "gevals-functional-*")
 	if err != nil {
 		return nil, err
 	}

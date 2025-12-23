@@ -10,7 +10,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/genmcp/gevals/e2e/servers/agent"
+	"github.com/genmcp/gevals/functional/servers/agent"
 )
 
 func main() {

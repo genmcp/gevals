@@ -1,7 +1,7 @@
 package testcase
 
 import (
-	"github.com/genmcp/gevals/e2e/servers/agent"
+	"github.com/genmcp/gevals/functional/servers/agent"
 )
 
 // AgentBuilder provides a fluent API for configuring mock agent behavior.

@@ -1,11 +1,11 @@
-name: E2E Tests
+name: Functional Tests
 
 on:
   pull_request:
     branches: [main]
 
 jobs:
-  e2e:
+  functional:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -15,5 +15,5 @@ jobs:
         with:
           go-version-file: go.mod
 
-      - name: Run e2e tests
-        run: make e2e
+      - name: Run functional tests
+        run: make functional

@@ -1,6 +1,6 @@
 AGENT_BINARY_NAME = agent
 GEVALS_BINARY_NAME = gevals
-MOCK_AGENT_BINARY_NAME = e2e/mock-agent
+MOCK_AGENT_BINARY_NAME = functional/mock-agent
 
 # Release build variables (can be overridden)
 VERSION ?= dev
@@ -32,14 +32,14 @@ build: build-agent build-gevals
 test:
 	go test ./...
 
-# Internal target - builds mock agent for e2e tests
+# Internal target - builds mock agent for functional tests
 .PHONY: _build-mock-agent
 _build-mock-agent:
-	go build -o $(MOCK_AGENT_BINARY_NAME) ./e2e/servers/agent/cmd
+	go build -o $(MOCK_AGENT_BINARY_NAME) ./functional/servers/agent/cmd
 
-.PHONY: e2e
-e2e: build _build-mock-agent ## Run e2e tests
-	GEVALS_BINARY=$(CURDIR)/gevals MOCK_AGENT_BINARY=$(CURDIR)/$(MOCK_AGENT_BINARY_NAME) go test -v -tags e2e ./e2e/...
+.PHONY: functional
+functional: build _build-mock-agent ## Run functional tests
+	GEVALS_BINARY=$(CURDIR)/gevals MOCK_AGENT_BINARY=$(CURDIR)/$(MOCK_AGENT_BINARY_NAME) go test -v -tags functional ./functional/...
 
 # Release targets for CI/CD
 .PHONY: build-release

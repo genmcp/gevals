@@ -3,7 +3,7 @@ package testcase
 import (
 	"time"
 
-	"github.com/genmcp/gevals/e2e/servers/openai"
+	"github.com/genmcp/gevals/functional/servers/openai"
 )
 
 // JudgeBuilder provides a fluent API for configuring mock judge behavior.

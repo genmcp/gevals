@@ -1,11 +1,11 @@
-//go:build e2e
+//go:build functional
 
 package tests
 
 import (
 	"testing"
 
-	"github.com/genmcp/gevals/e2e/testcase"
+	"github.com/genmcp/gevals/functional/testcase"
 )
 
 // TestTaskPassesWithToolCallAndJudge verifies the happy path where:

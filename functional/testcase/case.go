@@ -1,4 +1,4 @@
-// Package testcase provides a fluent API for defining e2e test cases
+// Package testcase provides a fluent API for defining functional test cases
 // that exercise the gevals binary against mock servers.
 package testcase
 
@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-// TestCase represents a complete e2e test scenario
+// TestCase represents a complete functional test scenario
 type TestCase struct {
 	t    *testing.T
 	name string

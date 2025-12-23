@@ -10,9 +10,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/genmcp/gevals/e2e/servers/agent"
-	"github.com/genmcp/gevals/e2e/servers/mcp"
-	"github.com/genmcp/gevals/e2e/servers/openai"
+	"github.com/genmcp/gevals/functional/servers/agent"
+	"github.com/genmcp/gevals/functional/servers/mcp"
+	"github.com/genmcp/gevals/functional/servers/openai"
 )
 
 // Environment variables for binary paths
@@ -340,8 +340,8 @@ func GetGevalsBinary() (string, error) {
 	}
 
 	candidates := []string{
-		filepath.Join(wd, "..", "..", "bin", "gevals"),    // from e2e/testcase or e2e/tests
-		filepath.Join(wd, "..", "bin", "gevals"),          // from e2e
+		filepath.Join(wd, "..", "..", "bin", "gevals"),    // from functional/testcase or functional/tests
+		filepath.Join(wd, "..", "bin", "gevals"),          // from functional
 		filepath.Join(wd, "bin", "gevals"),                // current dir
 		filepath.Join(wd, "..", "..", "gevals"),           // repo root
 		filepath.Join(wd, "..", "gevals"),                 // parent
@@ -376,8 +376,8 @@ func GetMockAgentBinary() (string, error) {
 	}
 
 	candidates := []string{
-		filepath.Join(wd, "..", "..", "bin", "mock-agent"),    // from e2e/testcase or e2e/tests
-		filepath.Join(wd, "..", "bin", "mock-agent"),          // from e2e
+		filepath.Join(wd, "..", "..", "bin", "mock-agent"),    // from functional/testcase or functional/tests
+		filepath.Join(wd, "..", "bin", "mock-agent"),          // from functional
 		filepath.Join(wd, "bin", "mock-agent"),                // current dir
 		filepath.Join(wd, "..", "..", "mock-agent"),           // repo root
 		filepath.Join(wd, "..", "mock-agent"),                 // parent
