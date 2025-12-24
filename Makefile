@@ -1,5 +1,6 @@
 AGENT_BINARY_NAME = agent
 GEVALS_BINARY_NAME = gevals
+MOCK_AGENT_BINARY_NAME = functional/mock-agent
 
 # Release build variables (can be overridden)
 VERSION ?= dev
@@ -13,7 +14,7 @@ endef
 
 .PHONY: clean
 clean:
-	rm -f $(AGENT_BINARY_NAME) $(GEVALS_BINARY_NAME)
+	rm -f $(AGENT_BINARY_NAME) $(GEVALS_BINARY_NAME) $(MOCK_AGENT_BINARY_NAME)
 	rm -f *.zip *.bundle
 
 .PHONY: build-agent
@@ -30,6 +31,15 @@ build: build-agent build-gevals
 .PHONY: test
 test:
 	go test ./...
+
+# Internal target - builds mock agent for functional tests
+.PHONY: _build-mock-agent
+_build-mock-agent:
+	go build -o $(MOCK_AGENT_BINARY_NAME) ./functional/servers/agent/cmd
+
+.PHONY: functional
+functional: build _build-mock-agent ## Run functional tests
+	GEVALS_BINARY=$(CURDIR)/gevals MOCK_AGENT_BINARY=$(CURDIR)/$(MOCK_AGENT_BINARY_NAME) go test -v -tags functional ./functional/...
 
 # Release targets for CI/CD
 .PHONY: build-release
