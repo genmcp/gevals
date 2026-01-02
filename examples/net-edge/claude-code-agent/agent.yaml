@@ -1,0 +1,108 @@
+kind: Agent
+metadata:
+  name: "claude-code"
+commands:
+  useVirtualHome: false
+  argTemplateMcpServer: "{{ .File }}"
+  argTemplateAllowedTools: "mcp__{{ .ServerName }}__{{ .ToolName }}"
+  allowedToolsJoinSeparator: ","
+  runPrompt: |-
+    set -euo pipefail
+
+    if ! command -v jq >/dev/null 2>&1; then
+      echo "jq is required to extract MCP server details" >&2
+      exit 1
+    fi
+
+    MCP_SERVER_FILE="{{ .McpServerFileArgs }}"
+    if [[ ! -f "${MCP_SERVER_FILE}" ]]; then
+      echo "MCP server file not found: ${MCP_SERVER_FILE}" >&2
+      exit 1
+    fi
+
+    NETEDGE_URL="$(jq -r '.mcpServers.netedge.url' "${MCP_SERVER_FILE}")"
+    if [[ -z "${NETEDGE_URL}" || "${NETEDGE_URL}" == "null" ]]; then
+      echo "Unable to parse netedge MCP URL from ${MCP_SERVER_FILE}" >&2
+      exit 1
+    fi
+
+    PROMPT_FILE="$(mktemp)"
+    printf '%b' {{ printf "%q" .Prompt }} > "${PROMPT_FILE}"
+
+    ORIGINAL_HOME="${HOME:-}"
+    TMP_HOME="$(mktemp -d)"
+    mkdir -p "${TMP_HOME}"
+
+    # Preserve kubeconfig access inside the temporary HOME so oc commands hit the same cluster.
+    KUBECONFIG_VALUE="${KUBECONFIG:-}"
+    if [[ -n "${KUBECONFIG_VALUE}" ]]; then
+       export KUBECONFIG="${KUBECONFIG_VALUE}"
+    else
+      if [[ -n "${ORIGINAL_HOME}" && -d "${ORIGINAL_HOME}/.kube" && -f "${ORIGINAL_HOME}/.kube/config" ]]; then
+        mkdir -p "${TMP_HOME}/.kube"
+        cp -R "${ORIGINAL_HOME}/.kube/." "${TMP_HOME}/.kube" 2>/dev/null || true
+        if [[ -f "${TMP_HOME}/.kube/config" ]]; then
+           export KUBECONFIG="${TMP_HOME}/.kube/config"
+        fi
+      fi
+    fi
+
+    # Preserve GCP credentials for Vertex AI authentication
+    if [[ -z "${GOOGLE_APPLICATION_CREDENTIALS:-}" ]]; then
+      if [[ -n "${ORIGINAL_HOME}" && -d "${ORIGINAL_HOME}/.config/gcloud" ]]; then
+        mkdir -p "${TMP_HOME}/.config"
+        cp -R "${ORIGINAL_HOME}/.config/gcloud" "${TMP_HOME}/.config/gcloud" 2>/dev/null || true
+      fi
+    fi
+
+    DEBUG_DIR="${GEVALS_DEBUG_DIR:-}"
+    cleanup() {
+      local exit_status="$1"
+
+      if [[ -n "${DEBUG_DIR}" ]]; then
+        mkdir -p "${DEBUG_DIR}"
+        if [[ -f "${PROMPT_FILE}" ]]; then
+          cp "${PROMPT_FILE}" "${DEBUG_DIR}/prompt.txt" 2>/dev/null || true
+        fi
+        if [[ -d "${TMP_HOME}" ]]; then
+          mkdir -p "${DEBUG_DIR}/claude-code-home"
+          cp -R "${TMP_HOME}/." "${DEBUG_DIR}/claude-code-home" 2>/dev/null || true
+          if [[ -d "${DEBUG_DIR}/claude-code-home/.kube" ]]; then
+            rm -rf "${DEBUG_DIR}/claude-code-home/.kube"
+          fi
+        fi
+        printf 'exit_status=%s\n' "${exit_status}" >> "${DEBUG_DIR}/debug.log"
+      fi
+
+      rm -rf "${TMP_HOME}"
+      rm -f "${PROMPT_FILE}"
+
+      trap - EXIT
+      exit "${exit_status}"
+    }
+    trap 'cleanup $?' EXIT
+
+    export HOME="${TMP_HOME}"
+    cd "${TMP_HOME}"
+
+    # Configure MCP server for Claude Code
+    claude mcp add --transport http netedge "${NETEDGE_URL}" >/dev/null
+
+    PROMPT_CONTENT="$(cat "${PROMPT_FILE}")"
+
+    # Run Claude Code
+    # Note: --verbose is required when using --output-format stream-json with -p
+    CLAUDE_ARGS=("-p" "${PROMPT_CONTENT}" "--dangerously-skip-permissions" "--output-format" "stream-json" "--verbose")
+
+    # Allow model override
+    if [[ -n "${CLAUDE_MODEL:-}" ]]; then
+        CLAUDE_ARGS+=("--model" "${CLAUDE_MODEL}")
+    fi
+
+    if [[ -n "${DEBUG_DIR}" ]]; then
+      mkdir -p "${DEBUG_DIR}"
+      echo "Running claude with args: ${CLAUDE_ARGS[*]}" >> "${DEBUG_DIR}/debug.log"
+      claude "${CLAUDE_ARGS[@]}" 2>&1 | tee -a "${DEBUG_DIR}/claude.log"
+    else
+      claude "${CLAUDE_ARGS[@]}"
+    fi
