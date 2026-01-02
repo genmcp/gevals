@@ -1,9 +1,12 @@
 package mcpproxy
 
 import (
+	"encoding/json"
+	"net/http"
 	"sync"
 	"time"
 
+	"github.com/modelcontextprotocol/go-sdk/auth"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -22,12 +25,55 @@ type CallRecord struct {
 	Error      string    `json:"error,omitempty"`
 }
 
+type SafeServerRequest[P mcp.Params] struct {
+	Session *mcp.ServerSession
+	Params  P
+	Extra   *SafeRequestExtra
+}
+
+func SafeServerRequestFromUnsafe[P mcp.Params](req *mcp.ServerRequest[P]) *SafeServerRequest[P] {
+	if req == nil {
+		return nil
+	}
+
+	res := &SafeServerRequest[P]{
+		Session: req.Session,
+		Params:  req.Params,
+	}
+
+	if req.Extra != nil {
+		res.Extra = &SafeRequestExtra{
+			TokenInfo: req.Extra.TokenInfo,
+			Header:    req.Extra.Header,
+		}
+	}
+
+	return res
+}
+
+type SafeRequestExtra struct {
+	TokenInfo *auth.TokenInfo // bearer token info (e.g. from OAuth) if any
+	Header    http.Header     // header from HTTP request, if any
+}
+
 // ToolCall records a tool invocation
 type ToolCall struct {
 	CallRecord
 	ToolName string               `json:"name"` // this is copied to the top level struct for convenience
 	Request  *mcp.CallToolRequest `json:"request,omitempty"`
 	Result   *mcp.CallToolResult  `json:"result,omitempty"`
+}
+
+func (c *ToolCall) MarshalJSON() ([]byte, error) {
+	type ToolCallAlias ToolCall
+
+	return json.Marshal(&struct {
+		*ToolCallAlias
+		Request *SafeServerRequest[*mcp.CallToolParamsRaw] `json:"request,omitempty"`
+	}{
+		ToolCallAlias: (*ToolCallAlias)(c),
+		Request:       SafeServerRequestFromUnsafe(c.Request),
+	})
 }
 
 // ResourceRead records a resource read
@@ -38,12 +84,36 @@ type ResourceRead struct {
 	Result  *mcp.ReadResourceResult  `json:"result"`
 }
 
+func (r *ResourceRead) MarshalJSON() ([]byte, error) {
+	type ResourceReadAlias ResourceRead
+
+	return json.Marshal(&struct {
+		*ResourceReadAlias
+		Request *SafeServerRequest[*mcp.ReadResourceParams] `json:"request,omitempty"`
+	}{
+		ResourceReadAlias: (*ResourceReadAlias)(r),
+		Request:           SafeServerRequestFromUnsafe(r.Request),
+	})
+}
+
 // PromptGet records a prompt get
 type PromptGet struct {
 	CallRecord
 	Name    string                `json:"name"` // this is copies to the top level struct for convenience
 	Request *mcp.GetPromptRequest `json:"request"`
 	Result  *mcp.GetPromptResult  `json:"result"`
+}
+
+func (p *PromptGet) MarshalJSON() ([]byte, error) {
+	type PromptGetAlias PromptGet
+
+	return json.Marshal(&struct {
+		*PromptGetAlias
+		Request *SafeServerRequest[*mcp.GetPromptParams] `json:"request"`
+	}{
+		PromptGetAlias: (*PromptGetAlias)(p),
+		Request:        SafeServerRequestFromUnsafe(p.Request),
+	})
 }
 
 // CallHistory contains a complete call history for a server
