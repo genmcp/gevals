@@ -11,6 +11,7 @@ import (
 	"github.com/genmcp/gevals/functional/servers/agent"
 	"github.com/genmcp/gevals/pkg/eval"
 	"github.com/genmcp/gevals/pkg/task"
+	"github.com/genmcp/gevals/pkg/util"
 )
 
 // GeneratedFiles holds paths to all generated configuration files
@@ -51,64 +52,79 @@ func (g *Generator) TempDir() string {
 	return g.tempDir
 }
 
-// GenerateTaskYAML writes a task spec to a YAML file
-func (g *Generator) GenerateTaskYAML(taskSpec *task.TaskSpec) (string, error) {
+// GenerateTaskYAML writes a legacy task config to a YAML file (v1alpha1 format)
+func (g *Generator) GenerateTaskYAML(taskConfig *TaskConfig) (string, error) {
 	// Wrap in kind structure for proper deserialization
 	wrapper := map[string]any{
-		"kind":     task.KindTask,
-		"metadata": taskSpec.Metadata,
-		"steps":    g.buildTaskSteps(taskSpec),
+		"apiVersion": util.APIVersionV1Alpha1,
+		"kind":       task.KindTask,
+		"metadata":   taskConfig.Metadata(),
+		"steps":      g.buildLegacyTaskSteps(taskConfig.Steps()),
 	}
 
 	return g.writeYAML("task.yaml", wrapper)
 }
 
-func (g *Generator) buildTaskSteps(taskSpec *task.TaskSpec) map[string]any {
+// GenerateTaskYAMLV2 writes a new-format task config to a YAML file
+func (g *Generator) GenerateTaskYAMLV2(taskConfig *TaskConfigV2) (string, error) {
+	spec := taskConfig.Build()
+
+	wrapper := map[string]any{
+		"apiVersion": util.APIVersionV1Alpha2,
+		"kind":       task.KindTask,
+		"metadata":   taskConfig.Metadata(),
+		"spec":       spec,
+	}
+
+	return g.writeYAML("task.yaml", wrapper)
+}
+
+func (g *Generator) buildLegacyTaskSteps(legacySteps *task.TaskStepsV1Alpha1) map[string]any {
 	steps := make(map[string]any)
 
-	if taskSpec == nil {
+	if legacySteps == nil {
 		return steps
 	}
 
-	if taskSpec.Steps.Prompt != nil {
-		if taskSpec.Steps.Prompt.Inline != "" {
-			steps["prompt"] = map[string]any{"inline": taskSpec.Steps.Prompt.Inline}
-		} else if taskSpec.Steps.Prompt.File != "" {
-			steps["prompt"] = map[string]any{"file": taskSpec.Steps.Prompt.File}
+	if legacySteps.Prompt != nil {
+		if legacySteps.Prompt.Inline != "" {
+			steps["prompt"] = map[string]any{"inline": legacySteps.Prompt.Inline}
+		} else if legacySteps.Prompt.File != "" {
+			steps["prompt"] = map[string]any{"file": legacySteps.Prompt.File}
 		}
 	}
 
-	if taskSpec.Steps.SetupScript != nil {
-		if taskSpec.Steps.SetupScript.Inline != "" {
-			steps["setup"] = map[string]any{"inline": taskSpec.Steps.SetupScript.Inline}
-		} else if taskSpec.Steps.SetupScript.File != "" {
-			steps["setup"] = map[string]any{"file": taskSpec.Steps.SetupScript.File}
+	if legacySteps.SetupScript != nil {
+		if legacySteps.SetupScript.Inline != "" {
+			steps["setup"] = map[string]any{"inline": legacySteps.SetupScript.Inline}
+		} else if legacySteps.SetupScript.File != "" {
+			steps["setup"] = map[string]any{"file": legacySteps.SetupScript.File}
 		}
 	}
 
-	if taskSpec.Steps.CleanupScript != nil {
-		if taskSpec.Steps.CleanupScript.Inline != "" {
-			steps["cleanup"] = map[string]any{"inline": taskSpec.Steps.CleanupScript.Inline}
-		} else if taskSpec.Steps.CleanupScript.File != "" {
-			steps["cleanup"] = map[string]any{"file": taskSpec.Steps.CleanupScript.File}
+	if legacySteps.CleanupScript != nil {
+		if legacySteps.CleanupScript.Inline != "" {
+			steps["cleanup"] = map[string]any{"inline": legacySteps.CleanupScript.Inline}
+		} else if legacySteps.CleanupScript.File != "" {
+			steps["cleanup"] = map[string]any{"file": legacySteps.CleanupScript.File}
 		}
 	}
 
-	if taskSpec.Steps.VerifyScript != nil {
+	if legacySteps.VerifyScript != nil {
 		verify := make(map[string]any)
-		if taskSpec.Steps.VerifyScript.Step != nil {
-			if taskSpec.Steps.VerifyScript.Step.Inline != "" {
-				verify["inline"] = taskSpec.Steps.VerifyScript.Step.Inline
-			} else if taskSpec.Steps.VerifyScript.Step.File != "" {
-				verify["file"] = taskSpec.Steps.VerifyScript.Step.File
+		if legacySteps.VerifyScript.Step != nil {
+			if legacySteps.VerifyScript.Step.Inline != "" {
+				verify["inline"] = legacySteps.VerifyScript.Step.Inline
+			} else if legacySteps.VerifyScript.Step.File != "" {
+				verify["file"] = legacySteps.VerifyScript.Step.File
 			}
 		}
-		if taskSpec.Steps.VerifyScript.LLMJudgeTaskConfig != nil {
-			if taskSpec.Steps.VerifyScript.LLMJudgeTaskConfig.Contains != "" {
-				verify["contains"] = taskSpec.Steps.VerifyScript.LLMJudgeTaskConfig.Contains
+		if legacySteps.VerifyScript.LLMJudgeStepConfig != nil {
+			if legacySteps.VerifyScript.LLMJudgeStepConfig.Contains != "" {
+				verify["contains"] = legacySteps.VerifyScript.LLMJudgeStepConfig.Contains
 			}
-			if taskSpec.Steps.VerifyScript.LLMJudgeTaskConfig.Exact != "" {
-				verify["exact"] = taskSpec.Steps.VerifyScript.LLMJudgeTaskConfig.Exact
+			if legacySteps.VerifyScript.LLMJudgeStepConfig.Exact != "" {
+				verify["exact"] = legacySteps.VerifyScript.LLMJudgeStepConfig.Exact
 			}
 		}
 		if len(verify) > 0 {
