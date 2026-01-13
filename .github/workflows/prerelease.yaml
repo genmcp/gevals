@@ -19,10 +19,9 @@ jobs:
     outputs:
       prerelease_version: ${{ env.PRERELEASE_VERSION }}
       changelog_body: ${{ env.CHANGELOG_BODY }}
-      has_new_commits: ${{ steps.check_commits.outputs.HAS_NEW_COMMITS }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -42,12 +41,7 @@ jobs:
           echo "PRERELEASE_VERSION=$VERSION" >> "$GITHUB_ENV"
           echo "Pre-release version: $VERSION"
 
-      - name: Check for new commits since last release
-        id: check_commits
-        run: make check-commits-since-release
-
       - name: Extract changelog
-        if: steps.check_commits.outputs.HAS_NEW_COMMITS == 'true'
         id: changelog
         run: |
           VERSION="${{ env.PRERELEASE_VERSION }}"
@@ -65,7 +59,6 @@ jobs:
           } >> "$GITHUB_ENV"
 
       - name: Create or update pre-release
-        if: steps.check_commits.outputs.HAS_NEW_COMMITS == 'true'
         run: |
           VERSION="${{ env.PRERELEASE_VERSION }}"
 
@@ -96,7 +89,6 @@ jobs:
 
   build-and-upload:
     needs: determine-version
-    if: needs.determine-version.outputs.has_new_commits == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -107,12 +99,12 @@ jobs:
         goarch: [amd64, arm64]
     steps:
       - name: Checkout code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v6
         with:
           go-version-file: 'go.mod'
 

@@ -1,5 +1,6 @@
 AGENT_BINARY_NAME = agent
 GEVALS_BINARY_NAME = gevals
+MOCK_AGENT_BINARY_NAME = functional/mock-agent
 
 # Release build variables (can be overridden)
 VERSION ?= dev
@@ -13,7 +14,7 @@ endef
 
 .PHONY: clean
 clean:
-	rm -f $(AGENT_BINARY_NAME) $(GEVALS_BINARY_NAME)
+	rm -f $(AGENT_BINARY_NAME) $(GEVALS_BINARY_NAME) $(MOCK_AGENT_BINARY_NAME)
 	rm -f *.zip *.bundle
 
 .PHONY: build-agent
@@ -26,6 +27,19 @@ build-gevals: clean
 
 .PHONY: build
 build: build-agent build-gevals
+
+.PHONY: test
+test:
+	go test ./...
+
+# Internal target - builds mock agent for functional tests
+.PHONY: _build-mock-agent
+_build-mock-agent:
+	go build -o $(MOCK_AGENT_BINARY_NAME) ./functional/servers/agent/cmd
+
+.PHONY: functional
+functional: build _build-mock-agent ## Run functional tests
+	GEVALS_BINARY=$(CURDIR)/gevals MOCK_AGENT_BINARY=$(CURDIR)/$(MOCK_AGENT_BINARY_NAME) go test -v -tags functional ./functional/...
 
 # Release targets for CI/CD
 .PHONY: build-release
@@ -71,7 +85,7 @@ release: build-release package-release sign-release
 # Changelog extraction targets
 .PHONY: extract-changelog-unreleased
 extract-changelog-unreleased:
-	@echo "Extracting unreleased changelog section..."
+	@echo "Extracting unreleased changelog section..." >&2
 	@CHANGELOG_CONTENT=$$(sed -n '/## \[Unreleased\]/,/## \[/p' CHANGELOG.md | $(CHANGELOG_PIPELINE)); \
 	if [ -z "$$CHANGELOG_CONTENT" ]; then \
 		CHANGELOG_CONTENT="See CHANGELOG.md for details."; \
@@ -84,7 +98,7 @@ extract-changelog-version:
 		echo "Error: VERSION is required. Usage: make extract-changelog-version VERSION=v1.0.0"; \
 		exit 1; \
 	fi
-	@echo "Extracting changelog for version $(VERSION)..."
+	@echo "Extracting changelog for version $(VERSION)..." >&2
 	@VERSION_NO_V=$$(echo "$(VERSION)" | sed 's/^v//'); \
 	CHANGELOG_CONTENT=$$(sed -n "/## \[$${VERSION_NO_V}\]/,/## \[/p" CHANGELOG.md | $(CHANGELOG_PIPELINE)); \
 	if [ -z "$$CHANGELOG_CONTENT" ]; then \
@@ -178,35 +192,4 @@ upload-release-assets:
 		fi; \
 	done
 	@echo "✓ All assets uploaded successfully"
-
-# Check if there are new commits since the latest release
-# Outputs: HAS_NEW_COMMITS=true/false to GITHUB_OUTPUT (in CI) or stdout (locally)
-# Used by CI to prevent creating releases when there's nothing new to release
-.PHONY: check-commits-since-release
-check-commits-since-release:
-	@echo "Checking for commits since latest release..."
-	@LATEST_RELEASE=$$(git tag -l 'v*.*.*' --sort=-version:refname | grep -vE '\-rc' | grep -v '^nightly' | head -n1); \
-	if [ -z "$$LATEST_RELEASE" ]; then \
-		echo "No existing releases found"; \
-		COMMITS_SINCE_RELEASE=$$(git rev-list HEAD --count); \
-	else \
-		echo "Latest release: $$LATEST_RELEASE"; \
-		COMMITS_SINCE_RELEASE=$$(git rev-list $${LATEST_RELEASE}..HEAD --count); \
-	fi; \
-	echo "Commits since latest release: $$COMMITS_SINCE_RELEASE"; \
-	if [ "$$COMMITS_SINCE_RELEASE" -eq "0" ]; then \
-		echo "No new commits since latest release - skipping release"; \
-		if [ -n "$$GITHUB_OUTPUT" ]; then \
-			echo "HAS_NEW_COMMITS=false" >> "$$GITHUB_OUTPUT"; \
-		else \
-			echo "HAS_NEW_COMMITS=false"; \
-		fi; \
-	else \
-		echo "Found new commits - proceeding with release"; \
-		if [ -n "$$GITHUB_OUTPUT" ]; then \
-			echo "HAS_NEW_COMMITS=true" >> "$$GITHUB_OUTPUT"; \
-		else \
-			echo "HAS_NEW_COMMITS=true"; \
-		fi; \
-	fi
 

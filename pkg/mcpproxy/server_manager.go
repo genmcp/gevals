@@ -19,7 +19,7 @@ const (
 type ServerManager interface {
 	GetMcpServerFiles() ([]string, error)
 	GetMcpServers() []Server
-	// Start is non-blocking. Caller must ensure this is only called once, and called before Close
+	// Start blocks until all servers are ready or an error occurs. Caller must ensure this is only called once, and called before Close
 	Start(ctx context.Context) error
 	// Close closes associated server resources. Caller must ensure this is only called once, and called after Start
 	Close() error
@@ -35,7 +35,6 @@ type serverManager struct {
 
 	cancel context.CancelFunc
 	eg     *errgroup.Group
-	ready  chan struct{} // signals when all servers are ready
 }
 
 func NewServerManger(ctx context.Context, cfg *MCPConfig) (ServerManager, error) {
@@ -51,14 +50,10 @@ func NewServerManger(ctx context.Context, cfg *MCPConfig) (ServerManager, error)
 
 	return &serverManager{
 		servers: servers,
-		ready:   make(chan struct{}),
 	}, nil
 }
 
 func (m *serverManager) GetMcpServerFiles() ([]string, error) {
-	// Wait for servers to be ready before accessing their configs
-	<-m.ready
-
 	if m.tmpDir != "" {
 		return []string{fmt.Sprintf("%s/%s", m.tmpDir, mcpServerFileName)}, nil
 	}
@@ -90,8 +85,6 @@ func (m *serverManager) GetMcpServerFiles() ([]string, error) {
 }
 
 func (m *serverManager) GetMcpServers() []Server {
-	// Wait for servers to be ready before accessing them
-	<-m.ready
 	return slices.Collect(maps.Values(m.servers))
 }
 
@@ -113,14 +106,13 @@ func (m *serverManager) Start(ctx context.Context) error {
 		})
 	}
 
-	// Wait for all servers to be ready in a separate goroutine
-	go func() {
-		for _, srv := range m.servers {
-			// WaitReady will block until the server has initialized
-			_ = srv.WaitReady(ctx)
+	// Wait for all servers to be ready before returning
+	for name, srv := range m.servers {
+		if err := srv.WaitReady(ctx); err != nil {
+			cancel() // Cancel all servers if one fails to become ready
+			return fmt.Errorf("server %s failed to become ready: %w", name, err)
 		}
-		close(m.ready)
-	}()
+	}
 
 	return nil
 }
