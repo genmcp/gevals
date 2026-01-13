@@ -32,10 +32,15 @@ type TaskMetadata struct {
 }
 
 type TaskSpec struct {
-	Setup   []steps.StepConfig `json:"setup,omitempty"`
-	Cleanup []steps.StepConfig `json:"cleanup,omitempty"`
-	Verify  []steps.StepConfig `json:"verify,omitempty"`
-	Prompt  *util.Step         `json:"prompt,omitempty"`
+	Requires []Requirements     `json:"requires,omitempty"`
+	Setup    []steps.StepConfig `json:"setup,omitempty"`
+	Cleanup  []steps.StepConfig `json:"cleanup,omitempty"`
+	Verify   []steps.StepConfig `json:"verify,omitempty"`
+	Prompt   *util.Step         `json:"prompt,omitempty"`
+}
+
+type Requirements struct {
+	Extension *string `json:"extension,omitempty"`
 }
 
 type TaskStepsV1Alpha1 struct {

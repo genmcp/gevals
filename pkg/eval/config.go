@@ -7,6 +7,7 @@ import (
 
 	"sigs.k8s.io/yaml"
 
+	"github.com/genmcp/gevals/pkg/extension"
 	"github.com/genmcp/gevals/pkg/llmjudge"
 	"github.com/genmcp/gevals/pkg/util"
 )
@@ -28,6 +29,9 @@ type EvalMetadata struct {
 type EvalConfig struct {
 	// Agent configuration
 	Agent *AgentRef `json:"agent"`
+
+	// Extensions configuration
+	Extensions map[string]*extension.ExtensionSpec `json:"extensions"`
 
 	// MCP configuration
 	McpConfigFile string                       `json:"mcpConfigFile"`
