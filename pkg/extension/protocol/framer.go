@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"io"
+	"sync"
 
 	"golang.org/x/exp/jsonrpc2"
 )
@@ -50,7 +51,8 @@ func (r *newlineReader) Read(ctx context.Context) (jsonrpc2.Message, int64, erro
 }
 
 type newlineWriter struct {
-	w io.Writer
+	mu sync.Mutex
+	w  io.Writer
 }
 
 func (w *newlineWriter) Write(ctx context.Context, msg jsonrpc2.Message) (int64, error) {
@@ -59,6 +61,9 @@ func (w *newlineWriter) Write(ctx context.Context, msg jsonrpc2.Message) (int64,
 		return 0, ctx.Err()
 	default:
 	}
+
+	w.mu.Lock()
+	defer w.mu.Unlock()
 
 	data, err := jsonrpc2.EncodeMessage(msg)
 	if err != nil {

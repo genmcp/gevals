@@ -94,7 +94,7 @@ func (r *extensionStep) Execute(ctx context.Context, input *StepInput) (*StepOut
 
 	return &StepOutput{
 		Success: res.Success,
-		Type:    fmt.Sprintf("%q.%q", r.alias, r.operation),
+		Type:    r.alias + "." + r.operation,
 		Message: res.Message,
 		Error:   res.Error,
 		Outputs: res.Outputs,

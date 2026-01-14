@@ -5,10 +5,18 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 )
 
 const isExecutableMask = 0111
+
+// windowsExecutableExts contains file extensions that are considered executable on Windows
+var windowsExecutableExts = map[string]bool{
+	".exe": true,
+	".bat": true,
+	".cmd": true,
+}
 
 type FileSource struct{}
 
@@ -18,7 +26,7 @@ func (s *FileSource) Scheme() string {
 	return PackageTypeFile
 }
 
-func (s *FileSource) Resolve(ctx context.Context, ref string, opts ResolveOptions) (string, error) {
+func (s *FileSource) Resolve(ctx context.Context, ref string) (string, error) {
 	path := ref
 	if strings.HasPrefix(path, "~/") {
 		home, err := os.UserHomeDir()
@@ -49,9 +57,18 @@ func (s *FileSource) Resolve(ctx context.Context, ref string, opts ResolveOption
 		return "", fmt.Errorf("extension path %s is a directory, expected executable", path)
 	}
 
-	if info.Mode()&isExecutableMask == 0 {
+	if !isExecutable(path, info) {
 		return "", fmt.Errorf("extension at %s is not executable", path)
 	}
 
 	return path, nil
+}
+
+// isExecutable checks if a file is executable based on the current platform
+func isExecutable(path string, info os.FileInfo) bool {
+	if runtime.GOOS == "windows" {
+		ext := strings.ToLower(filepath.Ext(path))
+		return windowsExecutableExts[ext]
+	}
+	return info.Mode()&isExecutableMask != 0
 }

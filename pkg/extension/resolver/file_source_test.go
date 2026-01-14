@@ -65,7 +65,7 @@ func TestFileSource_Resolve(t *testing.T) {
 	for tn, tc := range tt {
 		t.Run(tn, func(t *testing.T) {
 			s := &FileSource{}
-			result, err := s.Resolve(context.Background(), tc.ref, ResolveOptions{})
+			result, err := s.Resolve(context.Background(), tc.ref)
 
 			if tc.expectErr {
 				assert.Error(t, err)

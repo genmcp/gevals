@@ -21,10 +21,5 @@ type Source interface {
 	Scheme() string
 
 	// Resolve resolves a reference (without scheme prefix) to a binary path
-	Resolve(ctx context.Context, ref string, opts ResolveOptions) (string, error)
-}
-
-type ResolveOptions struct {
-	CacheDir string
-	Platform string
+	Resolve(ctx context.Context, ref string) (string, error)
 }

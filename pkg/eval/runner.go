@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"path/filepath"
 	"regexp"
-	"runtime"
 
 	"github.com/genmcp/gevals/pkg/agent"
 	"github.com/genmcp/gevals/pkg/extension/client"
@@ -159,11 +158,10 @@ func (r *evalRunner) RunWithProgress(ctx context.Context, taskPattern string, ca
 		return nil, fmt.Errorf("failed to create llm judge from spec: %w", err)
 	}
 
-	resolver := resolver.GetResolver(resolver.ResolveOptions{
-		Platform: fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH),
-	})
+	resolver := resolver.GetResolver()
 
 	manager := client.NewManager(resolver, client.ExtensionOptions{})
+	defer manager.ShutdownAll(context.Background())
 
 	for alias, ext := range r.spec.Config.Extensions {
 		manager.Register(alias, ext)

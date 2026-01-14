@@ -23,7 +23,7 @@ func (s *GithubSource) Scheme() string {
 // Examples:
 //   - "myorg/myext" - resolves to latest version
 //   - "myorg/myext@v1.0.0" - resolves to specific version
-func (s *GithubSource) Resolve(ctx context.Context, ref string, opts ResolveOptions) (string, error) {
+func (s *GithubSource) Resolve(ctx context.Context, ref string) (string, error) {
 	owner, repo, version, err := parseGithubRef(ref)
 	if err != nil {
 		return "", err
@@ -43,9 +43,7 @@ func (s *GithubSource) Resolve(ctx context.Context, ref string, opts ResolveOpti
 		return "", fmt.Errorf("failed to create binary downloader: %w", err)
 	}
 
-	goos, goarch := parsePlatform(opts.Platform)
-
-	binaryPath, err := downloader.GetBinary(version, goos, goarch)
+	binaryPath, err := downloader.GetBinary(version, runtime.GOOS, runtime.GOARCH)
 	if err != nil {
 		return "", fmt.Errorf("failed to get binary for %s/%s@%s: %w", owner, repo, version, err)
 	}
@@ -84,17 +82,3 @@ func parseGithubRef(ref string) (owner, repo, version string, err error) {
 	return owner, repo, version, nil
 }
 
-// parsePlatform parses a platform string into GOOS and GOARCH
-// If platform is empty, returns runtime values
-func parsePlatform(platform string) (goos, goarch string) {
-	if platform == "" {
-		return runtime.GOOS, runtime.GOARCH
-	}
-
-	parts := strings.SplitN(platform, "-", 2)
-	if len(parts) == 2 {
-		return parts[0], parts[1]
-	}
-
-	return runtime.GOOS, runtime.GOARCH
-}

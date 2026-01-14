@@ -24,18 +24,14 @@ func RegisterSourceOrDie(s Source) {
 	sources[scheme] = s
 }
 
-func GetResolver(opts ResolveOptions) Resolver {
-	r := &registry{
-		sources:  sources,
-		defaults: opts,
+func GetResolver() Resolver {
+	return &registry{
+		sources: sources,
 	}
-
-	return r
 }
 
 type registry struct {
-	sources  map[string]Source
-	defaults ResolveOptions
+	sources map[string]Source
 }
 
 var _ Resolver = &registry{}
@@ -45,10 +41,10 @@ func (r *registry) Resolve(ctx context.Context, pkg string) (string, error) {
 
 	source, ok := r.sources[scheme]
 	if !ok {
-		return "", fmt.Errorf("unknown scheme in package reference '%q'", pkg)
+		return "", fmt.Errorf("unknown scheme in package reference %q", pkg)
 	}
 
-	return source.Resolve(ctx, ref, r.defaults)
+	return source.Resolve(ctx, ref)
 }
 
 func parseRef(ref string) (scheme, path string) {

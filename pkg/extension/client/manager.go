@@ -45,6 +45,10 @@ func NewManager(res resolver.Resolver, opts ExtensionOptions) ExtensionManager {
 }
 
 func (m *extensionManager) Register(alias string, spec *extension.ExtensionSpec) error {
+	if spec.Package == "" {
+		return fmt.Errorf("extension spec: package field is required")
+	}
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
 

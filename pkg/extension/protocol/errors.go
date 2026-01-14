@@ -1,5 +1,10 @@
 package protocol
 
+// NOTE: This package uses golang.org/x/exp/jsonrpc2, which is an experimental
+// module. This dependency is intentionally used for its JSON-RPC 2.0 implementation
+// including error types (CodeOperationFailed, CodeOperationTimeout, CodeRequirementNotMet).
+// The module version is pinned in go.mod. If migrating to a different implementation,
+// update all imports in protocol/, client/, and framer.go accordingly.
 import "golang.org/x/exp/jsonrpc2"
 
 // Extension-specific error codes (reserved range -32000 to -32099)
