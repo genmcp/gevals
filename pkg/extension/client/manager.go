@@ -45,6 +45,9 @@ func NewManager(res resolver.Resolver, opts ExtensionOptions) ExtensionManager {
 }
 
 func (m *extensionManager) Register(alias string, spec *extension.ExtensionSpec) error {
+	if spec == nil {
+		return fmt.Errorf("extension spec is required")
+	}
 	if spec.Package == "" {
 		return fmt.Errorf("extension spec: package field is required")
 	}

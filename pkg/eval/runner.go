@@ -164,7 +164,9 @@ func (r *evalRunner) RunWithProgress(ctx context.Context, taskPattern string, ca
 	defer manager.ShutdownAll(context.Background())
 
 	for alias, ext := range r.spec.Config.Extensions {
-		manager.Register(alias, ext)
+		if err := manager.Register(alias, ext); err != nil {
+			return nil, fmt.Errorf("registering extension %q (%s): %w", alias, ext.Package, err)
+		}
 	}
 
 	ctx = client.ManagerToContext(ctx, manager)

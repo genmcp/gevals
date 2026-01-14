@@ -64,11 +64,13 @@ func (c *client) Start(ctx context.Context, params *protocol.InitializeParams) e
 		Framer:  protocol.NewlineFramer(),
 	})
 	if err != nil {
+		_ = c.cmd.Process.Kill()
 		return fmt.Errorf("failed to connect to extension: %w", err)
 	}
 
 	c.manifest, err = c.initialize(ctx, params)
 	if err != nil {
+		_ = c.cmd.Process.Kill()
 		return fmt.Errorf("failed to initialize extension: %w", err)
 	}
 

@@ -17,7 +17,7 @@ type Resolver interface {
 
 // Source handles resolution for a specific scheme (e.g. github releases, local fs)
 type Source interface {
-	// Schema returns the URI scheme/prefix this source handles (e.g. "file", "github.com")
+	// Scheme returns the URI scheme/prefix this source handles (e.g. "file", "github.com")
 	Scheme() string
 
 	// Resolve resolves a reference (without scheme prefix) to a binary path
