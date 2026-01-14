@@ -2,6 +2,7 @@ package protocol
 
 import (
 	"fmt"
+	"sync"
 
 	"github.com/google/jsonschema-go/jsonschema"
 )
@@ -28,24 +29,24 @@ type InitializeResult struct {
 	Version         string               `json:"version"`
 	ProtocolVersion string               `json:"protocolVersion"`
 	Description     string               `json:"description,omitempty"`
-	Requires        []Requirement        `json:"requires,omitempty"`
 	Operations      map[string]Operation `json:"operations"`
-}
-
-// Requirement describes prerequisistes for an extension to be able to run
-type Requirement struct {
-	Command string `json:"command"`
 }
 
 type Operation struct {
 	Description string            `json:"description,omitempty"`
 	Params      jsonschema.Schema `json:"params"`
-	params      *jsonschema.Resolved
+
+	mu     sync.Mutex
+	params *jsonschema.Resolved
 }
 
-// GetParams returns the resolved params for the operation
-// Where validation is needed, prefer GetParams over directly accessing Params
+// GetParams returns the resolved params for the operation.
+// The result is cached after the first successful call.
+// This method is safe for concurrent use.
 func (o *Operation) GetParams() (*jsonschema.Resolved, error) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+
 	if o.params != nil {
 		return o.params, nil
 	}

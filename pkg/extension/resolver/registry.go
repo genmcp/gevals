@@ -6,25 +6,41 @@ import (
 	"strings"
 )
 
-// sources is a private package var holding all registered sources
-var sources = make(map[string]Source)
-
-func init() {
-	RegisterSourceOrDie(&GithubSource{})
-	RegisterSourceOrDie(&FileSource{})
+// Options configures the resolver behavior
+type Options struct {
+	// BasePath is the directory to use when resolving relative file paths
+	BasePath string
 }
 
-// RegisterSourceOrDie registers a source, or panics if a source for that scheme is already registered
-func RegisterSourceOrDie(s Source) {
+// sources is a private package var holding all registered sources
+var defaultSources = make(map[string]Source)
+
+func init() {
+	registerDefaultSource(&GithubSource{})
+}
+
+// registerDefaultSource registers a source to the default sources map
+func registerDefaultSource(s Source) {
 	scheme := s.Scheme()
-	if _, ok := sources[scheme]; ok {
+	if _, ok := defaultSources[scheme]; ok {
 		panic("only one resolver.Source can be registered for a given scheme, already had one registered for scheme " + scheme)
 	}
 
-	sources[scheme] = s
+	defaultSources[scheme] = s
 }
 
-func GetResolver() Resolver {
+// GetResolver creates a resolver with the given options
+func GetResolver(opts Options) Resolver {
+	sources := make(map[string]Source)
+
+	// Copy default sources
+	for k, v := range defaultSources {
+		sources[k] = v
+	}
+
+	// Add FileSource with the configured base path
+	sources[PackageTypeFile] = &FileSource{BasePath: opts.BasePath}
+
 	return &registry{
 		sources: sources,
 	}

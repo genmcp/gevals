@@ -20,6 +20,14 @@ type EvalSpec struct {
 	util.TypeMeta `json:",inline"`
 	Metadata      EvalMetadata `json:"metadata"`
 	Config        EvalConfig   `json:"config"`
+
+	// basePath is the directory containing the eval file, used for resolving relative paths
+	basePath string
+}
+
+// BasePath returns the directory containing the eval file
+func (s *EvalSpec) BasePath() string {
+	return s.basePath
 }
 
 type EvalMetadata struct {
@@ -133,6 +141,9 @@ func Read(data []byte, basePath string) (*EvalSpec, error) {
 	if err := spec.TypeMeta.Validate(KindEval); err != nil {
 		return nil, err
 	}
+
+	// Store the base path for later use (e.g., resolving extension paths)
+	spec.basePath = basePath
 
 	// Convert all relative file paths to absolute paths
 	if spec.Config.Agent != nil && spec.Config.Agent.Type == "file" {

@@ -18,7 +18,11 @@ var windowsExecutableExts = map[string]bool{
 	".cmd": true,
 }
 
-type FileSource struct{}
+type FileSource struct {
+	// BasePath is the directory to use when resolving relative paths.
+	// If empty, the current working directory is used.
+	BasePath string
+}
 
 var _ Source = &FileSource{}
 
@@ -38,12 +42,16 @@ func (s *FileSource) Resolve(ctx context.Context, ref string) (string, error) {
 	}
 
 	if !filepath.IsAbs(path) {
-		wd, err := os.Getwd()
-		if err != nil {
-			return "", fmt.Errorf("failed to get working directory: %w", err)
+		basePath := s.BasePath
+		if basePath == "" {
+			var err error
+			basePath, err = os.Getwd()
+			if err != nil {
+				return "", fmt.Errorf("failed to get working directory: %w", err)
+			}
 		}
 
-		path = filepath.Join(wd, path)
+		path = filepath.Join(basePath, path)
 	}
 
 	path = filepath.Clean(path)

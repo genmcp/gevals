@@ -158,7 +158,9 @@ func (r *evalRunner) RunWithProgress(ctx context.Context, taskPattern string, ca
 		return nil, fmt.Errorf("failed to create llm judge from spec: %w", err)
 	}
 
-	resolver := resolver.GetResolver()
+	resolver := resolver.GetResolver(resolver.Options{
+		BasePath: r.spec.BasePath(),
+	})
 
 	manager := client.NewManager(resolver, client.ExtensionOptions{})
 	defer manager.ShutdownAll(context.Background())
