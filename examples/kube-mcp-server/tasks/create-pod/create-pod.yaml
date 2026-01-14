@@ -1,13 +1,36 @@
 kind: Task
+apiVersion: gevals/v1alpha2
 metadata:
   name: "create-nginx-pod"
   difficulty: easy
-steps:
+spec:
+  requires:
+    - extension: kubernetes
   setup:
-    file: setup.sh
+    - kubernetes.delete:
+        apiVersion: v1
+        kind: Namespace
+        metadata:
+          name: create-pod-test
+    - kubernetes.create:
+        apiVersion: v1
+        kind: Namespace
+        metadata:
+          name: create-pod-test
   verify:
-    file: verify.sh
+    - kubernetes.wait:
+        apiVersion: v1
+        kind: Pod
+        metadata:
+          name: web-server
+          namespace: create-pod-test
+        condition: Ready
+        timeout: 120s
   cleanup:
-    file: cleanup.sh
+    - kubernetes.delete:
+        apiVersion: v1
+        kind: Namespace
+        metadata:
+          name: create-pod-test
   prompt:
     inline: Please create a nginx pod named web-server in the create-pod-test namespace
