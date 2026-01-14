@@ -967,12 +967,12 @@ func loadTaskPrompt(taskPath string) string {
 		return ""
 	}
 
-	spec, err := task.FromFile(taskPath)
-	if err != nil || spec == nil || spec.Steps.Prompt == nil || spec.Steps.Prompt.IsEmpty() {
+	taskConfig, err := task.FromFile(taskPath)
+	if err != nil || taskConfig == nil || taskConfig.Spec == nil || taskConfig.Spec.Prompt == nil || taskConfig.Spec.Prompt.IsEmpty() {
 		return ""
 	}
 
-	text, err := spec.Steps.Prompt.GetValue()
+	text, err := taskConfig.Spec.Prompt.GetValue()
 	if err != nil {
 		return ""
 	}

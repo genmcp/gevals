@@ -137,7 +137,7 @@ func (r *Runner) generateConfigs() error {
 
 	// Generate task YAML if task config is provided
 	if r.tc.task != nil {
-		r.taskFile, err = r.generator.GenerateTaskYAML(r.tc.task.Build())
+		r.taskFile, err = r.generator.GenerateTaskYAML(r.tc.task)
 		if err != nil {
 			return err
 		}

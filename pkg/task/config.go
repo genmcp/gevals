@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/genmcp/gevals/pkg/llmjudge"
+	"github.com/genmcp/gevals/pkg/steps"
 	"github.com/genmcp/gevals/pkg/util"
 	"sigs.k8s.io/yaml"
 )
@@ -17,9 +18,12 @@ const (
 	DifficultyHard   = "hard"
 )
 
-type TaskSpec struct {
-	Metadata TaskMetadata `json:"metadata"`
-	Steps    TaskSteps    `json:"steps"`
+type TaskConfig struct {
+	util.TypeMeta `json:",inline"`
+	Metadata      TaskMetadata `json:"metadata"`
+	Spec          *TaskSpec    `json:"spec"`
+
+	basePath string
 }
 
 type TaskMetadata struct {
@@ -27,7 +31,14 @@ type TaskMetadata struct {
 	Difficulty string `json:"difficulty"`
 }
 
-type TaskSteps struct {
+type TaskSpec struct {
+	Setup   []steps.StepConfig `json:"setup,omitempty"`
+	Cleanup []steps.StepConfig `json:"cleanup,omitempty"`
+	Verify  []steps.StepConfig `json:"verify,omitempty"`
+	Prompt  *util.Step         `json:"prompt,omitempty"`
+}
+
+type TaskStepsV1Alpha1 struct {
 	SetupScript   *util.Step  `json:"setup,omitempty"`
 	CleanupScript *util.Step  `json:"cleanup,omitempty"`
 	VerifyScript  *VerifyStep `json:"verify,omitempty"`
@@ -36,7 +47,7 @@ type TaskSteps struct {
 
 type VerifyStep struct {
 	*util.Step
-	*llmjudge.LLMJudgeTaskConfig
+	*llmjudge.LLMJudgeStepConfig
 }
 
 func (v *VerifyStep) IsEmpty() bool {
@@ -45,7 +56,7 @@ func (v *VerifyStep) IsEmpty() bool {
 	}
 
 	hasStep := v.Step != nil && !v.Step.IsEmpty()
-	hasJudgeConfig := v.LLMJudgeTaskConfig != nil
+	hasJudgeConfig := v.LLMJudgeStepConfig != nil
 
 	return !hasStep && !hasJudgeConfig
 }
@@ -56,7 +67,7 @@ func (v *VerifyStep) Validate() error {
 	}
 
 	hasStep := v.Step != nil && !v.Step.IsEmpty()
-	hasJudgeConfig := v.LLMJudgeTaskConfig != nil
+	hasJudgeConfig := v.LLMJudgeStepConfig != nil
 
 	// Must have exactly one verification method
 	if !hasStep && !hasJudgeConfig {
@@ -69,7 +80,7 @@ func (v *VerifyStep) Validate() error {
 
 	// Validate LLM judge config if present
 	if hasJudgeConfig {
-		if err := v.LLMJudgeTaskConfig.Validate(); err != nil {
+		if err := v.LLMJudgeStepConfig.Validate(); err != nil {
 			return fmt.Errorf("invalid llm judge config: %w", err)
 		}
 	}
@@ -77,32 +88,48 @@ func (v *VerifyStep) Validate() error {
 	return nil
 }
 
-func (t *TaskSpec) UnmarshalJSON(data []byte) error {
-	type Doppleganger TaskSpec
+func Read(data []byte, basePath string) (*TaskConfig, error) {
+	type Wrapper struct {
+		*TaskConfig `json:",inline"`
+		Steps       *TaskStepsV1Alpha1 `json:"steps,omitempty"`
+	}
 
-	tmp := (*Doppleganger)(t)
-	return util.UnmarshalWithKind(data, tmp, KindTask)
-}
+	spec := &TaskConfig{}
+	wrapper := &Wrapper{TaskConfig: spec}
 
-func Read(data []byte, basePath string) (*TaskSpec, error) {
-	spec := &TaskSpec{}
-
-	err := yaml.Unmarshal(data, spec)
+	err := yaml.Unmarshal(data, wrapper)
 	if err != nil {
 		return nil, err
 	}
 
-	// Convert all relative file paths to absolute paths
-	if err := resolveStepPath(spec.Steps.SetupScript, basePath); err != nil {
-		return nil, fmt.Errorf("failed to resolve setup script path: %w", err)
+	if err := wrapper.TypeMeta.Validate(KindTask); err != nil {
+		return nil, err
 	}
-	if err := resolveStepPath(spec.Steps.CleanupScript, basePath); err != nil {
-		return nil, fmt.Errorf("failed to resolve cleanup script path: %w", err)
+
+	spec.basePath = basePath
+
+	if wrapper.GetAPIVersion() == util.APIVersionV1Alpha1 {
+		if wrapper.Steps == nil {
+			return nil, fmt.Errorf("v1alpha1 requires steps field")
+		}
+
+		if err := resolveStepPath(wrapper.Steps.SetupScript, basePath); err != nil {
+			return nil, fmt.Errorf("failed to resolve setup script path: %w", err)
+		}
+		if err := resolveStepPath(wrapper.Steps.CleanupScript, basePath); err != nil {
+			return nil, fmt.Errorf("failed to resolve cleanup script path: %w", err)
+		}
+		if err := resolveStepPath(wrapper.Steps.VerifyScript.Step, basePath); err != nil {
+			return nil, fmt.Errorf("failed to resolve verify script path: %w", err)
+		}
+
+		spec.Spec, err = translateV1Alpha1ToSteps(wrapper.Steps)
+		if err != nil {
+			return nil, fmt.Errorf("failed to convert v1alpha1 format to v1alpha1: %w", err)
+		}
 	}
-	if err := resolveStepPath(spec.Steps.VerifyScript.Step, basePath); err != nil {
-		return nil, fmt.Errorf("failed to resolve verify script path: %w", err)
-	}
-	if err := resolveStepPath(spec.Steps.Prompt, basePath); err != nil {
+
+	if err := resolveStepPath(spec.Spec.Prompt, basePath); err != nil {
 		return nil, fmt.Errorf("failed to resolve prompt path: %w", err)
 	}
 
@@ -126,7 +153,7 @@ func resolveStepPath(step *util.Step, basePath string) error {
 	return nil
 }
 
-func FromFile(path string) (*TaskSpec, error) {
+func FromFile(path string) (*TaskConfig, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read file '%s' for taskspec: %w", path, err)

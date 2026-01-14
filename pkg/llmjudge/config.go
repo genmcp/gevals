@@ -20,7 +20,7 @@ type LLMJudgeEnvConfig struct {
 	ModelNameKey string `json:"modelNameKey"`
 }
 
-type LLMJudgeTaskConfig struct {
+type LLMJudgeStepConfig struct {
 	Contains string `json:"contains,omitempty"`
 	Exact    string `json:"exact,omitempty"`
 }
@@ -37,7 +37,7 @@ func (cfg *LLMJudgeEvalConfig) ModelName() string {
 	return os.Getenv(cfg.Env.ModelNameKey)
 }
 
-func (cfg *LLMJudgeTaskConfig) EvaluationMode() string {
+func (cfg *LLMJudgeStepConfig) EvaluationMode() string {
 	if cfg.Exact != "" {
 		return EvaluationModeExact
 	}
@@ -45,7 +45,7 @@ func (cfg *LLMJudgeTaskConfig) EvaluationMode() string {
 	return EvaluationModeContains
 }
 
-func (cfg *LLMJudgeTaskConfig) ReferenceAnswer() string {
+func (cfg *LLMJudgeStepConfig) ReferenceAnswer() string {
 	if cfg.Exact != "" {
 		return cfg.Exact
 	}
@@ -53,7 +53,7 @@ func (cfg *LLMJudgeTaskConfig) ReferenceAnswer() string {
 	return cfg.Contains
 }
 
-func (cfg *LLMJudgeTaskConfig) Validate() error {
+func (cfg *LLMJudgeStepConfig) Validate() error {
 	if cfg.Exact == "" && cfg.Contains == "" {
 		return fmt.Errorf("one of contains or exact must be specified")
 	}

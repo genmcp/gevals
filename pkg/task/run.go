@@ -2,128 +2,202 @@ package task
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/genmcp/gevals/pkg/agent"
-	"github.com/genmcp/gevals/pkg/llmjudge"
-	"github.com/genmcp/gevals/pkg/util"
+	"github.com/genmcp/gevals/pkg/steps"
 )
 
+// PhaseOutput represents the output from a task phase (setup, agent, verify, or cleanup).
+// It contains both the individual step outputs and the overall phase result.
+type PhaseOutput struct {
+	// Steps contains the ordered outputs from each step executed in this phase.
+	// For the agent phase, this will contain a single synthetic step output.
+	Steps []*steps.StepOutput
+
+	// Success indicates whether the phase completed successfully.
+	Success bool
+
+	// Error contains the error message if the phase failed.
+	Error string
+}
+
 type TaskRunner interface {
-	Setup(ctx context.Context) (string, error)
-	Cleanup(ctx context.Context) (string, error)
-	RunAgent(ctx context.Context, agent agent.Runner) (string, error)
-	Verify(ctx context.Context) (string, error)
-	GetJudgeResult() (*llmjudge.LLMJudgeResult, error)
+	Setup(ctx context.Context) (*PhaseOutput, error)
+	Cleanup(ctx context.Context) (*PhaseOutput, error)
+	RunAgent(ctx context.Context, agent agent.Runner) (*PhaseOutput, error)
+	Verify(ctx context.Context) (*PhaseOutput, error)
 }
 
 type taskRunner struct {
-	steps        TaskSteps
-	judge        llmjudge.LLMJudge
-	judgeCfg     *llmjudge.LLMJudgeTaskConfig
-	prompt       string
-	output       string
-	judgeResult  *llmjudge.LLMJudgeResult
-	judgeError   error
+	setup   []steps.StepRunner
+	verify  []steps.StepRunner
+	cleanup []steps.StepRunner
+	prompt  string
+	output  string
+	baseDir string
 }
 
-func NewTaskRunner(cfg *TaskSpec, judge llmjudge.LLMJudge) (TaskRunner, error) {
-	if cfg.Steps.Prompt.IsEmpty() {
+func NewTaskRunner(cfg *TaskConfig) (TaskRunner, error) {
+	if cfg.Spec.Prompt.IsEmpty() {
 		return nil, fmt.Errorf("prompt.inline or prompt.file must be set on a task to run it")
 	}
 
-	// Validate the verify step
-	if err := cfg.Steps.VerifyScript.Validate(); err != nil {
-		return nil, err
+	var err error
+	r := &taskRunner{
+		setup:   make([]steps.StepRunner, len(cfg.Spec.Setup)),
+		verify:  make([]steps.StepRunner, len(cfg.Spec.Verify)),
+		cleanup: make([]steps.StepRunner, len(cfg.Spec.Cleanup)),
+		baseDir: cfg.basePath,
 	}
 
-	// If judge is nil and there is a llm judge task config, report an error
-	if cfg.Steps.VerifyScript.LLMJudgeTaskConfig != nil && judge == nil {
-		return nil, fmt.Errorf("verify.exact and verify.contains require that the eval contains an llm judge config")
+	for i, stepCfg := range cfg.Spec.Setup {
+		var stepErr error
+		r.setup[i], stepErr = steps.DefaultRegistry.Parse(stepCfg)
+		if stepErr != nil {
+			err = errors.Join(err, fmt.Errorf("failed to parse setup[%d]: %w", i, stepErr))
+		}
 	}
 
-	return &taskRunner{
-		steps:    cfg.Steps,
-		judge:    judge,
-		judgeCfg: cfg.Steps.VerifyScript.LLMJudgeTaskConfig,
-	}, nil
-}
-
-func (r *taskRunner) Setup(ctx context.Context) (string, error) {
-	if r.steps.SetupScript.IsEmpty() {
-		return "no setup", nil
+	for i, stepCfg := range cfg.Spec.Verify {
+		var stepErr error
+		r.verify[i], stepErr = steps.DefaultRegistry.Parse(stepCfg)
+		if stepErr != nil {
+			err = errors.Join(err, fmt.Errorf("failed to parse verify[%d]: %w", i, stepErr))
+		}
 	}
 
-	return r.steps.SetupScript.Run(ctx)
-}
-
-func (r *taskRunner) Cleanup(ctx context.Context) (string, error) {
-	if r.steps.CleanupScript.IsEmpty() {
-		return "no cleanup", nil
+	for i, stepCfg := range cfg.Spec.Cleanup {
+		var stepErr error
+		r.cleanup[i], stepErr = steps.DefaultRegistry.Parse(stepCfg)
+		if stepErr != nil {
+			err = errors.Join(err, fmt.Errorf("failed to parse cleanup[%d]: %w", i, stepErr))
+		}
 	}
 
-	return r.steps.CleanupScript.Run(ctx)
-}
-
-func (r *taskRunner) RunAgent(ctx context.Context, agent agent.Runner) (string, error) {
-	prompt, err := r.steps.Prompt.GetValue()
 	if err != nil {
-		return "", fmt.Errorf("failed to get prompt: %w", err)
+		return nil, fmt.Errorf("failed to parse task steps: %w", err)
 	}
 
-	r.prompt = prompt
-
-	result, err := agent.RunTask(ctx, prompt)
+	r.prompt, err = cfg.Spec.Prompt.GetValue()
 	if err != nil {
-		return "", fmt.Errorf("failed to run agent: %w", err)
+		return nil, fmt.Errorf("failed to get prompt for task: %w", err)
+	}
+
+	return r, nil
+}
+
+func (r *taskRunner) Setup(ctx context.Context) (*PhaseOutput, error) {
+	out := &PhaseOutput{
+		Steps:   make([]*steps.StepOutput, 0),
+		Success: true,
+	}
+
+	for i, s := range r.setup {
+		res, err := s.Execute(ctx, &steps.StepInput{
+			Workdir: r.baseDir,
+		})
+
+		out.Steps = append(out.Steps, res)
+		if err != nil {
+			out.Success = false
+			out.Error = err.Error()
+			return out, fmt.Errorf("setup[%d] failed: %w", i, err)
+		}
+		if res != nil && !res.Success {
+			out.Success = false
+		}
+	}
+
+	return out, nil
+}
+
+func (r *taskRunner) Cleanup(ctx context.Context) (*PhaseOutput, error) {
+	out := &PhaseOutput{
+		Steps:   make([]*steps.StepOutput, 0),
+		Success: true,
+	}
+
+	for i, s := range r.cleanup {
+		res, err := s.Execute(ctx, &steps.StepInput{
+			Workdir: r.baseDir,
+		})
+
+		out.Steps = append(out.Steps, res)
+		if err != nil {
+			out.Success = false
+			out.Error = err.Error()
+			return out, fmt.Errorf("cleanup[%d] failed: %w", i, err)
+		}
+		if res != nil && !res.Success {
+			out.Success = false
+		}
+	}
+
+	return out, nil
+}
+
+func (r *taskRunner) RunAgent(ctx context.Context, agent agent.Runner) (*PhaseOutput, error) {
+	result, err := agent.RunTask(ctx, r.prompt)
+	if err != nil {
+		detailErr := fmt.Errorf("failed to run agent: %w", err)
+		return &PhaseOutput{
+			Success: false,
+			Error:   detailErr.Error(),
+			Steps: []*steps.StepOutput{{
+				Type:    "agent",
+				Success: false,
+				Error:   detailErr.Error(),
+				Outputs: map[string]string{
+					"output": err.Error(),
+				},
+			}},
+		}, detailErr
 	}
 
 	output := result.GetOutput()
 
 	r.output = output
 
-	return output, nil
+	return &PhaseOutput{
+		Success: true,
+		Steps: []*steps.StepOutput{{
+			Type:    "agent",
+			Success: true,
+			Message: output,
+			Outputs: map[string]string{
+				"output": output,
+			},
+		}},
+	}, nil
 }
 
-func (r *taskRunner) Verify(ctx context.Context) (string, error) {
-	// no need to verify that Verify is set - this is validated in NewTaskRunner
-	if r.steps.VerifyScript.Step != nil && !r.steps.VerifyScript.Step.IsEmpty() {
-		// Script-based verification
-		return r.steps.VerifyScript.Step.Run(ctx)
+func (r *taskRunner) Verify(ctx context.Context) (*PhaseOutput, error) {
+	out := &PhaseOutput{
+		Steps:   make([]*steps.StepOutput, 0),
+		Success: true,
 	}
 
-	// Using LLM judge - validate that state exists
-	if r.prompt == "" || r.output == "" {
-		return "", fmt.Errorf("cannot run LLM judge verification: RunAgent() must be called before Verify()")
+	for i, s := range r.verify {
+		res, err := s.Execute(ctx, &steps.StepInput{
+			Agent: &steps.AgentContext{
+				Prompt: r.prompt,
+				Output: r.output,
+			},
+			Workdir: r.baseDir,
+		})
+
+		out.Steps = append(out.Steps, res)
+		if err != nil {
+			out.Success = false
+			out.Error = err.Error()
+			return out, fmt.Errorf("verify[%d] failed: %w", i, err)
+		}
+		if res != nil && !res.Success {
+			out.Success = false
+		}
 	}
 
-	if util.IsVerbose(ctx) {
-		fmt.Printf("  → LLM judge '%s' is evaluating…\n", r.judge.ModelName())
-	}
-
-	out, err := r.judge.EvaluateText(ctx, r.judgeCfg, r.prompt, r.output)
-	if err != nil {
-		// Store error from judge API call
-		r.judgeError = err
-		return "", err
-	}
-
-	// Store judge result (both success and failure cases)
-	r.judgeResult = out
-
-	if !out.Passed {
-		return "", fmt.Errorf("evaluation failed for reason '%s' because '%s'", out.FailureCategory, out.Reason)
-	}
-
-	if util.IsVerbose(ctx) {
-		fmt.Printf("  → LLM judge reason: %+v\n", out.Reason)
-	}
-
-	return "", nil
-}
-
-func (r *taskRunner) GetJudgeResult() (*llmjudge.LLMJudgeResult, error) {
-	// Return stored judge result and error
-	// Returns (nil, nil) when no judge was used (script-based verification)
-	return r.judgeResult, r.judgeError
+	return out, nil
 }
