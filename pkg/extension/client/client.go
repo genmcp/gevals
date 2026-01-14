@@ -99,6 +99,7 @@ func (c *client) Execute(ctx context.Context, params *protocol.ExecuteParams) (*
 
 func (c *client) Shutdown(ctx context.Context) error {
 	if err := c.call(ctx, protocol.MethodShutdown, struct{}{}, nil); err != nil {
+		c.closeConn()
 		err = errors.Join(err, c.cmd.Process.Kill())
 		return err
 	}
@@ -110,9 +111,22 @@ func (c *client) Shutdown(ctx context.Context) error {
 
 	select {
 	case err := <-waitDone:
+		c.closeConn()
 		return err
 	case <-ctx.Done():
+		c.closeConn()
 		return c.cmd.Process.Kill()
+	}
+}
+
+// closeConn safely closes the JSON-RPC connection if it exists.
+// Errors from Close are intentionally ignored to avoid masking primary errors.
+func (c *client) closeConn() {
+	c.mux.Lock()
+	defer c.mux.Unlock()
+	if c.conn != nil {
+		_ = c.conn.Close()
+		c.conn = nil
 	}
 }
 
