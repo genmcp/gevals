@@ -12,7 +12,8 @@ const (
 
 var (
 	DefaultRegistry = &Registry{
-		parsers: make(map[string]Parser),
+		parsers:       make(map[string]Parser),
+		prefixParsers: make(map[string]PrefixParser),
 	}
 )
 

@@ -8,6 +8,8 @@ import (
 	"regexp"
 
 	"github.com/genmcp/gevals/pkg/agent"
+	"github.com/genmcp/gevals/pkg/extension/client"
+	"github.com/genmcp/gevals/pkg/extension/resolver"
 	"github.com/genmcp/gevals/pkg/llmjudge"
 	"github.com/genmcp/gevals/pkg/mcpproxy"
 	"github.com/genmcp/gevals/pkg/task"
@@ -156,6 +158,21 @@ func (r *evalRunner) RunWithProgress(ctx context.Context, taskPattern string, ca
 		return nil, fmt.Errorf("failed to create llm judge from spec: %w", err)
 	}
 
+	resolver := resolver.GetResolver(resolver.Options{
+		BasePath: r.spec.BasePath(),
+	})
+
+	manager := client.NewManager(resolver, client.ExtensionOptions{})
+	defer manager.ShutdownAll(ctx)
+
+	for alias, ext := range r.spec.Config.Extensions {
+		if err := manager.Register(alias, ext); err != nil {
+			return nil, fmt.Errorf("registering extension %q (%s): %w", alias, ext.Package, err)
+		}
+	}
+
+	ctx = client.ManagerToContext(ctx, manager)
+
 	ctx = llmjudge.WithJudge(ctx, judge)
 
 	taskConfigs, err := r.collectTaskConfigs(taskMatcher)
@@ -283,7 +300,7 @@ func (r *evalRunner) setupTaskResources(
 	mcpConfig *mcpproxy.MCPConfig,
 	result *EvalResult,
 ) (task.TaskRunner, mcpproxy.ServerManager, func(), error) {
-	taskRunner, err := task.NewTaskRunner(tc.spec)
+	taskRunner, err := task.NewTaskRunner(ctx, tc.spec)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to create task runner for task '%s': %w", tc.spec.Metadata.Name, err)
 	}

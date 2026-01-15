@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/genmcp/gevals/pkg/agent"
+	"github.com/genmcp/gevals/pkg/extension/client"
 	"github.com/genmcp/gevals/pkg/steps"
 )
 
@@ -39,7 +40,7 @@ type taskRunner struct {
 	baseDir string
 }
 
-func NewTaskRunner(cfg *TaskConfig) (TaskRunner, error) {
+func NewTaskRunner(ctx context.Context, cfg *TaskConfig) (TaskRunner, error) {
 	if cfg.Spec.Prompt.IsEmpty() {
 		return nil, fmt.Errorf("prompt.inline or prompt.file must be set on a task to run it")
 	}
@@ -52,9 +53,26 @@ func NewTaskRunner(cfg *TaskConfig) (TaskRunner, error) {
 		baseDir: cfg.basePath,
 	}
 
+	extensionManager, ok := client.ManagerFromContext(ctx)
+	if !ok {
+		return nil, fmt.Errorf("failed to get extension manager from context")
+	}
+
+	extensions := make([]string, 0, len(cfg.Spec.Requires))
+	for _, req := range cfg.Spec.Requires {
+		if req.Extension != nil {
+			if !extensionManager.Has(*req.Extension) {
+				return nil, fmt.Errorf("required extension %q not registered", *req.Extension)
+			}
+			extensions = append(extensions, *req.Extension)
+		}
+	}
+
+	parser := steps.DefaultRegistry.WithExtensions(ctx, extensions)
+
 	for i, stepCfg := range cfg.Spec.Setup {
 		var stepErr error
-		r.setup[i], stepErr = steps.DefaultRegistry.Parse(stepCfg)
+		r.setup[i], stepErr = parser.Parse(stepCfg)
 		if stepErr != nil {
 			err = errors.Join(err, fmt.Errorf("failed to parse setup[%d]: %w", i, stepErr))
 		}
@@ -62,7 +80,7 @@ func NewTaskRunner(cfg *TaskConfig) (TaskRunner, error) {
 
 	for i, stepCfg := range cfg.Spec.Verify {
 		var stepErr error
-		r.verify[i], stepErr = steps.DefaultRegistry.Parse(stepCfg)
+		r.verify[i], stepErr = parser.Parse(stepCfg)
 		if stepErr != nil {
 			err = errors.Join(err, fmt.Errorf("failed to parse verify[%d]: %w", i, stepErr))
 		}
@@ -70,7 +88,7 @@ func NewTaskRunner(cfg *TaskConfig) (TaskRunner, error) {
 
 	for i, stepCfg := range cfg.Spec.Cleanup {
 		var stepErr error
-		r.cleanup[i], stepErr = steps.DefaultRegistry.Parse(stepCfg)
+		r.cleanup[i], stepErr = parser.Parse(stepCfg)
 		if stepErr != nil {
 			err = errors.Join(err, fmt.Errorf("failed to parse cleanup[%d]: %w", i, stepErr))
 		}
