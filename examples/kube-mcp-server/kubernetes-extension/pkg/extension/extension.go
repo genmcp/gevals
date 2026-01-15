@@ -10,6 +10,8 @@ import (
 
 	"github.com/genmcp/gevals/pkg/extension/sdk"
 	"github.com/google/jsonschema-go/jsonschema"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -167,6 +169,10 @@ func (e *Extension) registerOperations() {
 						Type:        "object",
 						Description: "Resource metadata (name, namespace)",
 					},
+					"ignoreNotFound": {
+						Type:        "boolean",
+						Description: "If true, do not fail when the resource does not exist",
+					},
 				},
 				Required: []string{"apiVersion", "kind", "metadata"},
 			}),
@@ -261,11 +267,8 @@ func (r *resourceRef) gvr() (schema.GroupVersionResource, error) {
 	if err != nil {
 		return schema.GroupVersionResource{}, fmt.Errorf("invalid apiVersion: %w", err)
 	}
-	return schema.GroupVersionResource{
-		Group:    gv.Group,
-		Version:  gv.Version,
-		Resource: kindToResource(r.kind),
-	}, nil
+	gvk := gv.WithKind(r.kind)
+	return gvkToGVR(gvk), nil
 }
 
 func (e *Extension) handleWait(ctx context.Context, req *sdk.OperationRequest) (*sdk.OperationResult, error) {
@@ -373,6 +376,8 @@ func (e *Extension) handleDelete(ctx context.Context, req *sdk.OperationRequest)
 		return sdk.Failure(err), nil
 	}
 
+	ignoreNotFound, _ := args["ignoreNotFound"].(bool)
+
 	gvr, err := ref.gvr()
 	if err != nil {
 		return sdk.Failure(err), nil
@@ -390,37 +395,21 @@ func (e *Extension) handleDelete(ctx context.Context, req *sdk.OperationRequest)
 	}
 
 	if err != nil {
+		if ignoreNotFound && apierrors.IsNotFound(err) {
+			return sdk.Success(fmt.Sprintf("%s/%s not found (ignored)", ref.kind, ref.name)), nil
+		}
 		return sdk.Failure(fmt.Errorf("failed to delete resource: %w", err)), nil
 	}
 
 	return sdk.Success(fmt.Sprintf("Deleted %s/%s", ref.kind, ref.name)), nil
 }
 
-// gvkToGVR converts a GroupVersionKind to GroupVersionResource
+// gvkToGVR converts a GroupVersionKind to GroupVersionResource using Kubernetes
+// built-in pluralization logic which correctly handles compound CamelCase kinds
+// and common irregular plurals (e.g., Ingress → ingresses, NetworkPolicy → networkpolicies)
 func gvkToGVR(gvk schema.GroupVersionKind) schema.GroupVersionResource {
-	return schema.GroupVersionResource{
-		Group:    gvk.Group,
-		Version:  gvk.Version,
-		Resource: kindToResource(gvk.Kind),
-	}
-}
-
-// kindToResource converts a Kind to its plural resource name
-func kindToResource(kind string) string {
-	lower := kind
-	if len(lower) > 0 {
-		lower = string(lower[0]|32) + lower[1:]
-	}
-
-	// Handle common irregular plurals
-	switch lower {
-	case "ingress":
-		return "ingresses"
-	case "networkPolicy":
-		return "networkpolicies"
-	default:
-		return lower + "s"
-	}
+	gvr, _ := meta.UnsafeGuessKindToResource(gvk)
+	return gvr
 }
 
 // Run starts the extension, listening for JSON-RPC messages on stdin/stdout

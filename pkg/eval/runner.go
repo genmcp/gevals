@@ -163,7 +163,7 @@ func (r *evalRunner) RunWithProgress(ctx context.Context, taskPattern string, ca
 	})
 
 	manager := client.NewManager(resolver, client.ExtensionOptions{})
-	defer manager.ShutdownAll(context.Background())
+	defer manager.ShutdownAll(ctx)
 
 	for alias, ext := range r.spec.Config.Extensions {
 		if err := manager.Register(alias, ext); err != nil {

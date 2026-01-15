@@ -49,17 +49,25 @@ func SuccessWithOutputs(message string, outputs map[string]string) *protocol.Exe
 
 // Failure creates a failed operation result from an error.
 func Failure(err error) *protocol.ExecuteResult {
+	errStr := ""
+	if err != nil {
+		errStr = err.Error()
+	}
 	return &protocol.ExecuteResult{
 		Success: false,
-		Error:   err.Error(),
+		Error:   errStr,
 	}
 }
 
 // FailureWithMessage creates a failed operation result with a message and error.
 func FailureWithMessage(message string, err error) *protocol.ExecuteResult {
+	errStr := ""
+	if err != nil {
+		errStr = err.Error()
+	}
 	return &protocol.ExecuteResult{
 		Success: false,
 		Message: message,
-		Error:   err.Error(),
+		Error:   errStr,
 	}
 }

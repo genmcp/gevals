@@ -12,6 +12,7 @@ spec:
         kind: Namespace
         metadata:
           name: create-pod-test
+        ignoreNotFound: true
     - kubernetes.create:
         apiVersion: v1
         kind: Namespace
@@ -32,5 +33,6 @@ spec:
         kind: Namespace
         metadata:
           name: create-pod-test
+        ignoreNotFound: true
   prompt:
     inline: Please create a nginx pod named web-server in the create-pod-test namespace
