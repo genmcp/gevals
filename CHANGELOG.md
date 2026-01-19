@@ -12,7 +12,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 ### Fixed
-- Fixed release changelog extraction logic
+
+## [0.0.2]
+
+### Added
+- Extension support with Go extension SDK (#79)
+- Gemini agent support (#69)
+- Builtin steps for task execution (#56)
+- View command for eval results (#36)
+- Functional test framework (#71)
+- Dependabot for automated dependency updates (#64)
+
+### Changed
+- Updated modelcontextprotocol/go-sdk to v1.2.0 (#75)
+- Updated Go version to 1.25.x in GitHub Action (#80)
+- Bumped actions/checkout from v5 to v6 (#66, #74)
+- Bumped actions/upload-artifact from v5 to v6 (#68)
+
+### Fixed
+- Action correctly picks up pinned version when set (#81)
+- Race conditions in mcpproxy (#70)
 
 ## [0.0.1]
 
