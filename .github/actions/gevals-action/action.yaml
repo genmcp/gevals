@@ -179,7 +179,22 @@ runs:
         GEVALS_BIN="$INSTALL_DIR/gevals$BIN_EXT"
         AGENT_BIN="$INSTALL_DIR/agent$BIN_EXT"
 
-        if [ "${{ inputs.gevals-version }}" = "latest" ] || [ "${{ inputs.gevals-version }}" = "main" ]; then
+        # Determine effective version to use
+        REQUESTED_VERSION="${{ inputs.gevals-version }}"
+        ACTION_REF="${{ github.action_ref }}"
+
+        # If version is 'latest' and the action was called with a version tag ref,
+        # use the action ref as the version (enables automatic version matching)
+        if [ "$REQUESTED_VERSION" = "latest" ] && [[ "$ACTION_REF" =~ ^v[0-9] ]]; then
+          echo "Detected action ref '$ACTION_REF' - using as gevals version"
+          EFFECTIVE_VERSION="$ACTION_REF"
+        else
+          EFFECTIVE_VERSION="$REQUESTED_VERSION"
+        fi
+
+        echo "Effective gevals version: $EFFECTIVE_VERSION"
+
+        if [ "$EFFECTIVE_VERSION" = "latest" ] || [ "$EFFECTIVE_VERSION" = "main" ]; then
           echo "Building gevals from source for $GOOS/$GOARCH..."
 
           # Clone gevals repository
@@ -198,63 +213,40 @@ runs:
           cd -
           rm -rf "$GEVALS_SRC"
         else
-          echo "Downloading pre-built gevals ${{ inputs.gevals-version }} for $BINARY_SUFFIX..."
+          echo "Downloading pre-built gevals $EFFECTIVE_VERSION for $BINARY_SUFFIX..."
 
           # Download from GitHub releases
-          RELEASE_URL="https://github.com/genmcp/gevals/releases/download/${{ inputs.gevals-version }}"
+          RELEASE_URL="https://github.com/genmcp/gevals/releases/download/$EFFECTIVE_VERSION"
           DOWNLOAD_DIR="${{ runner.temp }}/gevals-download"
           mkdir -p "$DOWNLOAD_DIR"
 
-          # Attempt to download pre-built gevals zip
+          # Download pre-built gevals zip
           if ! curl -fsSL "$RELEASE_URL/gevals-$BINARY_SUFFIX.zip" -o "$DOWNLOAD_DIR/gevals.zip" 2>&1; then
-            echo "⚠ Failed to download pre-built gevals release for $BINARY_SUFFIX"
-            echo "Attempting to build from source using version '${{ inputs.gevals-version }}'..."
-
-            # Fallback: clone repository and build from source
-            GEVALS_SRC="${{ runner.temp }}/gevals-src"
-            if ! git clone --depth 1 --branch "${{ inputs.gevals-version }}" https://github.com/genmcp/gevals.git "$GEVALS_SRC" 2>&1; then
-              echo "❌ Failed to clone gevals branch '${{ inputs.gevals-version }}'"
-              echo "   Check that the version is a valid tag or branch (e.g., v0.1.0, main, latest)"
-              exit 1
-            fi
-
-            # Build binaries from source
-            cd "$GEVALS_SRC"
-            echo "Building gevals binaries for $GOOS/$GOARCH..."
-            make build GOOS=$GOOS GOARCH=$GOARCH
-
-            # Copy built binaries to install directory
-            mv gevals$BIN_EXT "$GEVALS_BIN"
-            mv agent$BIN_EXT "$AGENT_BIN"
-
-            # Cleanup source directory
-            cd -
-            rm -rf "$GEVALS_SRC"
-
-            # Make binaries executable
-            chmod +x "$GEVALS_BIN" "$AGENT_BIN"
-          else
-            # Download succeeded - now download agent zip
-            if ! curl -fsSL "$RELEASE_URL/agent-$BINARY_SUFFIX.zip" -o "$DOWNLOAD_DIR/agent.zip" 2>&1; then
-              echo "❌ Failed to download agent binary for $BINARY_SUFFIX"
-              exit 1
-            fi
-
-            # Extract zips
-            echo "Extracting gevals..."
-            unzip -q "$DOWNLOAD_DIR/gevals.zip" -d "$DOWNLOAD_DIR"
-            mv "$DOWNLOAD_DIR/gevals-$BINARY_SUFFIX$BIN_EXT" "$GEVALS_BIN"
-
-            echo "Extracting agent..."
-            unzip -q "$DOWNLOAD_DIR/agent.zip" -d "$DOWNLOAD_DIR"
-            mv "$DOWNLOAD_DIR/agent-$BINARY_SUFFIX$BIN_EXT" "$AGENT_BIN"
-
-            # Make binaries executable (not needed on Windows, but harmless)
-            chmod +x "$GEVALS_BIN" "$AGENT_BIN"
-
-            # Cleanup download directory
-            rm -rf "$DOWNLOAD_DIR"
+            echo "❌ Failed to download pre-built gevals release for $BINARY_SUFFIX"
+            echo "   Check that version '$EFFECTIVE_VERSION' exists and has release artifacts"
+            exit 1
           fi
+
+          # Download agent zip
+          if ! curl -fsSL "$RELEASE_URL/agent-$BINARY_SUFFIX.zip" -o "$DOWNLOAD_DIR/agent.zip" 2>&1; then
+            echo "❌ Failed to download agent binary for $BINARY_SUFFIX"
+            exit 1
+          fi
+
+          # Extract zips
+          echo "Extracting gevals..."
+          unzip -q "$DOWNLOAD_DIR/gevals.zip" -d "$DOWNLOAD_DIR"
+          mv "$DOWNLOAD_DIR/gevals-$BINARY_SUFFIX$BIN_EXT" "$GEVALS_BIN"
+
+          echo "Extracting agent..."
+          unzip -q "$DOWNLOAD_DIR/agent.zip" -d "$DOWNLOAD_DIR"
+          mv "$DOWNLOAD_DIR/agent-$BINARY_SUFFIX$BIN_EXT" "$AGENT_BIN"
+
+          # Make binaries executable (not needed on Windows, but harmless)
+          chmod +x "$GEVALS_BIN" "$AGENT_BIN"
+
+          # Cleanup download directory
+          rm -rf "$DOWNLOAD_DIR"
         fi
 
         # Verify binaries exist
@@ -268,9 +260,10 @@ runs:
           exit 1
         fi
 
-        # Output paths
+        # Output paths and version
         echo "gevals-path=$GEVALS_BIN" >> $GITHUB_OUTPUT
         echo "agent-path=$AGENT_BIN" >> $GITHUB_OUTPUT
+        echo "effective-version=$EFFECTIVE_VERSION" >> $GITHUB_OUTPUT
 
         # Add to PATH for subsequent steps
         echo "$INSTALL_DIR" >> $GITHUB_PATH
@@ -286,7 +279,7 @@ runs:
         echo "✓ gevals installed successfully"
         echo ""
         echo "Platform: ${{ steps.platform.outputs.goos }}/${{ steps.platform.outputs.goarch }}"
-        echo "Version: ${{ inputs.gevals-version }}"
+        echo "Version: ${{ steps.install.outputs.effective-version }}"
 
     - name: Run evaluation
       id: run-eval
