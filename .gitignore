@@ -42,4 +42,4 @@ dist/
 *.bundle
 
 mock-agent
-e2e/mock-agent
+functional/mock-agent
