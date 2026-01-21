@@ -90,9 +90,6 @@ Sent once after spawn. Returns extension manifest.
     "version": "1.2.0",
     "protocolVersion": "0.0.1",
     "description": "Kubernetes resource operations",
-    "requires": [
-      {"command": "kubectl"}
-    ],
     "operations": {
       "apply": {
         "description": "Apply a Kubernetes manifest",
@@ -152,14 +149,7 @@ Sent once after spawn. Returns extension manifest.
 | `version` | string | Yes | Semantic version |
 | `protocolVersion` | string | Yes | Protocol version supported |
 | `description` | string | No | Human-readable description |
-| `requires` | array | No | System requirements |
 | `operations` | object | Yes | Map of operation name to operation definition |
-
-##### Requirement Object
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `command` | string | Binary that must be in PATH |
 
 ##### Operation Object
 
@@ -284,7 +274,7 @@ Present only when `phase` is `"verify"`:
 | `error` | string | No | Error details (when `success` is false) |
 | `outputs` | map[string]string | No | String key-value outputs for use in subsequent steps |
 
-**Note**: Operation failures (e.g., pod not ready) use `result` with `success: false`. Protocol errors (e.g., unknown operation) use JSON-RPC `error` response.
+**Note**: Operation failures (e.g., pod not ready, unknown operation) use `result` with `success: false`. Protocol errors (e.g., unknown method, invalid params) use JSON-RPC `error` response.
 
 ---
 
@@ -380,9 +370,7 @@ Use JSON-RPC error format for protocol-level failures:
 
 | Code | Name | Description |
 |------|------|-------------|
-| -32700 | Parse error | Invalid JSON |
-| -32600 | Invalid request | Missing required fields |
-| -32601 | Method not found | Unknown method or operation |
+| -32601 | Method not found | Unknown method |
 | -32602 | Invalid params | Argument validation failed |
 | -32603 | Internal error | Unexpected extension error |
 
@@ -394,33 +382,32 @@ Reserved range: -32000 to -32099
 |------|------|-------------|
 | -32000 | Operation failed | Generic operation failure |
 | -32001 | Timeout | Operation exceeded timeout |
-| -32002 | Requirement not met | Required command not found |
 
 ### Error Categories
 
 | Scenario | Response Type | Example |
 |----------|---------------|---------|
 | Operation logic failure | `result` with `success: false` | Pod not ready after timeout |
-| Unknown operation | `error` with code -32601 | `"appply"` instead of `"apply"` |
+| Unknown operation | `result` with `success: false` | `"appply"` instead of `"apply"` |
+| Unknown method | `error` with code -32601 | `"exec"` instead of `"execute"` |
 | Missing required arg | `error` with code -32602 | `file` arg not provided |
 | Extension crash | Process exits non-zero | Panic, segfault |
-| Invalid JSON input | `error` with code -32700 | Malformed JSON |
 
 ---
 
 ## One-Shot Mode
 
-For testing and simple usage, extensions support one-shot mode where a single execute request is sent without initialize/shutdown:
+For testing and simple usage, extensions built with the SDK support one-shot mode. Use the `--config` flag to provide initialization configuration, then pipe a single request:
 
 ```bash
-echo '{"jsonrpc":"2.0","id":1,"method":"execute","params":{"operation":"apply","args":{"file":"x.yaml"},"context":{"workdir":"/tmp","phase":"setup"}}}' | ext-kubernetes
+echo '{"jsonrpc":"2.0","id":1,"method":"execute","params":{"operation":"apply","args":{"file":"x.yaml"},"context":{"workdir":"/tmp","phase":"setup"}}}' | ext-kubernetes --config '{"kubeconfig":"/path/to/config"}'
 ```
 
 Extension behavior:
-1. Detect stdin closes after one message
-2. Process the execute request
+1. Parse `--config` flag and run initialization handler
+2. Process the execute request from stdin
 3. Write result to stdout
-4. Exit
+4. Detect EOF on stdin and exit cleanly
 
 This allows easy testing with shell pipes.
 
