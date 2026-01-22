@@ -64,7 +64,12 @@ type AgentCommands struct {
 	// the prompt will be in {{ .Prompt }}
 	// the servers will be in {{ .McpServerFileArgs }}
 	// the allowed tools will be in {{ .AllowedToolArgs }}
+	// {{ .DangerouslySkipPermissions }} will be true if the flag should be included
 	RunPrompt string `json:"runPrompt"`
+
+	// Whether to skip permission prompts (unsafe, use only for automated testing)
+	// Defaults to false. When true, agents may include flags like --dangerously-skip-permissions
+	DangerouslySkipPermissions *bool `json:"dangerouslySkipPermissions,omitempty"`
 
 	// An optional command to get the version of the agent
 	// useful for generic agents such as claude code that may autoupdate/have different versions on different machines

@@ -11,10 +11,12 @@ net-edge/
 ├── mcp-config.yaml                   # Launches the gen-mcp NetEdge server for gevals
 ├── codex-agent/
 │   ├── agent.yaml                    # Codex CLI wiring
-│   └── eval.yaml                     # Eval definition (scenario 1)
+│   └── eval_*.yaml                   # Eval definitions
 ├── gemini-agent/
 │   ├── agent.yaml                    # Gemini CLI wiring
 │   └── eval_*.yaml                   # Eval definitions
+├── claude-code-agent/
+│   └── eval_*.yaml                   # Eval definitions (uses builtin claude-code agent)
 └── tasks/
     └── selector-mismatch/            # Task definition and helper scripts
         ├── selector-mismatch.yaml
@@ -68,7 +70,7 @@ export OPENAI_API_KEY=sk-...
 4. Run the evaluation:
 
  ```bash
- ./gevals eval examples/net-edge/codex-agent/eval.yaml
+ ./gevals eval examples/net-edge/codex-agent/eval_1_selector-mismatch.yaml
  ```
 
 ## Running with Gemini
@@ -80,6 +82,18 @@ export OPENAI_API_KEY=sk-...
 
  ```bash
  ./gevals eval examples/net-edge/gemini-agent/eval_1_selector-mismatch.yaml
+ ```
+
+## Running with Claude Code
+
+1. Build the project (from repo root): `make build`
+2. Ensure `claude` CLI is in your `PATH`.
+3. Ensure your current shell can reach the OpenShift cluster (`oc whoami` should succeed).
+4. Ensure `ANTHROPIC_API_KEY` environment variable is set.
+5. Run the evaluation:
+
+ ```bash
+ ./gevals eval examples/net-edge/claude-code-agent/eval_1_selector-mismatch.yaml
  ```
 
 `setup.sh` deploys the hello workload, then intentionally breaks the Service selector so the Route loses its

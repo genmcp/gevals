@@ -1,0 +1,14 @@
+kind: Eval
+metadata:
+  name: "claude-code-netedge-loadbalancer-missing"
+config:
+  agent:
+    type: "builtin.claude-code"
+  mcpConfigFile: ../mcp-config.yaml
+  taskSets:
+    - path: ../tasks/loadbalancer-missing/loadbalancer-missing.yaml
+      assertions:
+        toolsUsed:
+          - server: netedge
+        minToolCalls: 1
+        maxToolCalls: 20
