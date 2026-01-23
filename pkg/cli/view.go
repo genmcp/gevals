@@ -1,4 +1,3 @@
-// Package cli provides commands for rendering and inspecting evaluation results.
 package cli
 
 import (

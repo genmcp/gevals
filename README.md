@@ -457,6 +457,44 @@ commands:
   useVirtualHome: true  # Override just this setting
 ```
 
+## CLI Commands
+
+### `mcpchecker eval`
+Run evaluations against your MCP server:
+```bash
+mcpchecker eval examples/kubernetes/eval.yaml
+```
+
+### `mcpchecker summary`
+Display a summary of evaluation results:
+```bash
+mcpchecker summary results.json                    # Human-readable text
+mcpchecker summary results.json --output json      # JSON output
+mcpchecker summary results.json --github-output    # GitHub Actions format
+mcpchecker summary results.json --task task-name   # Filter by task
+```
+
+### `mcpchecker verify`
+Verify that results meet minimum pass rate thresholds (useful for CI):
+```bash
+mcpchecker verify results.json --task 0.8 --assertion 0.9
+```
+Exits with code 0 if thresholds are met, code 1 otherwise.
+
+### `mcpchecker diff`
+Compare two evaluation runs (e.g., main vs PR):
+```bash
+mcpchecker diff --base results-main.json --current results-pr.json
+mcpchecker diff --base results-main.json --current results-pr.json --output markdown
+```
+Shows regressions, improvements, new tasks, and removed tasks.
+
+### `mcpchecker view`
+View detailed results for a specific task:
+```bash
+mcpchecker view results.json --task task-name
+```
+
 ## How It Works
 
 The tool creates an MCP proxy that sits between the AI agent and your MCP server:
