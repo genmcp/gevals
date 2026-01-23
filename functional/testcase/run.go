@@ -33,8 +33,7 @@ type Runner struct {
 	mcpURLs     map[string]string
 
 	// Generated file paths
-	taskFile      string   // Single task (legacy)
-	taskFiles     []string // Multiple tasks
+	taskFiles     []string
 	evalFile      string
 	mcpConfigFile string
 	agentConfig   string
@@ -136,28 +135,19 @@ func (r *Runner) cleanup() {
 func (r *Runner) generateConfigs() error {
 	var err error
 
-	// Generate task YAML(s) - support both single task and multiple tasks
-	if len(r.tc.tasks) > 0 {
-		// Multiple tasks
-		r.taskFiles = make([]string, 0, len(r.tc.tasks))
-		for i, task := range r.tc.tasks {
-			// Always include index to avoid filename collisions when names repeat
-			filename := fmt.Sprintf("task-%d.yaml", i)
-			if task.metadata.Name != "" {
-				filename = fmt.Sprintf("task-%d-%s.yaml", i, task.metadata.Name)
-			}
-			path, err := r.generator.writeTaskYAML(filename, task, i)
-			if err != nil {
-				return err
-			}
-			r.taskFiles = append(r.taskFiles, path)
+	// Generate task YAML(s)
+	r.taskFiles = make([]string, 0, len(r.tc.tasks))
+	for i, task := range r.tc.tasks {
+		// Always include index to avoid filename collisions when names repeat
+		filename := fmt.Sprintf("task-%d.yaml", i)
+		if task.metadata.Name != "" {
+			filename = fmt.Sprintf("task-%d-%s.yaml", i, task.metadata.Name)
 		}
-	} else if r.tc.task != nil {
-		// Single task (legacy)
-		r.taskFile, err = r.generator.GenerateTaskYAML(r.tc.task)
+		path, err := r.generator.writeTaskYAML(filename, task, i)
 		if err != nil {
 			return err
 		}
+		r.taskFiles = append(r.taskFiles, path)
 	}
 
 	// Generate MCP config JSON
@@ -207,16 +197,10 @@ func (r *Runner) generateConfigs() error {
 			evalSpec.Config.LLMJudge.Env.ModelNameKey = "E2E_OPENAI_MODEL"
 		}
 
-		// Add task(s) to task sets if not already configured
+		// Add tasks to task sets if not already configured
 		if len(evalSpec.Config.TaskSets) == 0 {
-			if len(r.taskFiles) > 0 {
-				// Multiple tasks
-				for _, path := range r.taskFiles {
-					evalSpec.Config.TaskSets = append(evalSpec.Config.TaskSets, TaskSet{Path: path})
-				}
-			} else if r.taskFile != "" {
-				// Single task (legacy)
-				evalSpec.Config.TaskSets = []TaskSet{{Path: r.taskFile}}
+			for _, path := range r.taskFiles {
+				evalSpec.Config.TaskSets = append(evalSpec.Config.TaskSets, TaskSet{Path: path})
 			}
 		}
 

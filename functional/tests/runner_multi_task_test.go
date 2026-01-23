@@ -321,7 +321,7 @@ func TestSingleTaskStillWorks(t *testing.T) {
 				CallTool("tool_a", map[string]any{"input": "test"}).
 				ThenRespond("Single task completed")
 		}).
-		WithTask(func(task *testcase.TaskConfig) {
+		AddTask(func(task *testcase.TaskConfig) {
 			task.Name("single-task").
 				Easy().
 				Prompt("Run single task").

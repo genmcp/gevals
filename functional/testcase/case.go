@@ -16,9 +16,7 @@ type TestCase struct {
 	judgeMock  *JudgeBuilder
 	agentMock  *AgentBuilder
 
-	// Configuration - single task (legacy)
-	task *TaskConfig
-	// Configuration - multiple tasks
+	// Configuration
 	tasks []*TaskConfig
 	eval  *EvalConfig
 
@@ -56,13 +54,6 @@ func (tc *TestCase) WithAgent(configure func(*AgentBuilder)) *TestCase {
 func (tc *TestCase) WithJudge(configure func(*JudgeBuilder)) *TestCase {
 	tc.judgeMock = NewJudgeBuilder()
 	configure(tc.judgeMock)
-	return tc
-}
-
-// WithTask configures a single task for this test case (legacy method)
-func (tc *TestCase) WithTask(configure func(*TaskConfig)) *TestCase {
-	tc.task = NewTaskConfig()
-	configure(tc.task)
 	return tc
 }
 
