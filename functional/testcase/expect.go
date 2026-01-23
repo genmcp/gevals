@@ -525,5 +525,115 @@ func AssertFunc(name string, fn func(t *testing.T, ctx *RunContext)) *CustomAsse
 	return &CustomAssertion{Name: name, Fn: fn}
 }
 
+// ResultsInOrderAssertion asserts that results appear in a specific order by task name
+type ResultsInOrderAssertion struct {
+	TaskNames []string
+}
+
+func (a *ResultsInOrderAssertion) Assert(t *testing.T, ctx *RunContext) {
+	t.Helper()
+	if len(ctx.EvalResults) != len(a.TaskNames) {
+		t.Errorf("expected %d results, got %d", len(a.TaskNames), len(ctx.EvalResults))
+		return
+	}
+	for i, expectedName := range a.TaskNames {
+		if ctx.EvalResults[i].TaskName != expectedName {
+			t.Errorf("result[%d]: expected task name %q, got %q", i, expectedName, ctx.EvalResults[i].TaskName)
+		}
+	}
+}
+
+// TaskPassedByNameAssertion asserts that a specific task passed
+type TaskPassedByNameAssertion struct {
+	TaskName string
+}
+
+func (a *TaskPassedByNameAssertion) Assert(t *testing.T, ctx *RunContext) {
+	t.Helper()
+	result := ctx.ResultForTask(a.TaskName)
+	if result == nil {
+		t.Errorf("no result found for task %q", a.TaskName)
+		return
+	}
+	if !result.TaskPassed {
+		t.Errorf("expected task %q to pass, but it failed", a.TaskName)
+		if result.TaskError != "" {
+			t.Errorf("task error: %s", result.TaskError)
+		}
+	}
+}
+
+// TaskFailedByNameAssertion asserts that a specific task failed
+type TaskFailedByNameAssertion struct {
+	TaskName string
+}
+
+func (a *TaskFailedByNameAssertion) Assert(t *testing.T, ctx *RunContext) {
+	t.Helper()
+	result := ctx.ResultForTask(a.TaskName)
+	if result == nil {
+		t.Errorf("no result found for task %q", a.TaskName)
+		return
+	}
+	if result.TaskPassed {
+		t.Errorf("expected task %q to fail, but it passed", a.TaskName)
+	}
+}
+
+// PassedCountAssertion asserts the number of tasks that passed
+type PassedCountAssertion struct {
+	Expected int
+}
+
+func (a *PassedCountAssertion) Assert(t *testing.T, ctx *RunContext) {
+	t.Helper()
+	passed := 0
+	for _, r := range ctx.EvalResults {
+		if r.TaskPassed {
+			passed++
+		}
+	}
+	if passed != a.Expected {
+		t.Errorf("expected %d tasks to pass, got %d", a.Expected, passed)
+	}
+}
+
+// FailedCountAssertion asserts the number of tasks that failed
+type FailedCountAssertion struct {
+	Expected int
+}
+
+func (a *FailedCountAssertion) Assert(t *testing.T, ctx *RunContext) {
+	t.Helper()
+	failed := 0
+	for _, r := range ctx.EvalResults {
+		if !r.TaskPassed {
+			failed++
+		}
+	}
+	if failed != a.Expected {
+		t.Errorf("expected %d tasks to fail, got %d", a.Expected, failed)
+	}
+}
+
+// DifficultyCountAssertion asserts the number of tasks by difficulty
+type DifficultyCountAssertion struct {
+	Difficulty string
+	Expected   int
+}
+
+func (a *DifficultyCountAssertion) Assert(t *testing.T, ctx *RunContext) {
+	t.Helper()
+	count := 0
+	for _, r := range ctx.EvalResults {
+		if r.Difficulty == a.Difficulty {
+			count++
+		}
+	}
+	if count != a.Expected {
+		t.Errorf("expected %d tasks with difficulty %q, got %d", a.Expected, a.Difficulty, count)
+	}
+}
+
 // Re-export EvalResult for convenience
 type EvalResult = eval.EvalResult

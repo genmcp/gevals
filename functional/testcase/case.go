@@ -16,9 +16,11 @@ type TestCase struct {
 	judgeMock  *JudgeBuilder
 	agentMock  *AgentBuilder
 
-	// Configuration
+	// Configuration - single task (legacy)
 	task *TaskConfig
-	eval *EvalConfig
+	// Configuration - multiple tasks
+	tasks []*TaskConfig
+	eval  *EvalConfig
 
 	// Assertions to run after the test
 	assertions []Assertion
@@ -57,10 +59,29 @@ func (tc *TestCase) WithJudge(configure func(*JudgeBuilder)) *TestCase {
 	return tc
 }
 
-// WithTask configures the task for this test case
+// WithTask configures a single task for this test case (legacy method)
 func (tc *TestCase) WithTask(configure func(*TaskConfig)) *TestCase {
 	tc.task = NewTaskConfig()
 	configure(tc.task)
+	return tc
+}
+
+// WithTasks configures multiple tasks for this test case
+func (tc *TestCase) WithTasks(configureFuncs ...func(*TaskConfig)) *TestCase {
+	tc.tasks = make([]*TaskConfig, 0, len(configureFuncs))
+	for _, configure := range configureFuncs {
+		task := NewTaskConfig()
+		configure(task)
+		tc.tasks = append(tc.tasks, task)
+	}
+	return tc
+}
+
+// AddTask adds a task to the test case (can be called multiple times)
+func (tc *TestCase) AddTask(configure func(*TaskConfig)) *TestCase {
+	task := NewTaskConfig()
+	configure(task)
+	tc.tasks = append(tc.tasks, task)
 	return tc
 }
 
@@ -135,6 +156,41 @@ func (tc *TestCase) ExpectOutputContains(substring string) *TestCase {
 // ExpectOutputMatches asserts that the command output matches a regex
 func (tc *TestCase) ExpectOutputMatches(pattern string) *TestCase {
 	return tc.Expect(&OutputMatchesAssertion{Pattern: pattern})
+}
+
+// ExpectResultCount asserts the number of task results
+func (tc *TestCase) ExpectResultCount(count int) *TestCase {
+	return tc.Expect(&TaskCountAssertion{Expected: count})
+}
+
+// ExpectResultsInOrder asserts that results appear in the specified order by task name
+func (tc *TestCase) ExpectResultsInOrder(taskNames ...string) *TestCase {
+	return tc.Expect(&ResultsInOrderAssertion{TaskNames: taskNames})
+}
+
+// ExpectTaskPassedByName asserts that a specific task (by name) passed
+func (tc *TestCase) ExpectTaskPassedByName(taskName string) *TestCase {
+	return tc.Expect(&TaskPassedByNameAssertion{TaskName: taskName})
+}
+
+// ExpectTaskFailedByName asserts that a specific task (by name) failed
+func (tc *TestCase) ExpectTaskFailedByName(taskName string) *TestCase {
+	return tc.Expect(&TaskFailedByNameAssertion{TaskName: taskName})
+}
+
+// ExpectPassedCount asserts the number of tasks that passed
+func (tc *TestCase) ExpectPassedCount(count int) *TestCase {
+	return tc.Expect(&PassedCountAssertion{Expected: count})
+}
+
+// ExpectFailedCount asserts the number of tasks that failed
+func (tc *TestCase) ExpectFailedCount(count int) *TestCase {
+	return tc.Expect(&FailedCountAssertion{Expected: count})
+}
+
+// ExpectDifficultyCount asserts the number of tasks with a specific difficulty
+func (tc *TestCase) ExpectDifficultyCount(difficulty string, count int) *TestCase {
+	return tc.Expect(&DifficultyCountAssertion{Difficulty: difficulty, Expected: count})
 }
 
 // Run executes the test case
