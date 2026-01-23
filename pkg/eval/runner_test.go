@@ -155,3 +155,85 @@ func TestLoadAgentSpec(t *testing.T) {
 		})
 	}
 }
+func TestMatchesLabelSelector(t *testing.T) {
+	tests := map[string]struct {
+		taskLabels map[string]string
+		selector   map[string]string
+		expected   bool
+	}{
+		"empty selector matches any labels": {
+			taskLabels: map[string]string{"suite": "kubernetes"},
+			selector:   map[string]string{},
+			expected:   true,
+		},
+		"nil selector matches any labels": {
+			taskLabels: map[string]string{"suite": "kubernetes"},
+			selector:   nil,
+			expected:   true,
+		},
+		"exact match": {
+			taskLabels: map[string]string{"suite": "kubernetes"},
+			selector:   map[string]string{"suite": "kubernetes"},
+			expected:   true,
+		},
+		"multiple labels all match": {
+			taskLabels: map[string]string{
+				"suite":    "kiali",
+				"requires": "istio",
+			},
+			selector: map[string]string{
+				"suite":    "kiali",
+				"requires": "istio",
+			},
+			expected: true,
+		},
+		"selector has subset of task labels": {
+			taskLabels: map[string]string{
+				"suite":    "kubernetes",
+				"category": "basic",
+				"requires": "cluster",
+			},
+			selector: map[string]string{
+				"suite": "kubernetes",
+			},
+			expected: true,
+		},
+		"task has subset of selector labels - no match": {
+			taskLabels: map[string]string{
+				"suite": "kubernetes",
+			},
+			selector: map[string]string{
+				"suite":    "kubernetes",
+				"requires": "istio",
+			},
+			expected: false,
+		},
+		"value mismatch": {
+			taskLabels: map[string]string{"suite": "kubernetes"},
+			selector:   map[string]string{"suite": "kiali"},
+			expected:   false,
+		},
+		"key not present in task": {
+			taskLabels: map[string]string{"suite": "kubernetes"},
+			selector:   map[string]string{"category": "basic"},
+			expected:   false,
+		},
+		"empty task labels with non-empty selector": {
+			taskLabels: map[string]string{},
+			selector:   map[string]string{"suite": "kubernetes"},
+			expected:   false,
+		},
+		"nil task labels with non-empty selector": {
+			taskLabels: nil,
+			selector:   map[string]string{"suite": "kubernetes"},
+			expected:   false,
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			result := matchesLabelSelector(tc.taskLabels, tc.selector)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
+}

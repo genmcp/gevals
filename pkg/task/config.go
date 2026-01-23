@@ -27,8 +27,9 @@ type TaskConfig struct {
 }
 
 type TaskMetadata struct {
-	Name       string `json:"name"`
-	Difficulty string `json:"difficulty"`
+	Name       string            `json:"name"`
+	Difficulty string            `json:"difficulty"`
+	Labels     map[string]string `json:"labels,omitempty"`
 }
 
 type TaskSpec struct {

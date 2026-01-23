@@ -70,6 +70,10 @@ type TaskSet struct {
 	Glob string `json:"glob,omitempty"`
 	Path string `json:"path,omitempty"`
 
+	// Optional label selector - filters tasks by labels
+	// All specified labels must match (AND logic)
+	LabelSelector map[string]string `json:"labelSelector,omitempty"`
+
 	Assertions *TaskAssertions `json:"assertions,omitempty"`
 }
 

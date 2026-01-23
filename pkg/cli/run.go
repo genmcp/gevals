@@ -19,6 +19,7 @@ func NewEvalCmd() *cobra.Command {
 	var outputFormat string
 	var verbose bool
 	var run string
+	var labelSelector string
 
 	cmd := &cobra.Command{
 		Use:   "check [eval-config-file]",
@@ -32,6 +33,13 @@ func NewEvalCmd() *cobra.Command {
 			spec, err := eval.FromFile(configFile)
 			if err != nil {
 				return fmt.Errorf("failed to load eval config: %w", err)
+			}
+
+			// Apply label selector filter if provided
+			if labelSelector != "" {
+				if err := applyLabelSelectorFilter(spec, labelSelector); err != nil {
+					return fmt.Errorf("failed to apply label selector: %w", err)
+				}
 			}
 
 			// Create runner
@@ -70,8 +78,43 @@ func NewEvalCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&outputFormat, "output", "o", "text", "Output format (text, json)")
 	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Verbose output")
 	cmd.Flags().StringVarP(&run, "run", "r", "", "Regular expression to match task names to run (unanchored, like go test -run)")
+	cmd.Flags().StringVarP(&labelSelector, "label-selector", "l", "", "Filter taskSets by label (format: key=value, e.g., suite=kubernetes)")
 
 	return cmd
+}
+
+// applyLabelSelectorFilter filters taskSets based on label selector
+// Format: key=value (e.g., "suite=kubernetes")
+func applyLabelSelectorFilter(spec *eval.EvalSpec, selector string) error {
+	// Parse label selector (format: key=value)
+	parts := strings.SplitN(selector, "=", 2)
+	if len(parts) != 2 {
+		return fmt.Errorf("invalid label selector format, expected key=value, got: %s", selector)
+	}
+	key := strings.TrimSpace(parts[0])
+	value := strings.TrimSpace(parts[1])
+
+	if key == "" || value == "" {
+		return fmt.Errorf("label selector key and value cannot be empty")
+	}
+
+	// Filter taskSets that match the label selector
+	var filteredTaskSets []eval.TaskSet
+	for _, ts := range spec.Config.TaskSets {
+		// Check if this taskSet has the required label
+		if labelValue, exists := ts.LabelSelector[key]; exists && labelValue == value {
+			filteredTaskSets = append(filteredTaskSets, ts)
+		}
+	}
+
+	if len(filteredTaskSets) == 0 {
+		return fmt.Errorf("no taskSets match label selector %s=%s", key, value)
+	}
+
+	// Replace taskSets with filtered ones
+	spec.Config.TaskSets = filteredTaskSets
+
+	return nil
 }
 
 // progressDisplay handles interactive progress display
