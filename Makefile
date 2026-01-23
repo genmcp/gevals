@@ -41,6 +41,15 @@ _build-mock-agent:
 functional: build _build-mock-agent ## Run functional tests
 	GEVALS_BINARY=$(CURDIR)/gevals MOCK_AGENT_BINARY=$(CURDIR)/$(MOCK_AGENT_BINARY_NAME) go test -v -tags functional ./functional/...
 
+.PHONY: functional-coverage
+functional-coverage: clean _build-mock-agent ## Run functional tests with coverage (in-process mode)
+	mkdir -p $(CURDIR)/coverage-data
+	GEVALS_TEST_INPROCESS=true \
+	MOCK_AGENT_BINARY=$(CURDIR)/$(MOCK_AGENT_BINARY_NAME) \
+	go test -v -tags functional -cover -coverprofile=$(CURDIR)/coverage.out -coverpkg=./pkg/...,./cmd/... ./functional/... -p=1
+	go tool cover -html=$(CURDIR)/coverage.out -o=$(CURDIR)/coverage.html
+	@echo "Coverage report: $(CURDIR)/coverage.html"
+
 # Release targets for CI/CD
 .PHONY: build-release
 build-release:
