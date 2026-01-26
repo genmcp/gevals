@@ -101,10 +101,15 @@ func applyLabelSelectorFilter(spec *eval.EvalSpec, selector string) error {
 	// Filter taskSets that match the label selector
 	var filteredTaskSets []eval.TaskSet
 	for _, ts := range spec.Config.TaskSets {
-		// Check if this taskSet has the required label
-		if labelValue, exists := ts.LabelSelector[key]; exists && labelValue == value {
-			filteredTaskSets = append(filteredTaskSets, ts)
+		// Merge CLI selector into taskSet selector (AND semantics)
+		if ts.LabelSelector == nil {
+			ts.LabelSelector = make(map[string]string)
 		}
+		if existing, exists := ts.LabelSelector[key]; exists && existing != value {
+			continue // incompatible selector
+		}
+		ts.LabelSelector[key] = value
+		filteredTaskSets = append(filteredTaskSets, ts)
 	}
 
 	if len(filteredTaskSets) == 0 {

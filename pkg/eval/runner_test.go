@@ -228,6 +228,16 @@ func TestMatchesLabelSelector(t *testing.T) {
 			selector:   map[string]string{"suite": "kubernetes"},
 			expected:   false,
 		},
+		"both empty - should match": {
+			taskLabels: map[string]string{},
+			selector:   map[string]string{},
+			expected:   true,
+		},
+		"both nil - should match": {
+			taskLabels: nil,
+			selector:   nil,
+			expected:   true,
+		},
 	}
 
 	for name, tc := range tests {
