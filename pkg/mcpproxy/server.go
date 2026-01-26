@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/http"
 	"os/exec"
+	"slices"
 	"time"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -15,7 +16,7 @@ type Server interface {
 	Run(ctx context.Context) error
 	GetConfig() (*ServerConfig, error)
 	GetName() string
-	GetAllowedToolNames() []string
+	GetAllowedTools() []*mcp.Tool
 	Close() error
 	GetCallHistory() CallHistory
 	// WaitReady blocks until the server has initialized and is ready to serve
@@ -232,21 +233,21 @@ func (s *server) GetName() string {
 	return s.name
 }
 
-func (s *server) GetAllowedToolNames() []string {
-	if s.cfg.EnableAllTools {
-		toolNames := make([]string, 0)
-		for t, err := range s.proxyClient.Tools(context.Background(), &mcp.ListToolsParams{}) {
-			if err != nil {
-				continue
-			}
-
-			toolNames = append(toolNames, t.Name)
+func (s *server) GetAllowedTools() []*mcp.Tool {
+	allowed := []*mcp.Tool{}
+	for t, err := range s.proxyClient.Tools(context.Background(), &mcp.ListToolsParams{}) {
+		if err != nil {
+			continue
 		}
 
-		return toolNames
+		if s.cfg.EnableAllTools {
+			allowed = append(allowed, t)
+		} else if slices.Contains(s.cfg.AlwaysAllow, t.Name) {
+			allowed = append(allowed, t)
+		}
 	}
 
-	return s.cfg.AlwaysAllow
+	return allowed
 }
 
 func (s *server) Close() error {

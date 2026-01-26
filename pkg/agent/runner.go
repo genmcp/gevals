@@ -144,13 +144,13 @@ func (a *agentSpecRunner) RunTask(ctx context.Context, prompt string) (AgentResu
 
 	var allowedTools []string
 	for _, s := range a.mcpInfo.GetMcpServers() {
-		for _, t := range s.GetAllowedToolNames() {
+		for _, t := range s.GetAllowedTools() {
 			tmp := struct {
 				ServerName string
 				ToolName   string
 			}{
 				ServerName: s.GetName(),
-				ToolName:   t,
+				ToolName:   t.Name,
 			}
 
 			formatted := bytes.NewBuffer(nil)
