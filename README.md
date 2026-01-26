@@ -2,6 +2,53 @@
 
 🧪 Test your MCP servers by having AI agents complete real tasks.
 
+## Why MCPChecker?
+
+You've built an MCP server with tools. It works. But:
+- **Is your tool description clear enough for an LLM to discover it?**
+- **Can an AI agent actually use your tool correctly?**
+- **Does your tool handle edge cases properly?**
+
+MCPChecker helps you test these questions automatically by:
+1. Running real AI agents (like Claude Code) against your tools
+2. Verifying agents can discover and use your tools correctly
+3. Testing edge cases and error handling
+4. Ensuring tool descriptions are clear and actionable
+
+Think of it as integration testing for AI tool use.
+
+## Installation
+
+Download the latest release from [GitHub Releases](https://github.com/mcpchecker/mcpchecker/releases):
+
+**Linux (amd64):**
+```bash
+curl -L -o mcpchecker https://github.com/mcpchecker/mcpchecker/releases/latest/download/mcpchecker-linux-amd64
+chmod +x mcpchecker
+sudo mv mcpchecker /usr/local/bin/
+```
+
+**macOS (arm64 - Apple Silicon):**
+```bash
+curl -L -o mcpchecker https://github.com/mcpchecker/mcpchecker/releases/latest/download/mcpchecker-darwin-arm64
+chmod +x mcpchecker
+sudo mv mcpchecker /usr/local/bin/
+```
+
+**macOS (amd64 - Intel):**
+```bash
+curl -L -o mcpchecker https://github.com/mcpchecker/mcpchecker/releases/latest/download/mcpchecker-darwin-amd64
+chmod +x mcpchecker
+sudo mv mcpchecker /usr/local/bin/
+```
+
+Verify installation:
+```bash
+mcpchecker --version
+```
+
+See [Quickstarts](https://github.com/mcpchecker/quickstarts) for step-by-step tutorials.
+
 ## What It Does
 
 mcpchecker validates MCP servers by:
@@ -15,6 +62,10 @@ mcpchecker validates MCP servers by:
 If agents successfully complete tasks using your MCP server, your tools are well-designed.
 
 ## Quick Start
+
+**For first-time users**: Check out the [Quickstarts](https://github.com/mcpchecker/quickstarts) for hands-on tutorials.
+
+**For development** (building from source):
 
 ```bash
 # Build
