@@ -54,3 +54,20 @@ func ApplyLabelSelectorFilter(spec *EvalSpec, selector string) error {
 	return nil
 }
 
+// matchesLabelSelector checks if the task labels match the label selector.
+// All labels in the selector must match (AND logic).
+// Returns true if selector is empty or nil.
+func matchesLabelSelector(taskLabels, selector map[string]string) bool {
+	if len(selector) == 0 {
+		return true
+	}
+
+	for key, value := range selector {
+		taskValue, exists := taskLabels[key]
+		if !exists || taskValue != value {
+			return false
+		}
+	}
+
+	return true
+}
