@@ -145,19 +145,6 @@ func TestResultOrderPreserved(t *testing.T) {
 		}).
 		ExpectResultCount(5).
 		ExpectResultsInOrder("alpha", "beta", "gamma", "delta", "epsilon").
-		Expect(testcase.AssertFunc("all-tasks-present", func(t *testing.T, ctx *testcase.RunContext) {
-			// Verify all task names are present
-			names := make(map[string]bool)
-			for _, r := range ctx.EvalResults {
-				names[r.TaskName] = true
-			}
-			expected := []string{"alpha", "beta", "gamma", "delta", "epsilon"}
-			for _, name := range expected {
-				if !names[name] {
-					t.Errorf("missing task result for %q", name)
-				}
-			}
-		})).
 		Run()
 }
 

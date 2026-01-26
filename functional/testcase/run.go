@@ -138,12 +138,12 @@ func (r *Runner) generateConfigs() error {
 	// Generate task YAML(s)
 	r.taskFiles = make([]string, 0, len(r.tc.tasks))
 	for i, task := range r.tc.tasks {
-		// Always include index to avoid filename collisions when names repeat
+		// Include index in filename to avoid collisions when names repeat
 		filename := fmt.Sprintf("task-%d.yaml", i)
 		if task.metadata.Name != "" {
 			filename = fmt.Sprintf("task-%d-%s.yaml", i, task.metadata.Name)
 		}
-		path, err := r.generator.writeTaskYAML(filename, task, i)
+		path, err := r.generator.writeTaskYAML(filename, task)
 		if err != nil {
 			return err
 		}
