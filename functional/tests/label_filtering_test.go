@@ -224,6 +224,67 @@ func TestLabelFiltering(t *testing.T) {
 
 	// Should only have 1 result (the filtered task)
 	assert.Len(t, results, 1, "Results should contain exactly 1 task (k8s-basic-task) with filter")
+
+	// STEP 3: Run WITH --label-selector CLI flag - should execute ONLY 1 task
+	t.Log("=== Testing WITH --label-selector CLI flag (should execute 1 task) ===")
+
+	evalConfigCLIFlag := map[string]any{
+		"kind": "Eval",
+		"metadata": map[string]any{
+			"name": "cli-flag-test",
+		},
+		"config": map[string]any{
+			"taskSets": []map[string]any{
+				{
+					"glob": filepath.Join(tasksDir, "*.yaml"),
+					// NO labelSelector - will use CLI flag instead
+				},
+			},
+			"agent": map[string]any{
+				"type": "builtin.claude-code",
+			},
+			"mcpConfigFile": createEmptyMCPConfig(t, tmpDir),
+		},
+	}
+
+	evalCLIFlagBytes, err := yaml.Marshal(evalConfigCLIFlag)
+	require.NoError(t, err)
+	evalCLIFlagFile := filepath.Join(tmpDir, "eval-cli-flag.yaml")
+	require.NoError(t, os.WriteFile(evalCLIFlagFile, evalCLIFlagBytes, 0644))
+
+	cmdCLIFlag := exec.Command(gevalsBinary, "eval", "--label-selector", "category=basic", evalCLIFlagFile)
+	cmdCLIFlag.Dir = tmpDir
+	outputCLIFlag, err := cmdCLIFlag.CombinedOutput()
+	if err != nil {
+		t.Fatalf("gevals eval command failed (CLI flag): %v\nOutput:\n%s", err, string(outputCLIFlag))
+	}
+
+	t.Logf("gevals output (CLI flag):\n%s", string(outputCLIFlag))
+
+	// Verify filtering worked by checking output
+	outputCLIFlagStr := string(outputCLIFlag)
+
+	// Should see k8s-basic-task being executed
+	assert.Contains(t, outputCLIFlagStr, "k8s-basic-task", "Should execute k8s-basic-task with CLI flag")
+	assert.Contains(t, outputCLIFlagStr, "Total Tasks: 1", "Should only process 1 task with CLI flag")
+
+	// Should NOT see the other tasks
+	assert.NotContains(t, outputCLIFlagStr, "k8s-advanced-task", "Should NOT execute k8s-advanced-task with CLI flag")
+	assert.NotContains(t, outputCLIFlagStr, "istio-task", "Should NOT execute istio-task with CLI flag")
+
+	// Verify results file exists and contains exactly 1 task
+	outputCLIFlagFile := filepath.Join(tmpDir, "gevals-cli-flag-test-out.json")
+	_, err = os.Stat(outputCLIFlagFile)
+	require.NoError(t, err, "Output file should exist: %s", outputCLIFlagFile)
+
+	data, err = os.ReadFile(outputCLIFlagFile)
+	require.NoError(t, err)
+
+	results = nil // Reset the slice
+	require.NoError(t, json.Unmarshal(data, &results))
+
+	// Should only have 1 result (the filtered task)
+	assert.Len(t, results, 1, "Results should contain exactly 1 task (k8s-basic-task) with CLI flag")
 }
 
 // writeTaskFile writes a task configuration to a YAML file in the specified directory
