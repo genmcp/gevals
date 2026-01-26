@@ -68,7 +68,7 @@ export OPENAI_API_KEY=sk-...
 4. Run the evaluation:
 
  ```bash
- ./mcpchecker eval examples/net-edge/codex-agent/eval.yaml
+ ./mcpchecker check examples/net-edge/codex-agent/eval.yaml
  ```
 
 ## Running with Gemini
@@ -79,7 +79,7 @@ export OPENAI_API_KEY=sk-...
 4. Run the evaluation:
 
  ```bash
- ./mcpchecker eval examples/net-edge/gemini-agent/eval_1_selector-mismatch.yaml
+ ./mcpchecker check examples/net-edge/gemini-agent/eval_1_selector-mismatch.yaml
  ```
 
 `setup.sh` deploys the hello workload, then intentionally breaks the Service selector so the Route loses its

@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 ### Changed
+- Command `eval` is now renamed to `check` in the CLI.
 
 ### Fixed
 

@@ -21,7 +21,7 @@ func NewEvalCmd() *cobra.Command {
 	var run string
 
 	cmd := &cobra.Command{
-		Use:   "eval [eval-config-file]",
+		Use:   "check [eval-config-file]",
 		Short: "Run an evaluation",
 		Long:  `Run an evaluation using the specified eval configuration file.`,
 		Args:  cobra.ExactArgs(1),
