@@ -1,11 +1,11 @@
-# gevals Extension Protocol Specification
+# mcpchecker Extension Protocol Specification
 
 **Version**: 0.0.1
 **Status**: Draft
 
 ## Overview
 
-This document specifies the communication protocol between gevals and extension binaries. Extensions provide domain-specific operations (e.g., Kubernetes resource management, database queries) that can be used in task setup, verification, and cleanup phases.
+This document specifies the communication protocol between mcpchecker and extension binaries. Extensions provide domain-specific operations (e.g., Kubernetes resource management, database queries) that can be used in task setup, verification, and cleanup phases.
 
 The protocol is based on JSON-RPC 2.0 over newline-delimited stdio.
 
@@ -15,41 +15,41 @@ The protocol is based on JSON-RPC 2.0 over newline-delimited stdio.
 |----------|-------|
 | Framing | Newline-delimited JSON (each message is one line terminated by `\n`) |
 | Encoding | UTF-8 |
-| Input | gevals writes to extension's stdin |
+| Input | mcpchecker writes to extension's stdin |
 | Output | Extension writes to stdout |
-| Stderr | Reserved for debug logs (not parsed by gevals) |
+| Stderr | Reserved for debug logs (not parsed by mcpchecker) |
 
 ## Lifecycle
 
 ```
-┌────────┐                              ┌─────────────┐
-│ gevals │                              │  extension  │
-└───┬────┘                              └──────┬──────┘
-    │                                          │
-    │──── spawn process ──────────────────────▶│
-    │                                          │
-    │──── initialize ─────────────────────────▶│
-    │◀─── manifest ───────────────────────────│
-    │                                          │
-    │──── execute ────────────────────────────▶│
-    │◀─── log (0..n) ─────────────────────────│
-    │◀─── result ─────────────────────────────│
-    │                                          │
-    │     ... more execute requests ...        │
-    │                                          │
-    │──── shutdown ───────────────────────────▶│
-    │◀─── ack ────────────────────────────────│
-    │                                          │
-    │◀─── process exits ──────────────────────│
+┌────────────┐                              ┌─────────────┐
+│ mcpchecker │                              │  extension  │
+└───┬────────┘                              └──────┬──────┘
+    │                                              │
+    │──── spawn process ──────────────────────────▶│
+    │                                              │
+    │──── initialize ─────────────────────────────▶│
+    │◀─── manifest ────────────────────────────────│
+    │                                              │
+    │──── execute ────────────────────────────────▶│
+    │◀─── log (0..n) ──────────────────────────────│
+    │◀─── result ──────────────────────────────────│
+    │                                              │
+    │     ... more execute requests ...            │
+    │                                              │
+    │──── shutdown ───────────────────────────────▶│
+    │◀─── ack ─────────────────────────────────────│
+    │                                              │
+    │◀─── process exits ───────────────────────────│
 ```
 
-1. gevals spawns the extension binary
-2. gevals sends `initialize` request
+1. mcpchecker spawns the extension binary
+2. mcpchecker sends `initialize` request
 3. Extension responds with its manifest (name, version, available operations)
-4. gevals sends `execute` requests for operations
+4. mcpchecker sends `execute` requests for operations
 5. Extension may send `log` notifications during execution
 6. Extension sends result for each execute request
-7. gevals sends `shutdown` when done
+7. mcpchecker sends `shutdown` when done
 8. Extension exits
 
 ## Messages
@@ -76,7 +76,7 @@ Sent once after spawn. Returns extension manifest.
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `protocolVersion` | string | Yes | Protocol version gevals supports |
+| `protocolVersion` | string | Yes | Protocol version mcpchecker supports |
 | `config` | object | No | Extension-specific configuration from eval spec |
 
 #### Response
@@ -316,7 +316,7 @@ Progress updates during execution. This is a JSON-RPC notification (no `id`, no 
 | `message` | string | Yes | Log message |
 | `data` | object | No | Structured data for debugging |
 
-gevals displays logs based on verbosity settings.
+mcpchecker displays logs based on verbosity settings.
 
 ---
 

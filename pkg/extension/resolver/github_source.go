@@ -30,7 +30,7 @@ func (s *GithubSource) Resolve(ctx context.Context, ref string) (string, error) 
 	}
 
 	cfg := &binarycache.Config{
-		CacheName:              fmt.Sprintf(".gevals/%s-%s", owner, repo),
+		CacheName:              fmt.Sprintf(".mcpchecker/%s-%s", owner, repo),
 		BinaryPrefix:           repo,
 		GitHubReleasesURL:      fmt.Sprintf("https://github.com/%s/%s/releases/download", owner, repo),
 		GitHubAPIURL:           fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/latest", owner, repo),

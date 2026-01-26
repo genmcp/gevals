@@ -79,7 +79,7 @@ func createProxyClient(ctx context.Context, config *ServerConfig) (*mcp.ClientSe
 	}
 
 	client := mcp.NewClient(&mcp.Implementation{
-		Name:    "gevals-proxy-client",
+		Name:    "mcpchecker-proxy-client",
 		Version: "0.0.0",
 	}, nil)
 

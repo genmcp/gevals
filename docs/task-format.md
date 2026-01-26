@@ -1,6 +1,6 @@
 # Task Format
 
-This document describes the task format used by gevals to define evaluation tasks.
+This document describes the task format used by mcpchecker to define evaluation tasks.
 
 ## Overview
 
@@ -11,10 +11,10 @@ Tasks define what an agent should do and how to verify it succeeded. Each task s
 - Verification steps to check the agent's work
 - Optional cleanup steps to run after verification
 
-gevals supports two API versions:
+mcpchecker supports two API versions:
 
-- `gevals/v1alpha2` - Declarative step-based format (recommended for new tasks)
-- `gevals/v1alpha1` - Legacy script-based format (still supported)
+- `mcpchecker/v1alpha2` - Declarative step-based format (recommended for new tasks)
+- `mcpchecker/v1alpha1` - Legacy script-based format (still supported)
 
 ## Task Schema
 
@@ -22,7 +22,7 @@ A v1alpha2 task has the following structure:
 
 ```yaml
 kind: Task
-apiVersion: gevals/v1alpha2
+apiVersion: mcpchecker/v1alpha2
 metadata:
   name: string        # Required. Unique task identifier.
   difficulty: string  # Optional. One of: easy, medium, hard.
@@ -62,7 +62,7 @@ Each step is a single-key map where the key is the step type and the value is th
 
 ## Built-in Step Types
 
-gevals provides three built-in step types.
+mcpchecker provides three built-in step types.
 
 ### http
 
@@ -195,7 +195,7 @@ metadata:
 config:
   extensions:
     kubernetes:                          # Extension alias (matches spec.requires)
-      package: https://github.com/genmcp/gevals-kubernetes-extension@v0.0.1
+      package: https://github.com/mcpchecker/kubernetes-extension@v0.0.1
       config:                            # Optional. Extension-specific configuration.
         kubeconfig: ~/.kube/config
       env:                               # Optional. Environment variables for the extension.
@@ -245,7 +245,7 @@ Here is a complete v1alpha2 task that creates and verifies a Kubernetes pod:
 
 ```yaml
 kind: Task
-apiVersion: gevals/v1alpha2
+apiVersion: mcpchecker/v1alpha2
 metadata:
   name: create-nginx-pod
   difficulty: easy
@@ -314,7 +314,7 @@ steps:
     inline: "Do something"
 ```
 
-This format is still supported. Tasks without an `apiVersion` field or with `apiVersion: gevals/v1alpha1` use this format.
+This format is still supported. Tasks without an `apiVersion` field or with `apiVersion: mcpchecker/v1alpha1` use this format.
 
 The v1alpha1 format also supports LLM judge verification:
 
@@ -352,7 +352,7 @@ steps:
 
 ```yaml
 kind: Task
-apiVersion: gevals/v1alpha2
+apiVersion: mcpchecker/v1alpha2
 metadata:
   name: my-task
   difficulty: medium
@@ -375,7 +375,7 @@ spec:
 
 Key changes:
 
-1. Add `apiVersion: gevals/v1alpha2`
+1. Add `apiVersion: mcpchecker/v1alpha2`
 2. Move task definition under `spec`
 3. Replace `steps.setup.file: setup.sh` with a `script` step in `spec.setup`
 4. Each phase (`setup`, `verify`, `cleanup`) is now an array of steps
@@ -395,4 +395,4 @@ Once migrated, you can incrementally replace script steps with built-in steps or
 
 ## Extension Protocol
 
-Extensions communicate with gevals using JSON-RPC 2.0 over stdio. For details on implementing an extension, see [Extension Protocol Specification](specs/extension-protocol.md).
+Extensions communicate with mcpchecker using JSON-RPC 2.0 over stdio. For details on implementing an extension, see [Extension Protocol Specification](specs/extension-protocol.md).

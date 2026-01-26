@@ -7,9 +7,9 @@ import (
 	"os"
 	"sync"
 
-	"github.com/genmcp/gevals/pkg/extension"
-	"github.com/genmcp/gevals/pkg/extension/protocol"
-	"github.com/genmcp/gevals/pkg/extension/resolver"
+	"github.com/mcpchecker/mcpchecker/pkg/extension"
+	"github.com/mcpchecker/mcpchecker/pkg/extension/protocol"
+	"github.com/mcpchecker/mcpchecker/pkg/extension/resolver"
 )
 
 type ExtensionManager interface {

@@ -7,7 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/genmcp/gevals/examples/kube-mcp-server/kubernetes-extension/pkg/extension"
+	"github.com/mcpchecker/mcpchecker/examples/kube-mcp-server/kubernetes-extension/pkg/extension"
 )
 
 func main() {

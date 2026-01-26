@@ -1,5 +1,5 @@
 AGENT_BINARY_NAME = agent
-GEVALS_BINARY_NAME = gevals
+MCPCHECKER_BINARY_NAME = mcpchecker
 MOCK_AGENT_BINARY_NAME = functional/mock-agent
 
 # Release build variables (can be overridden)
@@ -14,19 +14,19 @@ endef
 
 .PHONY: clean
 clean:
-	rm -f $(AGENT_BINARY_NAME) $(GEVALS_BINARY_NAME) $(MOCK_AGENT_BINARY_NAME)
+	rm -f $(AGENT_BINARY_NAME) $(MCPCHECKER_BINARY_NAME) $(MOCK_AGENT_BINARY_NAME)
 	rm -f *.zip *.bundle
 
 .PHONY: build-agent
 build-agent: clean
 	go build -o $(AGENT_BINARY_NAME) ./cmd/agent
 
-.PHONY: build-gevals
-build-gevals: clean
-	go build -o $(GEVALS_BINARY_NAME) ./cmd/gevals/
+.PHONY: build-mcpchecker
+build-mcpchecker: clean
+	go build -o $(MCPCHECKER_BINARY_NAME) ./cmd/mcpchecker/
 
 .PHONY: build
-build: build-agent build-gevals
+build: build-agent build-mcpchecker
 
 .PHONY: test
 test:
@@ -39,7 +39,7 @@ _build-mock-agent:
 
 .PHONY: functional
 functional: build _build-mock-agent ## Run functional tests
-	GEVALS_BINARY=$(CURDIR)/gevals MOCK_AGENT_BINARY=$(CURDIR)/$(MOCK_AGENT_BINARY_NAME) go test -v -tags functional ./functional/...
+	MCPCHECKER_BINARY=$(CURDIR)/mcpchecker MOCK_AGENT_BINARY=$(CURDIR)/$(MOCK_AGENT_BINARY_NAME) go test -v -tags functional ./functional/...
 
 # Release targets for CI/CD
 .PHONY: build-release
@@ -47,10 +47,10 @@ build-release:
 	@echo "Building release binaries for $(GOOS)/$(GOARCH)..."
 	@mkdir -p dist
 	@if [ "$(GOOS)" = "windows" ]; then \
-		GOOS=$(GOOS) GOARCH=$(GOARCH) go build -trimpath -ldflags="-s -w" -o "dist/$(GEVALS_BINARY_NAME)-$(GOOS)-$(GOARCH).exe" ./cmd/gevals; \
+		GOOS=$(GOOS) GOARCH=$(GOARCH) go build -trimpath -ldflags="-s -w" -o "dist/$(MCPCHECKER_BINARY_NAME)-$(GOOS)-$(GOARCH).exe" ./cmd/mcpchecker; \
 		GOOS=$(GOOS) GOARCH=$(GOARCH) go build -trimpath -ldflags="-s -w" -o "dist/$(AGENT_BINARY_NAME)-$(GOOS)-$(GOARCH).exe" ./cmd/agent; \
 	else \
-		GOOS=$(GOOS) GOARCH=$(GOARCH) go build -trimpath -ldflags="-s -w" -o "dist/$(GEVALS_BINARY_NAME)-$(GOOS)-$(GOARCH)" ./cmd/gevals; \
+		GOOS=$(GOOS) GOARCH=$(GOARCH) go build -trimpath -ldflags="-s -w" -o "dist/$(MCPCHECKER_BINARY_NAME)-$(GOOS)-$(GOARCH)" ./cmd/mcpchecker; \
 		GOOS=$(GOOS) GOARCH=$(GOARCH) go build -trimpath -ldflags="-s -w" -o "dist/$(AGENT_BINARY_NAME)-$(GOOS)-$(GOARCH)" ./cmd/agent; \
 	fi
 	@echo "Build complete!"
@@ -60,10 +60,10 @@ package-release:
 	@echo "Packaging release artifacts for $(GOOS)/$(GOARCH)..."
 	@cd dist && \
 	if [ "$(GOOS)" = "windows" ]; then \
-		zip "$(GEVALS_BINARY_NAME)-$(GOOS)-$(GOARCH).zip" "$(GEVALS_BINARY_NAME)-$(GOOS)-$(GOARCH).exe"; \
+		zip "$(MCPCHECKER_BINARY_NAME)-$(GOOS)-$(GOARCH).zip" "$(MCPCHECKER_BINARY_NAME)-$(GOOS)-$(GOARCH).exe"; \
 		zip "$(AGENT_BINARY_NAME)-$(GOOS)-$(GOARCH).zip" "$(AGENT_BINARY_NAME)-$(GOOS)-$(GOARCH).exe"; \
 	else \
-		zip "$(GEVALS_BINARY_NAME)-$(GOOS)-$(GOARCH).zip" "$(GEVALS_BINARY_NAME)-$(GOOS)-$(GOARCH)"; \
+		zip "$(MCPCHECKER_BINARY_NAME)-$(GOOS)-$(GOARCH).zip" "$(MCPCHECKER_BINARY_NAME)-$(GOOS)-$(GOARCH)"; \
 		zip "$(AGENT_BINARY_NAME)-$(GOOS)-$(GOARCH).zip" "$(AGENT_BINARY_NAME)-$(GOOS)-$(GOARCH)"; \
 	fi
 	@echo "Packaging complete!"
@@ -72,8 +72,8 @@ package-release:
 sign-release:
 	@echo "Signing release artifacts for $(GOOS)/$(GOARCH)..."
 	@cd dist && \
-	cosign sign-blob --yes "$(GEVALS_BINARY_NAME)-$(GOOS)-$(GOARCH).zip" \
-		--bundle "$(GEVALS_BINARY_NAME)-$(GOOS)-$(GOARCH).zip.bundle" && \
+	cosign sign-blob --yes "$(MCPCHECKER_BINARY_NAME)-$(GOOS)-$(GOARCH).zip" \
+		--bundle "$(MCPCHECKER_BINARY_NAME)-$(GOOS)-$(GOARCH).zip.bundle" && \
 	cosign sign-blob --yes "$(AGENT_BINARY_NAME)-$(GOOS)-$(GOARCH).zip" \
 		--bundle "$(AGENT_BINARY_NAME)-$(GOOS)-$(GOARCH).zip.bundle"
 	@echo "Signing complete!"

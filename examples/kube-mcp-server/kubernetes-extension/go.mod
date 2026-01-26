@@ -1,11 +1,11 @@
-module github.com/genmcp/gevals/examples/kube-mcp-server/kubernetes-extension
+module github.com/mcpchecker/mcpchecker/examples/kube-mcp-server/kubernetes-extension
 
 go 1.25.5
 
-replace github.com/genmcp/gevals => ../../../
+replace github.com/mcpchecker/mcpchecker => ../../../
 
 require (
-	github.com/genmcp/gevals v0.0.0-00010101000000-000000000000
+	github.com/mcpchecker/mcpchecker v0.0.0-00010101000000-000000000000
 	github.com/google/jsonschema-go v0.4.2
 	k8s.io/apimachinery v0.35.0
 	k8s.io/client-go v0.35.0

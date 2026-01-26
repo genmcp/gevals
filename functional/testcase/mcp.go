@@ -1,7 +1,7 @@
 package testcase
 
 import (
-	"github.com/genmcp/gevals/functional/servers/mcp"
+	"github.com/mcpchecker/mcpchecker/functional/servers/mcp"
 )
 
 // MCPServerBuilder builds a mock MCP server configuration

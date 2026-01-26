@@ -10,14 +10,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/genmcp/gevals/functional/servers/agent"
-	"github.com/genmcp/gevals/functional/servers/mcp"
-	"github.com/genmcp/gevals/functional/servers/openai"
+	"github.com/mcpchecker/mcpchecker/functional/servers/agent"
+	"github.com/mcpchecker/mcpchecker/functional/servers/mcp"
+	"github.com/mcpchecker/mcpchecker/functional/servers/openai"
 )
 
 // Environment variables for binary paths
 const (
-	EnvGevalsBinary    = "GEVALS_BINARY"
+	EnvMcpCheckerBinary = "MCPCHECKER_BINARY"
 	EnvMockAgentBinary = "MOCK_AGENT_BINARY"
 )
 
@@ -58,8 +58,8 @@ func (r *Runner) Run() {
 		r.t.Fatalf("config generation failed: %v", err)
 	}
 
-	// Run gevals
-	runCtx := r.runGevals(ctx)
+	// Run mcpchecker
+	runCtx := r.runMcpChecker(ctx)
 
 	// Run assertions
 	r.runAssertions(runCtx)
@@ -200,33 +200,33 @@ func (r *Runner) generateConfigs() error {
 			return err
 		}
 
-		// Output file is gevals-{eval-name}-out.json in the temp directory
-		// gevals writes to current working directory, so we run from temp dir
+		// Output file is mcpchecker-{eval-name}-out.json in the temp directory
+		// mcpchecker writes to current working directory, so we run from temp dir
 		evalName := evalSpec.Metadata.Name
 		if evalName == "" {
 			evalName = "eval"
 		}
-		r.outputFile = filepath.Join(r.generator.TempDir(), fmt.Sprintf("gevals-%s-out.json", evalName))
+		r.outputFile = filepath.Join(r.generator.TempDir(), fmt.Sprintf("mcpchecker-%s-out.json", evalName))
 	}
 
 	return nil
 }
 
 // generateAgentSpecFile creates an agent spec YAML that uses the mock agent binary.
-// The agent spec follows gevals's expected format with commands templates.
+// The agent spec follows mcpchecker's expected format with commands templates.
 func (r *Runner) generateAgentSpecFile() (string, error) {
 	mockAgentBinary, err := GetMockAgentBinary()
 	if err != nil {
 		return "", err
 	}
 
-	// Create agent spec using gevals's commands template format.
+	// Create agent spec using mcpchecker's commands template format.
 	// The mock agent receives:
 	// - Its behavior config via MOCK_AGENT_CONFIG env var (set by runner)
-	// - MCP server config via --mcp-config flag (using gevals's per-server file template)
+	// - MCP server config via --mcp-config flag (using mcpchecker's per-server file template)
 	// - The task prompt via --prompt flag
 	//
-	// Note: The mock agent expects a single MCP config file, but gevals provides
+	// Note: The mock agent expects a single MCP config file, but mcpchecker provides
 	// per-server files. The mock agent handles this by using the first server file.
 	agentSpec := map[string]any{
 		"kind": "Agent",
@@ -246,21 +246,21 @@ func (r *Runner) generateAgentSpecFile() (string, error) {
 	return r.generator.writeYAML("agent-spec.yaml", agentSpec)
 }
 
-func (r *Runner) runGevals(ctx context.Context) *RunContext {
+func (r *Runner) runMcpChecker(ctx context.Context) *RunContext {
 	runCtx := &RunContext{
 		MCPServers:  r.mcpServers,
 		JudgeServer: r.judgeServer,
 	}
 
-	// Find gevals binary
-	gevalsBinary, err := GetGevalsBinary()
+	// Find mcpchecker binary
+	mcpCheckerBinary, err := GetMcpCheckerBinary()
 	if err != nil {
-		r.t.Fatalf("failed to find gevals binary: %v", err)
+		r.t.Fatalf("failed to find mcpchecker binary: %v", err)
 	}
 
 	// Build command - eval takes config file as positional argument
 	args := []string{"eval", r.evalFile}
-	cmd := exec.CommandContext(ctx, gevalsBinary, args...)
+	cmd := exec.CommandContext(ctx, mcpCheckerBinary, args...)
 
 	// Run from temp directory so output file is written there
 	cmd.Dir = r.generator.TempDir()
@@ -295,7 +295,7 @@ func (r *Runner) runGevals(ctx context.Context) *RunContext {
 
 	// Log command output for debugging
 	if err != nil {
-		r.t.Logf("gevals command failed: %v", err)
+		r.t.Logf("mcpchecker command failed: %v", err)
 		r.t.Logf("command output:\n%s", runCtx.CommandOutput)
 	}
 
@@ -321,16 +321,16 @@ func (r *Runner) runAssertions(ctx *RunContext) {
 	}
 }
 
-// GetGevalsBinary returns the path to the gevals binary.
-// It first checks the GEVALS_BINARY environment variable,
+// GetMcpCheckerBinary returns the path to the mcpchecker binary.
+// It first checks the MCPCHECKER_BINARY environment variable,
 // then looks for the binary in common locations.
-func GetGevalsBinary() (string, error) {
+func GetMcpCheckerBinary() (string, error) {
 	// Check environment variable first
-	if path := os.Getenv(EnvGevalsBinary); path != "" {
+	if path := os.Getenv(EnvMcpCheckerBinary); path != "" {
 		if _, err := os.Stat(path); err == nil {
 			return path, nil
 		}
-		return "", fmt.Errorf("GEVALS_BINARY set to %q but file not found", path)
+		return "", fmt.Errorf("MCPCHECKER_BINARY set to %q but file not found", path)
 	}
 
 	// Try common locations relative to working directory
@@ -340,12 +340,12 @@ func GetGevalsBinary() (string, error) {
 	}
 
 	candidates := []string{
-		filepath.Join(wd, "..", "..", "bin", "gevals"),    // from functional/testcase or functional/tests
-		filepath.Join(wd, "..", "bin", "gevals"),          // from functional
-		filepath.Join(wd, "bin", "gevals"),                // current dir
-		filepath.Join(wd, "..", "..", "gevals"),           // repo root
-		filepath.Join(wd, "..", "gevals"),                 // parent
-		filepath.Join(wd, "gevals"),                       // current dir
+		filepath.Join(wd, "..", "..", "bin", "mcpchecker"),    // from functional/testcase or functional/tests
+		filepath.Join(wd, "..", "bin", "mcpchecker"),          // from functional
+		filepath.Join(wd, "bin", "mcpchecker"),                // current dir
+		filepath.Join(wd, "..", "..", "mcpchecker"),           // repo root
+		filepath.Join(wd, "..", "mcpchecker"),                 // parent
+		filepath.Join(wd, "mcpchecker"),                       // current dir
 	}
 
 	for _, candidate := range candidates {
@@ -354,7 +354,7 @@ func GetGevalsBinary() (string, error) {
 		}
 	}
 
-	return "", fmt.Errorf("gevals binary not found; set %s environment variable", EnvGevalsBinary)
+	return "", fmt.Errorf("mcpchecker binary not found; set %s environment variable", EnvMcpCheckerBinary)
 }
 
 // GetMockAgentBinary returns the path to the mock agent binary.

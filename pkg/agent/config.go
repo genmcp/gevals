@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/genmcp/gevals/pkg/util"
+	"github.com/mcpchecker/mcpchecker/pkg/util"
 	"sigs.k8s.io/yaml"
 )
 

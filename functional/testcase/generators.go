@@ -8,10 +8,10 @@ import (
 
 	"sigs.k8s.io/yaml"
 
-	"github.com/genmcp/gevals/functional/servers/agent"
-	"github.com/genmcp/gevals/pkg/eval"
-	"github.com/genmcp/gevals/pkg/task"
-	"github.com/genmcp/gevals/pkg/util"
+	"github.com/mcpchecker/mcpchecker/functional/servers/agent"
+	"github.com/mcpchecker/mcpchecker/pkg/eval"
+	"github.com/mcpchecker/mcpchecker/pkg/task"
+	"github.com/mcpchecker/mcpchecker/pkg/util"
 )
 
 // GeneratedFiles holds paths to all generated configuration files
@@ -32,7 +32,7 @@ type Generator struct {
 
 // NewGenerator creates a new generator with a temporary directory
 func NewGenerator(t *testing.T) (*Generator, error) {
-	tempDir, err := os.MkdirTemp("", "gevals-functional-*")
+	tempDir, err := os.MkdirTemp("", "mcpchecker-functional-*")
 	if err != nil {
 		return nil, err
 	}

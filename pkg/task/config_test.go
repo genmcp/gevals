@@ -7,8 +7,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/genmcp/gevals/pkg/steps"
-	"github.com/genmcp/gevals/pkg/util"
+	"github.com/mcpchecker/mcpchecker/pkg/steps"
+	"github.com/mcpchecker/mcpchecker/pkg/util"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

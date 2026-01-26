@@ -1,8 +1,8 @@
 package testcase
 
 import (
-	"github.com/genmcp/gevals/pkg/eval"
-	"github.com/genmcp/gevals/pkg/llmjudge"
+	"github.com/mcpchecker/mcpchecker/pkg/eval"
+	"github.com/mcpchecker/mcpchecker/pkg/llmjudge"
 )
 
 // EvalConfig provides a fluent API for building eval configurations.

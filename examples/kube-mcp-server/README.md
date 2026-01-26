@@ -38,14 +38,14 @@ The tasks and MCP configuration are shared - only the agent configuration differ
 - Kubernetes cluster (kind, minikube, or any cluster)
 - kubectl configured
 - Kubernetes MCP server running at `http://localhost:8080/mcp`
-- Built binaries: `gevals` and `agent`
+- Built binaries: `mcpchecker` and `agent`
 
 ## Running Examples
 
 ### Option 1: Claude Code
 
 ```bash
-./gevals eval examples/kube-mcp-server/claude-code/eval.yaml
+./mcpchecker eval examples/kube-mcp-server/claude-code/eval.yaml
 ```
 
 **Requirements:**
@@ -65,7 +65,7 @@ export MODEL_KEY='your-api-key'
 export MODEL_NAME='your-model-name'
 
 # Run the test
-./gevals eval examples/kube-mcp-server/openai-agent/eval.yaml
+./mcpchecker eval examples/kube-mcp-server/openai-agent/eval.yaml
 ```
 
 **Note:** Different AI models may choose different tools from the MCP server (`pods_*` or `resources_*`) to accomplish the same task. Both approaches work correctly.
@@ -107,4 +107,4 @@ Both examples should produce:
 - ✅ Assertions passed - appropriate tools were called
 - ✅ Verification passed - pod exists and is running
 
-Results saved to: `gevals-<eval-name>-out.json`
+Results saved to: `mcpchecker-<eval-name>-out.json`

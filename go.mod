@@ -1,4 +1,4 @@
-module github.com/genmcp/gevals
+module github.com/mcpchecker/mcpchecker
 
 go 1.25.5
 

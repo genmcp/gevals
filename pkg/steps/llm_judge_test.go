@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/genmcp/gevals/pkg/llmjudge"
+	"github.com/mcpchecker/mcpchecker/pkg/llmjudge"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

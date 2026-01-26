@@ -9,7 +9,7 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/genmcp/gevals/pkg/mcpproxy"
+	"github.com/mcpchecker/mcpchecker/pkg/mcpproxy"
 )
 
 type Runner interface {
@@ -59,8 +59,8 @@ func NewRunnerForSpec(spec *AgentSpec) (Runner, error) {
 
 func (a *agentSpecRunner) RunTask(ctx context.Context, prompt string) (AgentResult, error) {
 	debugDir := ""
-	if os.Getenv("GEVALS_DEBUG") != "" {
-		if dir, err := os.MkdirTemp("", "gevals-debug-"); err == nil {
+	if os.Getenv("MCPCHECKER_DEBUG") != "" {
+		if dir, err := os.MkdirTemp("", "mcpchecker-debug-"); err == nil {
 			debugDir = dir
 		} else {
 			fmt.Fprintf(os.Stderr, "Warning: failed to create debug directory: %v\n", err)
@@ -68,25 +68,25 @@ func (a *agentSpecRunner) RunTask(ctx context.Context, prompt string) (AgentResu
 	}
 
 	// Create an empty temporary directory for agent execution to isolate it from source code
-	tempDir, err := os.MkdirTemp("", "gevals-agent-")
+	tempDir, err := os.MkdirTemp("", "mcpchecker-agent-")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temporary directory for agent execution: %w", err)
 	}
 	executionSucceeded := false
 	defer func() {
-		// Clean up temp directory unless execution failed OR GEVALS_DEBUG is set
+		// Clean up temp directory unless execution failed OR MCPCHECKER_DEBUG is set
 		// In that case, preserve it for debugging
-		shouldPreserve := !executionSucceeded || os.Getenv("GEVALS_DEBUG") != ""
+		shouldPreserve := !executionSucceeded || os.Getenv("MCPCHECKER_DEBUG") != ""
 		if !shouldPreserve {
 			_ = os.RemoveAll(tempDir)
 		} else {
 			var reason string
-			if !executionSucceeded && os.Getenv("GEVALS_DEBUG") != "" {
-				reason = "execution failed and GEVALS_DEBUG is set"
+			if !executionSucceeded && os.Getenv("MCPCHECKER_DEBUG") != "" {
+				reason = "execution failed and MCPCHECKER_DEBUG is set"
 			} else if !executionSucceeded {
 				reason = "execution failed"
 			} else {
-				reason = "GEVALS_DEBUG is set"
+				reason = "MCPCHECKER_DEBUG is set"
 			}
 			fmt.Fprintf(os.Stderr, "Preserving temporary directory %s because %s\n", tempDir, reason)
 		}
@@ -194,8 +194,8 @@ func (a *agentSpecRunner) RunTask(ctx context.Context, prompt string) (AgentResu
 	cmd.Dir = tempDir
 	envVars := os.Environ()
 	if debugDir != "" {
-		envVars = append(envVars, fmt.Sprintf("GEVALS_DEBUG_DIR=%s", debugDir))
-		envVars = append(envVars, "GEVALS_DEBUG=1")
+		envVars = append(envVars, fmt.Sprintf("MCPCHECKER_DEBUG_DIR=%s", debugDir))
+		envVars = append(envVars, "MCPCHECKER_DEBUG=1")
 	}
 	cmd.Env = envVars
 
@@ -217,8 +217,8 @@ func (a *agentSpecRunner) RunTask(ctx context.Context, prompt string) (AgentResu
 	}
 
 	output := string(res)
-	// If GEVALS_DEBUG is set, append temp directory info to output so it appears in JSON log
-	if os.Getenv("GEVALS_DEBUG") != "" {
+	// If MCPCHECKER_DEBUG is set, append temp directory info to output so it appears in JSON log
+	if os.Getenv("MCPCHECKER_DEBUG") != "" {
 		output += fmt.Sprintf("\n\ntemporary directory preserved at: %s", tempDir)
 	}
 

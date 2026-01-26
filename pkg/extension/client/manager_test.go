@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/genmcp/gevals/pkg/extension"
-	"github.com/genmcp/gevals/pkg/extension/protocol"
+	"github.com/mcpchecker/mcpchecker/pkg/extension"
+	"github.com/mcpchecker/mcpchecker/pkg/extension/protocol"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

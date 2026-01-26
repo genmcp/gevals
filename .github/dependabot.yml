@@ -19,10 +19,10 @@ updates:
           - "*"
 
   - package-ecosystem: "github-actions"
-    directory: "/.github/actions/gevals-action"
+    directory: "/.github/actions/mcpchecker-action"
     schedule:
       interval: "weekly"
     groups:
-      gevals-action-dependencies:
+      mcpchecker-action-dependencies:
         patterns:
           - "*"

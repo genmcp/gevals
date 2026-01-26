@@ -9,7 +9,7 @@ import (
 	"os"
 	"sync"
 
-	"github.com/genmcp/gevals/pkg/extension/protocol"
+	"github.com/mcpchecker/mcpchecker/pkg/extension/protocol"
 	"golang.org/x/exp/jsonrpc2"
 )
 

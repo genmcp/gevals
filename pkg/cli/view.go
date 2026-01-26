@@ -11,9 +11,9 @@ import (
 	"strings"
 
 	"github.com/fatih/color"
-	"github.com/genmcp/gevals/pkg/eval"
-	"github.com/genmcp/gevals/pkg/mcpproxy"
-	"github.com/genmcp/gevals/pkg/task"
+	"github.com/mcpchecker/mcpchecker/pkg/eval"
+	"github.com/mcpchecker/mcpchecker/pkg/mcpproxy"
+	"github.com/mcpchecker/mcpchecker/pkg/task"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/spf13/cobra"
 )
@@ -37,11 +37,11 @@ func NewViewCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "view <results-file>",
 		Short: "Pretty-print evaluation results from a JSON file",
-		Long: `Render the JSON output produced by "geval run" in a human-friendly format.
+		Long: `Render the JSON output produced by "mcpchecker run" in a human-friendly format.
 
 Examples:
-  geval view gevals-netedge-selector-mismatch-out.json
-  geval view --task netedge-selector-mismatch --max-events 15 results.json`,
+  mcpchecker view mcpchecker-netedge-selector-mismatch-out.json
+  mcpchecker view --task netedge-selector-mismatch --max-events 15 results.json`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			results, err := loadEvalResults(args[0])

@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 ### Changed
+- Renamed project from gevals to mcpchecker, migrated to mcpchecker github org
 
 ### Fixed
 

@@ -2,11 +2,11 @@
 
 ## Problem Statement
 
-gevals currently uses bash scripts for setup, verification, and cleanup of evaluation tasks. While this approach works, it creates several problems as the project scales:
+mcpchecker currently uses bash scripts for setup, verification, and cleanup of evaluation tasks. While this approach works, it creates several problems as the project scales:
 
 **Script complexity grows quickly.** What starts as a simple `kubectl get pod` check becomes 90 lines of bash with jq parsing, retry loops, timeout handling, and error messages. These scripts are hard to read, debug, and maintain. See `examples/kube-mcp-server/tasks/create-canary-deployment/verify.sh` or `examples/kube-mcp-server/tasks/setup-dev-cluster/verify.sh` for examples of this complexity.
 
-**Tasks are not portable across evaluation tools.** An MCP server developer who publishes evaluation tasks today is publishing gevals-specific artifacts. A user who wants to run these same task scenarios against their own application using a different evaluation framework (one focused on response quality rather than MCP behavior) cannot easily reuse them. The task definition is tangled with gevals-specific execution.
+**Tasks are not portable across evaluation tools.** An MCP server developer who publishes evaluation tasks today is publishing mcpchecker-specific artifacts. A user who wants to run these same task scenarios against their own application using a different evaluation framework (one focused on response quality rather than MCP behavior) cannot easily reuse them. The task definition is tangled with mcpchecker-specific execution.
 
 **Verification lives in two places.** The current design separates "did the task succeed" (verify script in task.yaml) from "did the agent use MCP correctly" (assertions in eval.yaml). This layering exists for good reason (the same task can run against different MCP servers), but it's confusing for developers writing simple evaluations.
 
@@ -20,7 +20,7 @@ Any solution must satisfy these constraints:
 
 ### Portability
 
-1. Task definitions must be consumable by tools other than gevals. An evaluation framework focused on response quality should be able to load a task's prompt, run it through their own agent, and apply their own quality metrics.
+1. Task definitions must be consumable by tools other than mcpchecker. An evaluation framework focused on response quality should be able to load a task's prompt, run it through their own agent, and apply their own quality metrics.
 
 2. Tasks must be self-contained. All artifacts needed to run a task (manifests, expected files, etc.) should be bundled with or referenced by the task definition.
 
@@ -44,7 +44,7 @@ Any solution must satisfy these constraints:
 
 ### Extensibility
 
-7. Domain-specific verification logic (Kubernetes-specific checks, database queries, etc.) must be pluggable without modifying gevals core.
+7. Domain-specific verification logic (Kubernetes-specific checks, database queries, etc.) must be pluggable without modifying mcpchecker core.
 
 8. Extensions must be distributable and runnable without requiring users to install language-specific toolchains.
 
@@ -97,7 +97,7 @@ metadata:
 
 spec:
   imports:
-    - package: github.com/gevals/ext-kubernetes@v1
+    - package: github.com/mcpchecker/ext-kubernetes@v1
       as: k8s
 
   env:
@@ -165,9 +165,9 @@ Extensions are imported at the top of a task and given a short alias:
 ```yaml
 spec:
   imports:
-    - package: github.com/gevals/ext-kubernetes@v1
+    - package: github.com/mcpchecker/ext-kubernetes@v1
       as: k8s
-    - package: github.com/gevals/ext-postgres@v2
+    - package: github.com/mcpchecker/ext-postgres@v2
       as: pg
 ```
 
@@ -198,7 +198,7 @@ This is equivalent to the verbose form:
 
 ```yaml
 - extension:
-    package: github.com/gevals/ext-kubernetes@v1
+    package: github.com/mcpchecker/ext-kubernetes@v1
     action: create-namespace
     args:
       name: my-namespace
@@ -223,7 +223,7 @@ Environment variables from the shell (`$HOME`, etc.) are also available via `{en
 
 ### Built-in Step Types
 
-gevals provides a small set of generic, domain-agnostic step types. Domain-specific operations (Kubernetes, databases, etc.) belong in extensions.
+mcpchecker provides a small set of generic, domain-agnostic step types. Domain-specific operations (Kubernetes, databases, etc.) belong in extensions.
 
 #### command
 
@@ -418,25 +418,25 @@ The group's cleanup runs regardless of whether its steps pass.
 
 ### Extensions
 
-Extensions are standalone executables that implement domain-specific actions and checks. They are distributed as binaries and invoked by gevals via a JSON protocol.
+Extensions are standalone executables that implement domain-specific actions and checks. They are distributed as binaries and invoked by mcpchecker via a JSON protocol.
 
 #### Package References
 
 Extensions are referenced by package identifier:
 
 ```
-github.com/gevals/ext-kubernetes@v1.2.0
+github.com/mcpchecker/ext-kubernetes@v1.2.0
 github.com/myorg/ext-postgres@v0.1.0
 ```
 
-gevals downloads the appropriate binary for the current platform from the package's releases and caches it locally (`~/.gevals/extensions/`).
+mcpchecker downloads the appropriate binary for the current platform from the package's releases and caches it locally (`~/.mcpchecker/extensions/`).
 
 #### Release Structure
 
 Extension authors publish platform-specific binaries:
 
 ```
-github.com/gevals/ext-kubernetes/releases/v1.2.0/
+github.com/mcpchecker/ext-kubernetes/releases/v1.2.0/
 ├── ext-kubernetes-darwin-amd64
 ├── ext-kubernetes-darwin-arm64
 ├── ext-kubernetes-linux-amd64
@@ -536,7 +536,7 @@ Actions are used in setup/cleanup phases. Checks are used in verify phase. Some 
 
 #### Invocation Protocol
 
-gevals invokes extensions via command line:
+mcpchecker invokes extensions via command line:
 
 ```bash
 # For actions (setup/cleanup)
@@ -596,15 +596,15 @@ Exit codes: 0 for success, non-zero for failure. The JSON output provides detail
 For registry automation or other untrusted contexts, extensions can be run in containers:
 
 ```yaml
-# gevals config
+# mcpchecker config
 extensions:
   sandbox: docker
   allowedSources:
-    - github.com/genmcp/*
+    - github.com/mcpchecker/*
     - github.com/my-trusted-org/*
 ```
 
-When sandboxed, gevals runs the extension binary inside a container with limited capabilities.
+When sandboxed, mcpchecker runs the extension binary inside a container with limited capabilities.
 
 ### Script Protocol
 
@@ -705,11 +705,11 @@ config:
 
   # Extension configuration
   extensions:
-    cacheDir: ~/.gevals/extensions    # Default
+    cacheDir: ~/.mcpchecker/extensions    # Default
     timeout: 5m                        # Max time for extension operations
     sandbox: none                      # none | docker
     allowedSources:                    # For sandboxed mode
-      - github.com/gevals/*
+      - github.com/mcpchecker/*
 
   # Task configuration
   taskSets:
@@ -827,7 +827,7 @@ The new format is opt-in via `apiVersion: mcp-eval/v1` and the `spec` structure.
 
 ## Appendix B: Kubernetes Extension Reference
 
-The `github.com/gevals/ext-kubernetes` extension provides Kubernetes-specific operations.
+The `github.com/mcpchecker/mcpchecker-ext-kubernetes` extension provides Kubernetes-specific operations.
 
 ### Actions
 

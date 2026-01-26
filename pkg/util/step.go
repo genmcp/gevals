@@ -46,7 +46,7 @@ func (s *Step) Run(ctx context.Context) (string, error) {
 // Scripts with shebangs are written to temp files in the current directory to preserve relative paths.
 func (s *Step) createInlineCommand(ctx context.Context) (*exec.Cmd, error) {
 	if strings.HasPrefix(strings.TrimSpace(s.Inline), "#!") {
-		tmpFile, err := os.CreateTemp(".", ".gevals-step-*.sh")
+		tmpFile, err := os.CreateTemp(".", ".mcpchecker-step-*.sh")
 		if err != nil {
 			return nil, fmt.Errorf("failed to create temp script file: %w", err)
 		}

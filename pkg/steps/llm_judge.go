@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/genmcp/gevals/pkg/llmjudge"
-	"github.com/genmcp/gevals/pkg/util"
+	"github.com/mcpchecker/mcpchecker/pkg/llmjudge"
+	"github.com/mcpchecker/mcpchecker/pkg/util"
 )
 
 type LLMJudgeStep struct {

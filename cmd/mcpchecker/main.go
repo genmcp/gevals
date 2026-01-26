@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/genmcp/gevals/pkg/cli"
+	"github.com/mcpchecker/mcpchecker/pkg/cli"
 )
 
 func main() {

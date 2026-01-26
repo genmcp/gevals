@@ -7,13 +7,13 @@ import (
 	"path/filepath"
 	"regexp"
 
-	"github.com/genmcp/gevals/pkg/agent"
-	"github.com/genmcp/gevals/pkg/extension/client"
-	"github.com/genmcp/gevals/pkg/extension/resolver"
-	"github.com/genmcp/gevals/pkg/llmjudge"
-	"github.com/genmcp/gevals/pkg/mcpproxy"
-	"github.com/genmcp/gevals/pkg/task"
-	"github.com/genmcp/gevals/pkg/util"
+	"github.com/mcpchecker/mcpchecker/pkg/agent"
+	"github.com/mcpchecker/mcpchecker/pkg/extension/client"
+	"github.com/mcpchecker/mcpchecker/pkg/extension/resolver"
+	"github.com/mcpchecker/mcpchecker/pkg/llmjudge"
+	"github.com/mcpchecker/mcpchecker/pkg/mcpproxy"
+	"github.com/mcpchecker/mcpchecker/pkg/task"
+	"github.com/mcpchecker/mcpchecker/pkg/util"
 )
 
 type EvalResult struct {

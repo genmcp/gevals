@@ -1,14 +1,14 @@
-name: 'Run gevals MCP Evaluation'
-description: 'Evaluate MCP servers using the gevals framework'
-author: 'genmcp'
+name: 'Run mcpchecker MCP Evaluation'
+description: 'Evaluate MCP servers using the mcpchecker framework'
+author: 'mcpchecker'
 
 inputs:
   eval-config:
     description: 'Path to eval.yaml configuration file'
     required: true
 
-  gevals-version:
-    description: 'Version of gevals to use (latest, main, or vX.Y.Z)'
+  mcpchecker-version:
+    description: 'Version of mcpchecker to use (latest, main, or vX.Y.Z)'
     required: false
     default: 'latest'
 
@@ -35,7 +35,7 @@ inputs:
   artifact-name:
     description: 'Name for uploaded artifacts'
     required: false
-    default: 'gevals-results'
+    default: 'mcpchecker-results'
 
   fail-on-error:
     description: 'Fail the workflow if evaluation fails'
@@ -90,9 +90,9 @@ outputs:
     description: 'Total number of tasks with assertions evaluated'
     value: ${{ steps.run-eval.outputs.assertions-total }}
 
-  gevals-path:
-    description: 'Path to the installed gevals binary'
-    value: ${{ steps.install.outputs.gevals-path }}
+  mcpchecker-path:
+    description: 'Path to the installed mcpchecker binary'
+    value: ${{ steps.install.outputs.mcpchecker-path }}
 
   agent-path:
     description: 'Path to the installed agent binary'
@@ -164,7 +164,7 @@ runs:
         go-version: '1.25.x'
         cache: false
 
-    - name: Install gevals
+    - name: Install mcpchecker
       id: install
       shell: bash
       env:
@@ -173,56 +173,56 @@ runs:
         BIN_EXT: ${{ steps.platform.outputs.bin-ext }}
         BINARY_SUFFIX: ${{ steps.platform.outputs.binary-suffix }}
       run: |
-        INSTALL_DIR="${{ runner.temp }}/gevals-bin"
+        INSTALL_DIR="${{ runner.temp }}/mcpchecker-bin"
         mkdir -p "$INSTALL_DIR"
 
-        GEVALS_BIN="$INSTALL_DIR/gevals$BIN_EXT"
+        MCPCHECKER_BIN="$INSTALL_DIR/mcpchecker$BIN_EXT"
         AGENT_BIN="$INSTALL_DIR/agent$BIN_EXT"
 
         # Determine effective version to use
-        REQUESTED_VERSION="${{ inputs.gevals-version }}"
+        REQUESTED_VERSION="${{ inputs.mcpchecker-version }}"
         ACTION_REF="${{ github.action_ref }}"
 
         # If version is 'latest' and the action was called with a version tag ref,
         # use the action ref as the version (enables automatic version matching)
         if [ "$REQUESTED_VERSION" = "latest" ] && [[ "$ACTION_REF" =~ ^v[0-9] ]]; then
-          echo "Detected action ref '$ACTION_REF' - using as gevals version"
+          echo "Detected action ref '$ACTION_REF' - using as mcpchecker version"
           EFFECTIVE_VERSION="$ACTION_REF"
         else
           EFFECTIVE_VERSION="$REQUESTED_VERSION"
         fi
 
-        echo "Effective gevals version: $EFFECTIVE_VERSION"
+        echo "Effective mcpchecker version: $EFFECTIVE_VERSION"
 
         if [ "$EFFECTIVE_VERSION" = "latest" ] || [ "$EFFECTIVE_VERSION" = "main" ]; then
-          echo "Building gevals from source for $GOOS/$GOARCH..."
+          echo "Building mcpchecker from source for $GOOS/$GOARCH..."
 
-          # Clone gevals repository
-          GEVALS_SRC="${{ runner.temp }}/gevals-src"
-          git clone --depth 1 https://github.com/genmcp/gevals.git "$GEVALS_SRC"
-          cd "$GEVALS_SRC"
+          # Clone mcpchecker repository
+          MCPCHECKER_SRC="${{ runner.temp }}/mcpchecker-src"
+          git clone --depth 1 https://github.com/mcpchecker/mcpchecker.git "$MCPCHECKER_SRC"
+          cd "$MCPCHECKER_SRC"
 
           # Build binaries
           make build GOOS=$GOOS GOARCH=$GOARCH
 
           # Copy built binaries to install directory
-          mv gevals$BIN_EXT "$GEVALS_BIN"
+          mv mcpchecker$BIN_EXT "$MCPCHECKER_BIN"
           mv agent$BIN_EXT "$AGENT_BIN"
 
           # Cleanup source
           cd -
-          rm -rf "$GEVALS_SRC"
+          rm -rf "$MCPCHECKER_SRC"
         else
-          echo "Downloading pre-built gevals $EFFECTIVE_VERSION for $BINARY_SUFFIX..."
+          echo "Downloading pre-built mcpchecker $EFFECTIVE_VERSION for $BINARY_SUFFIX..."
 
           # Download from GitHub releases
-          RELEASE_URL="https://github.com/genmcp/gevals/releases/download/$EFFECTIVE_VERSION"
-          DOWNLOAD_DIR="${{ runner.temp }}/gevals-download"
+          RELEASE_URL="https://github.com/mcpchecker/mcpchecker/releases/download/$EFFECTIVE_VERSION"
+          DOWNLOAD_DIR="${{ runner.temp }}/mcpchecker-download"
           mkdir -p "$DOWNLOAD_DIR"
 
-          # Download pre-built gevals zip
-          if ! curl -fsSL "$RELEASE_URL/gevals-$BINARY_SUFFIX.zip" -o "$DOWNLOAD_DIR/gevals.zip" 2>&1; then
-            echo "❌ Failed to download pre-built gevals release for $BINARY_SUFFIX"
+          # Download pre-built mcpchecker zip
+          if ! curl -fsSL "$RELEASE_URL/mcpchecker-$BINARY_SUFFIX.zip" -o "$DOWNLOAD_DIR/mcpchecker.zip" 2>&1; then
+            echo "❌ Failed to download pre-built mcpchecker release for $BINARY_SUFFIX"
             echo "   Check that version '$EFFECTIVE_VERSION' exists and has release artifacts"
             exit 1
           fi
@@ -234,24 +234,24 @@ runs:
           fi
 
           # Extract zips
-          echo "Extracting gevals..."
-          unzip -q "$DOWNLOAD_DIR/gevals.zip" -d "$DOWNLOAD_DIR"
-          mv "$DOWNLOAD_DIR/gevals-$BINARY_SUFFIX$BIN_EXT" "$GEVALS_BIN"
+          echo "Extracting mcpchecker..."
+          unzip -q "$DOWNLOAD_DIR/mcpchecker.zip" -d "$DOWNLOAD_DIR"
+          mv "$DOWNLOAD_DIR/mcpchecker-$BINARY_SUFFIX$BIN_EXT" "$MCPCHECKER_BIN"
 
           echo "Extracting agent..."
           unzip -q "$DOWNLOAD_DIR/agent.zip" -d "$DOWNLOAD_DIR"
           mv "$DOWNLOAD_DIR/agent-$BINARY_SUFFIX$BIN_EXT" "$AGENT_BIN"
 
           # Make binaries executable (not needed on Windows, but harmless)
-          chmod +x "$GEVALS_BIN" "$AGENT_BIN"
+          chmod +x "$MCPCHECKER_BIN" "$AGENT_BIN"
 
           # Cleanup download directory
           rm -rf "$DOWNLOAD_DIR"
         fi
 
         # Verify binaries exist
-        if [ ! -f "$GEVALS_BIN" ]; then
-          echo "❌ gevals binary not found at $GEVALS_BIN"
+        if [ ! -f "$MCPCHECKER_BIN" ]; then
+          echo "❌ mcpchecker binary not found at $MCPCHECKER_BIN"
           exit 1
         fi
 
@@ -261,22 +261,22 @@ runs:
         fi
 
         # Output paths and version
-        echo "gevals-path=$GEVALS_BIN" >> $GITHUB_OUTPUT
+        echo "mcpchecker-path=$MCPCHECKER_BIN" >> $GITHUB_OUTPUT
         echo "agent-path=$AGENT_BIN" >> $GITHUB_OUTPUT
         echo "effective-version=$EFFECTIVE_VERSION" >> $GITHUB_OUTPUT
 
         # Add to PATH for subsequent steps
         echo "$INSTALL_DIR" >> $GITHUB_PATH
 
-        echo "✓ Installed gevals to $GEVALS_BIN"
+        echo "✓ Installed mcpchecker to $MCPCHECKER_BIN"
         echo "✓ Installed agent to $AGENT_BIN"
 
-    - name: Verify gevals installation
+    - name: Verify mcpchecker installation
       shell: bash
       run: |
-        echo "Verifying gevals installation..."
-        ${{ steps.install.outputs.gevals-path }} help
-        echo "✓ gevals installed successfully"
+        echo "Verifying mcpchecker installation..."
+        ${{ steps.install.outputs.mcpchecker-path }} help
+        echo "✓ mcpchecker installed successfully"
         echo ""
         echo "Platform: ${{ steps.platform.outputs.goos }}/${{ steps.platform.outputs.goarch }}"
         echo "Version: ${{ steps.install.outputs.effective-version }}"
@@ -287,7 +287,7 @@ runs:
       working-directory: ${{ inputs.working-directory }}
       run: |
         # Build command as array (safe from shell injection)
-        CMD=("${{ steps.install.outputs.gevals-path }}" "eval" "${{ inputs.eval-config }}")
+        CMD=("${{ steps.install.outputs.mcpchecker-path }}" "eval" "${{ inputs.eval-config }}")
 
         # Add optional flags as separate array elements
         if [ -n "${{ inputs.output-format }}" ]; then
@@ -314,7 +314,7 @@ runs:
 
         # Find results file (deterministic: pick most recently modified)
         # ls -t sorts by modification time (newest first), ensuring deterministic selection
-        RESULTS_FILE=$(ls -t gevals-*-out.json 2>/dev/null | head -1 || echo "")
+        RESULTS_FILE=$(ls -t mcpchecker-*-out.json 2>/dev/null | head -1 || echo "")
 
         if [ -n "$RESULTS_FILE" ]; then
           echo "Results file: $RESULTS_FILE"
@@ -440,7 +440,7 @@ runs:
       with:
         name: ${{ inputs.artifact-name }}
         path: |
-          ${{ inputs.working-directory }}/gevals-*-out.json
+          ${{ inputs.working-directory }}/mcpchecker-*-out.json
           ${{ inputs.working-directory }}/*-error.txt
         if-no-files-found: warn
 

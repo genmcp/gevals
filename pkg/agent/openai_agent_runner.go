@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/genmcp/gevals/pkg/openaiagent"
+	"github.com/mcpchecker/mcpchecker/pkg/openaiagent"
 )
 
 // openAIAgentRunner implements Runner for OpenAI agents using the openaiagent package

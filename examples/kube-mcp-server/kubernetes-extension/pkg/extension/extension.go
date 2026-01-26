@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/genmcp/gevals/pkg/extension/sdk"
+	"github.com/mcpchecker/mcpchecker/pkg/extension/sdk"
 	"github.com/google/jsonschema-go/jsonschema"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"

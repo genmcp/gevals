@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/genmcp/gevals/pkg/agent"
-	"github.com/genmcp/gevals/pkg/extension/client"
-	"github.com/genmcp/gevals/pkg/steps"
+	"github.com/mcpchecker/mcpchecker/pkg/agent"
+	"github.com/mcpchecker/mcpchecker/pkg/extension/client"
+	"github.com/mcpchecker/mcpchecker/pkg/steps"
 )
 
 // PhaseOutput represents the output from a task phase (setup, agent, verify, or cleanup).
