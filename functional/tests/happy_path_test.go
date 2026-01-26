@@ -131,3 +131,38 @@ func TestTaskPassesWithMultipleToolCalls(t *testing.T) {
 		ExpectToolCalledTimes("kubernetes", "kubectl_apply", 1).
 		Run()
 }
+
+// TestTaskWithLabels verifies that:
+// - Tasks can have labels defined in metadata
+// - Tasks with labels execute correctly
+func TestTaskWithLabels(t *testing.T) {
+	testcase.New(t, "task-with-labels").
+		WithMCPServer("kubernetes", func(s *testcase.MCPServerBuilder) {
+			s.Tool("kubectl_version", func(tool *testcase.ToolDef) {
+				tool.WithDescription("Get kubectl version").
+					ReturnsText("Client Version: v1.28.0")
+			})
+		}).
+		WithAgent(func(a *testcase.AgentBuilder) {
+			a.OnPromptContaining("version").
+				CallTool("kubectl_version", map[string]any{}).
+				ThenRespond("kubectl version is v1.28.0")
+		}).
+		WithTask(func(task *testcase.TaskConfig) {
+			task.Name("check-kubectl-version").
+				Easy().
+				AddLabel("suite", "kubernetes").
+				AddLabel("category", "basic").
+				Prompt("Check kubectl version").
+				VerifyContains("version")
+		}).
+		WithEval(func(eval *testcase.EvalConfig) {
+			eval.Name("test-task-with-labels")
+		}).
+		WithJudge(func(j *testcase.JudgeBuilder) {
+			j.Always().Pass("Version check completed")
+		}).
+		ExpectTaskPassed().
+		ExpectToolCalled("kubernetes", "kubectl_version").
+		Run()
+}

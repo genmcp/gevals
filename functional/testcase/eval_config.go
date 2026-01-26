@@ -190,6 +190,21 @@ func (b *TaskSetBuilder) Glob(pattern string) *TaskSetBuilder {
 	return b
 }
 
+// LabelSelector sets the label selector for filtering tasks
+func (b *TaskSetBuilder) LabelSelector(labels map[string]string) *TaskSetBuilder {
+	b.set.LabelSelector = labels
+	return b
+}
+
+// AddLabelSelector adds a single label to the label selector
+func (b *TaskSetBuilder) AddLabelSelector(key, value string) *TaskSetBuilder {
+	if b.set.LabelSelector == nil {
+		b.set.LabelSelector = make(map[string]string)
+	}
+	b.set.LabelSelector[key] = value
+	return b
+}
+
 // Assertions configures assertions for this task set
 func (b *TaskSetBuilder) Assertions(configure func(*AssertionsBuilder)) *TaskSetBuilder {
 	builder := &AssertionsBuilder{assertions: &eval.TaskAssertions{}}

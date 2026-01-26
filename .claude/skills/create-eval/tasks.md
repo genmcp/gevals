@@ -34,6 +34,7 @@ steps:
 |-------|------|----------|-------------|
 | `name` | string | Yes | Unique identifier for the task |
 | `difficulty` | string | Yes | One of: `"easy"`, `"medium"`, `"hard"` |
+| `labels` | map[string]string | No | Key-value labels for categorizing and filtering tasks |
 
 ## steps Fields
 
