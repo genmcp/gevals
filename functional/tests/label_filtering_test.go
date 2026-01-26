@@ -136,7 +136,11 @@ func TestLabelFiltering(t *testing.T) {
 
 	cmdNoFilter := exec.Command(gevalsBinary, "eval", evalNoFilterFile)
 	cmdNoFilter.Dir = tmpDir
-	outputNoFilter, _ := cmdNoFilter.CombinedOutput()
+	outputNoFilter, err := cmdNoFilter.CombinedOutput()
+	require.NoError(t, err, "Output file should exist: %s", outputNoFilter)
+	if err != nil {
+		t.Fatalf("gevals eval command failed (no filter): %v\nOutput:\n%s", err, string(outputNoFilter))
+	}
 
 	t.Logf("gevals output (no filter):\n%s", string(outputNoFilter))
 
@@ -149,15 +153,16 @@ func TestLabelFiltering(t *testing.T) {
 
 	// Verify results file contains 3 tasks
 	outputNoFilterFile := filepath.Join(tmpDir, "gevals-no-filter-test-out.json")
-	if _, err := os.Stat(outputNoFilterFile); err == nil {
-		data, err := os.ReadFile(outputNoFilterFile)
-		require.NoError(t, err)
+	_, err = os.Stat(outputNoFilterFile)
+	require.NoError(t, err, "Output file should exist: %s", outputNoFilterFile)
 
-		var results []map[string]any
-		require.NoError(t, json.Unmarshal(data, &results))
+	data, err := os.ReadFile(outputNoFilterFile)
+	require.NoError(t, err)
 
-		assert.Len(t, results, 3, "Results should contain all 3 tasks without filter")
-	}
+	var results []map[string]any
+	require.NoError(t, json.Unmarshal(data, &results))
+
+	assert.Len(t, results, 3, "Results should contain all 3 tasks without filter")
 
 	// STEP 2: Run WITH label selector - should execute ONLY 1 task
 	t.Log("=== Testing WITH label selector (should execute 1 task) ===")
@@ -191,7 +196,10 @@ func TestLabelFiltering(t *testing.T) {
 
 	cmdWithFilter := exec.Command(gevalsBinary, "eval", evalWithFilterFile)
 	cmdWithFilter.Dir = tmpDir
-	outputWithFilter, _ := cmdWithFilter.CombinedOutput()
+	outputWithFilter, err := cmdWithFilter.CombinedOutput()
+	if err != nil {
+		t.Fatalf("gevals eval command failed (with filter): %v\nOutput:\n%s", err, string(outputWithFilter))
+	}
 
 	t.Logf("gevals output (with filter):\n%s", string(outputWithFilter))
 
@@ -208,18 +216,20 @@ func TestLabelFiltering(t *testing.T) {
 
 	// Verify results file exists and contains exactly 1 task
 	outputWithFilterFile := filepath.Join(tmpDir, "gevals-label-filtering-test-out.json")
-	if _, err := os.Stat(outputWithFilterFile); err == nil {
-		data, err := os.ReadFile(outputWithFilterFile)
-		require.NoError(t, err)
+	_, err = os.Stat(outputWithFilterFile)
+	require.NoError(t, err, "Output file should exist: %s", outputWithFilterFile)
 
-		var results []map[string]any
-		require.NoError(t, json.Unmarshal(data, &results))
+	data, err = os.ReadFile(outputWithFilterFile)
+	require.NoError(t, err)
 
-		// Should only have 1 result (the filtered task)
-		assert.Len(t, results, 1, "Results should contain exactly 1 task (k8s-basic-task) with filter")
-	}
+	results = nil // Reset the slice
+	require.NoError(t, json.Unmarshal(data, &results))
+
+	// Should only have 1 result (the filtered task)
+	assert.Len(t, results, 1, "Results should contain exactly 1 task (k8s-basic-task) with filter")
 }
 
+// writeTaskFile writes a task configuration to a YAML file in the specified directory
 func writeTaskFile(t *testing.T, dir, filename string, task map[string]any) {
 	t.Helper()
 	taskBytes, err := yaml.Marshal(task)
@@ -227,6 +237,7 @@ func writeTaskFile(t *testing.T, dir, filename string, task map[string]any) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, filename), taskBytes, 0644))
 }
 
+// createEmptyMCPConfig creates an empty MCP server configuration file and returns its path
 func createEmptyMCPConfig(t *testing.T, dir string) string {
 	t.Helper()
 	mcpConfig := map[string]any{
