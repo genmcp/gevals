@@ -21,7 +21,7 @@ If agents successfully complete tasks using your MCP server, your tools are well
 go build -o mcpchecker ./cmd/mcpchecker
 
 # Run the example (requires Kubernetes cluster + MCP server)
-./mcpchecker eval examples/kubernetes/eval.yaml
+./mcpchecker check examples/kubernetes/eval.yaml
 ```
 
 The tool will:
