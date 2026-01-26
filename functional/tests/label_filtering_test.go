@@ -136,8 +136,6 @@ func TestLabelFiltering(t *testing.T) {
 
 	cmdNoFilter := exec.Command(gevalsBinary, "eval", evalNoFilterFile)
 	cmdNoFilter.Dir = tmpDir
-	cmdNoFilter := exec.Command(gevalsBinary, "eval", evalNoFilterFile)
-	cmdNoFilter.Dir = tmpDir
 	outputNoFilter, err := cmdNoFilter.CombinedOutput()
 	require.NoError(t, err, "gevals eval command failed (no filter):\n%s", string(outputNoFilter))
 
