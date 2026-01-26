@@ -10,9 +10,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 ### Changed
-- Renamed project from gevals to mcpchecker, migrated to mcpchecker github org
 
 ### Fixed
+
+## [0.0.3]
+
+### Changed
+- Renamed project from gevals to mcpchecker, migrated to mcpchecker github org
 
 ## [0.0.2]
 
