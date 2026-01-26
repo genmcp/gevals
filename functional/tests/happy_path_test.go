@@ -166,3 +166,4 @@ func TestTaskWithLabels(t *testing.T) {
 		ExpectToolCalled("kubernetes", "kubectl_version").
 		Run()
 }
+
