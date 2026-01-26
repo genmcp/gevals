@@ -5,13 +5,14 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/mcpchecker/mcpchecker/pkg/eval"
+	"github.com/mcpchecker/mcpchecker/pkg/results"
 	"github.com/spf13/cobra"
 )
 
 // DiffResult holds the comparison between two evaluation runs
 type DiffResult struct {
-	BaseStats    Stats
-	HeadStats    Stats
+	BaseStats    results.Stats
+	HeadStats    results.Stats
 	Regressions  []TaskDiff
 	Improvements []TaskDiff
 	New          []TaskDiff
@@ -50,12 +51,12 @@ Example:
 		Args:         cobra.NoArgs,
 		SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			baseResults, err := loadEvalResults(baseFile)
+			baseResults, err := results.Load(baseFile)
 			if err != nil {
 				return fmt.Errorf("failed to load base results: %w", err)
 			}
 
-			currentResults, err := loadEvalResults(currentFile)
+			currentResults, err := results.Load(currentFile)
 			if err != nil {
 				return fmt.Errorf("failed to load current results: %w", err)
 			}
@@ -87,8 +88,8 @@ Example:
 
 func calculateDiff(baseFile, currentFile string, baseResults, currentResults []*eval.EvalResult) DiffResult {
 	diff := DiffResult{
-		BaseStats:    calculateStats(baseFile, baseResults),
-		HeadStats:    calculateStats(currentFile, currentResults),
+		BaseStats:    results.CalculateStats(baseFile, baseResults),
+		HeadStats:    results.CalculateStats(currentFile, currentResults),
 		Regressions:  make([]TaskDiff, 0),
 		Improvements: make([]TaskDiff, 0),
 		New:          make([]TaskDiff, 0),
@@ -111,8 +112,8 @@ func calculateDiff(baseFile, currentFile string, baseResults, currentResults []*
 			diff.New = append(diff.New, TaskDiff{
 				TaskName:           current.TaskName,
 				HeadPassed:         current.TaskPassed && current.AllAssertionsPassed,
-				HeadAssertions:     getPassedAssertions(current),
-				HeadAssertionTotal: getTotalAssertions(current),
+				HeadAssertions:     results.PassedAssertions(current),
+				HeadAssertionTotal: results.TotalAssertions(current),
 			})
 			continue
 		}
@@ -124,11 +125,11 @@ func calculateDiff(baseFile, currentFile string, baseResults, currentResults []*
 			TaskName:           current.TaskName,
 			BasePassed:         basePassed,
 			HeadPassed:         currentPassed,
-			BaseAssertions:     getPassedAssertions(base),
-			HeadAssertions:     getPassedAssertions(current),
-			BaseAssertionTotal: getTotalAssertions(base),
-			HeadAssertionTotal: getTotalAssertions(current),
-			FailureReason:      getFailureReason(current),
+			BaseAssertions:     results.PassedAssertions(base),
+			HeadAssertions:     results.PassedAssertions(current),
+			BaseAssertionTotal: results.TotalAssertions(base),
+			HeadAssertionTotal: results.TotalAssertions(current),
+			FailureReason:      results.FailureReason(current),
 		}
 
 		if basePassed && !currentPassed {
@@ -143,71 +144,13 @@ func calculateDiff(baseFile, currentFile string, baseResults, currentResults []*
 			diff.Removed = append(diff.Removed, TaskDiff{
 				TaskName:           base.TaskName,
 				BasePassed:         base.TaskPassed && base.AllAssertionsPassed,
-				BaseAssertions:     getPassedAssertions(base),
-				BaseAssertionTotal: getTotalAssertions(base),
+				BaseAssertions:     results.PassedAssertions(base),
+				BaseAssertionTotal: results.TotalAssertions(base),
 			})
 		}
 	}
 
 	return diff
-}
-
-func getPassedAssertions(r *eval.EvalResult) int {
-	if r.AssertionResults == nil {
-		return 0
-	}
-	return r.AssertionResults.PassedAssertions()
-}
-
-func getTotalAssertions(r *eval.EvalResult) int {
-	if r.AssertionResults == nil {
-		return 0
-	}
-	return r.AssertionResults.TotalAssertions()
-}
-
-func getFailureReason(r *eval.EvalResult) string {
-	if r.TaskError != "" {
-		return r.TaskError
-	}
-	if r.AssertionResults == nil {
-		return ""
-	}
-	a := r.AssertionResults
-	if a.ToolsUsed != nil && !a.ToolsUsed.Passed {
-		return a.ToolsUsed.Reason
-	}
-	if a.RequireAny != nil && !a.RequireAny.Passed {
-		return a.RequireAny.Reason
-	}
-	if a.ToolsNotUsed != nil && !a.ToolsNotUsed.Passed {
-		return a.ToolsNotUsed.Reason
-	}
-	if a.MinToolCalls != nil && !a.MinToolCalls.Passed {
-		return a.MinToolCalls.Reason
-	}
-	if a.MaxToolCalls != nil && !a.MaxToolCalls.Passed {
-		return a.MaxToolCalls.Reason
-	}
-	if a.ResourcesRead != nil && !a.ResourcesRead.Passed {
-		return a.ResourcesRead.Reason
-	}
-	if a.ResourcesNotRead != nil && !a.ResourcesNotRead.Passed {
-		return a.ResourcesNotRead.Reason
-	}
-	if a.PromptsUsed != nil && !a.PromptsUsed.Passed {
-		return a.PromptsUsed.Reason
-	}
-	if a.PromptsNotUsed != nil && !a.PromptsNotUsed.Passed {
-		return a.PromptsNotUsed.Reason
-	}
-	if a.CallOrder != nil && !a.CallOrder.Passed {
-		return a.CallOrder.Reason
-	}
-	if a.NoDuplicateCalls != nil && !a.NoDuplicateCalls.Passed {
-		return a.NoDuplicateCalls.Reason
-	}
-	return ""
 }
 
 func outputTextDiff(diff DiffResult) {

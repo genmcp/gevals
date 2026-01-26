@@ -286,11 +286,11 @@ runs:
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       run: |
+        MCPCHECKER="${{ steps.install.outputs.mcpchecker-path }}"
+
         # Build command as array (safe from shell injection)
         CMD=("${{ steps.install.outputs.mcpchecker-path }}" "check" "${{ inputs.eval-config }}")
 
-        # Build eval command
-        CMD=("$MCPCHECKER" "eval" "${{ inputs.eval-config }}")
         if [ -n "${{ inputs.output-format }}" ]; then
           CMD+=("--output" "${{ inputs.output-format }}")
         fi

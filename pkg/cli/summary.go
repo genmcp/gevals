@@ -7,6 +7,7 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/mcpchecker/mcpchecker/pkg/eval"
+	"github.com/mcpchecker/mcpchecker/pkg/results"
 	"github.com/spf13/cobra"
 )
 
@@ -48,16 +49,16 @@ Supports multiple output formats:
 		RunE: func(cmd *cobra.Command, args []string) error {
 			resultsFile := args[0]
 
-			results, err := loadEvalResults(resultsFile)
+			evalResults, err := results.Load(resultsFile)
 			if err != nil {
 				return fmt.Errorf("failed to load results file: %w", err)
 			}
 
 			if taskFilter != "" {
-				results = filterResults(results, taskFilter)
+				evalResults = results.Filter(evalResults, taskFilter)
 			}
 
-			summary := buildSummaryOutput(resultsFile, results)
+			summary := buildSummaryOutput(resultsFile, evalResults)
 
 			if githubOutput {
 				outputGitHubSummary(summary)
@@ -68,7 +69,7 @@ Supports multiple output formats:
 			case "json":
 				return outputJSONSummary(summary)
 			case "text":
-				outputTextSummary(results, summary)
+				outputTextSummary(evalResults, summary)
 			default:
 				return fmt.Errorf("unknown output format: %s", outputFormat)
 			}
@@ -84,14 +85,14 @@ Supports multiple output formats:
 	return cmd
 }
 
-func buildSummaryOutput(resultsFile string, results []*eval.EvalResult) SummaryOutput {
+func buildSummaryOutput(resultsFile string, evalResults []*eval.EvalResult) SummaryOutput {
 	summary := SummaryOutput{
 		ResultsFile: resultsFile,
-		Tasks:       make([]TaskSummary, 0, len(results)),
-		TasksTotal:  len(results),
+		Tasks:       make([]TaskSummary, 0, len(evalResults)),
+		TasksTotal:  len(evalResults),
 	}
 
-	for _, result := range results {
+	for _, result := range evalResults {
 		taskSummary := TaskSummary{
 			Name:             result.TaskName,
 			TaskPassed:       result.TaskPassed,
@@ -117,7 +118,7 @@ func buildSummaryOutput(resultsFile string, results []*eval.EvalResult) SummaryO
 			summary.AssertionsPassed += result.AssertionResults.PassedAssertions()
 
 			if !result.AllAssertionsPassed {
-				taskSummary.FailedAssertions = collectFailedAssertions(result.AssertionResults)
+				taskSummary.FailedAssertions = results.CollectFailedAssertions(result.AssertionResults)
 			}
 		}
 
@@ -135,31 +136,7 @@ func buildSummaryOutput(resultsFile string, results []*eval.EvalResult) SummaryO
 	return summary
 }
 
-func collectFailedAssertions(results *eval.CompositeAssertionResult) []string {
-	var failures []string
-
-	addFailure := func(name string, result *eval.SingleAssertionResult) {
-		if result != nil && !result.Passed {
-			failures = append(failures, fmt.Sprintf("%s: %s", name, result.Reason))
-		}
-	}
-
-	addFailure("ToolsUsed", results.ToolsUsed)
-	addFailure("RequireAny", results.RequireAny)
-	addFailure("ToolsNotUsed", results.ToolsNotUsed)
-	addFailure("MinToolCalls", results.MinToolCalls)
-	addFailure("MaxToolCalls", results.MaxToolCalls)
-	addFailure("ResourcesRead", results.ResourcesRead)
-	addFailure("ResourcesNotRead", results.ResourcesNotRead)
-	addFailure("PromptsUsed", results.PromptsUsed)
-	addFailure("PromptsNotUsed", results.PromptsNotUsed)
-	addFailure("CallOrder", results.CallOrder)
-	addFailure("NoDuplicateCalls", results.NoDuplicateCalls)
-
-	return failures
-}
-
-func outputTextSummary(results []*eval.EvalResult, summary SummaryOutput) {
+func outputTextSummary(evalResults []*eval.EvalResult, summary SummaryOutput) {
 	green := color.New(color.FgGreen)
 	red := color.New(color.FgRed)
 	yellow := color.New(color.FgYellow)
@@ -168,7 +145,7 @@ func outputTextSummary(results []*eval.EvalResult, summary SummaryOutput) {
 	bold.Println("=== Evaluation Summary ===")
 	fmt.Println()
 
-	for i, result := range results {
+	for i, result := range evalResults {
 		taskSummary := summary.Tasks[i]
 
 		// Determine overall status

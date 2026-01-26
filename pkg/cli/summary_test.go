@@ -99,31 +99,6 @@ func TestSummaryCommandFileNotFound(t *testing.T) {
 	}
 }
 
-func TestFilterResults(t *testing.T) {
-	results := sampleResults()
-
-	tests := []struct {
-		name     string
-		filter   string
-		expected int
-	}{
-		{"existing task", "task-1", 1},
-		{"another task", "task-2", 1},
-		{"nonexistent task", "task-999", 0},
-		{"empty filter returns all", "", 3},
-		{"partial match", "task", 3}, // substring matching
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			filtered := filterResults(results, tt.filter)
-			if len(filtered) != tt.expected {
-				t.Errorf("filterResults(%q) returned %d results, want %d", tt.filter, len(filtered), tt.expected)
-			}
-		})
-	}
-}
-
 func TestBuildSummaryOutput(t *testing.T) {
 	results := sampleResults()
 	summary := buildSummaryOutput("test.json", results)
@@ -151,23 +126,6 @@ func TestBuildSummaryOutput(t *testing.T) {
 	// Check failed task
 	if summary.Tasks[2].TaskError == "" {
 		t.Error("Tasks[2].TaskError should not be empty")
-	}
-}
-
-func TestCollectFailedAssertions(t *testing.T) {
-	results := &eval.CompositeAssertionResult{
-		ToolsUsed:    &eval.SingleAssertionResult{Passed: false, Reason: "Tool not called"},
-		MinToolCalls: &eval.SingleAssertionResult{Passed: true},
-	}
-
-	failures := collectFailedAssertions(results)
-
-	if len(failures) != 1 {
-		t.Errorf("len(failures) = %d, want 1", len(failures))
-	}
-
-	if len(failures) > 0 && failures[0] != "ToolsUsed: Tool not called" {
-		t.Errorf("failures[0] = %s, want 'ToolsUsed: Tool not called'", failures[0])
 	}
 }
 

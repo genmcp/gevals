@@ -5,48 +5,9 @@ import (
 	"fmt"
 
 	"github.com/fatih/color"
-	"github.com/mcpchecker/mcpchecker/pkg/eval"
+	"github.com/mcpchecker/mcpchecker/pkg/results"
 	"github.com/spf13/cobra"
 )
-
-// Stats holds computed statistics from evaluation results
-type Stats struct {
-	ResultsFile       string  `json:"resultsFile"`
-	TasksTotal        int     `json:"tasksTotal"`
-	TasksPassed       int     `json:"tasksPassed"`
-	TaskPassRate      float64 `json:"taskPassRate"`
-	AssertionsTotal   int     `json:"assertionsTotal"`
-	AssertionsPassed  int     `json:"assertionsPassed"`
-	AssertionPassRate float64 `json:"assertionPassRate"`
-}
-
-func calculateStats(resultsFile string, results []*eval.EvalResult) Stats {
-	stats := Stats{
-		ResultsFile: resultsFile,
-		TasksTotal:  len(results),
-	}
-
-	for _, result := range results {
-		if result.TaskPassed {
-			stats.TasksPassed++
-		}
-
-		if result.AssertionResults != nil {
-			stats.AssertionsTotal += result.AssertionResults.TotalAssertions()
-			stats.AssertionsPassed += result.AssertionResults.PassedAssertions()
-		}
-	}
-
-	// Calculate pass rates
-	if stats.TasksTotal > 0 {
-		stats.TaskPassRate = float64(stats.TasksPassed) / float64(stats.TasksTotal)
-	}
-	if stats.AssertionsTotal > 0 {
-		stats.AssertionPassRate = float64(stats.AssertionsPassed) / float64(stats.AssertionsTotal)
-	}
-
-	return stats
-}
 
 // NewVerifyCmd creates the verify command
 func NewVerifyCmd() *cobra.Command {
@@ -60,25 +21,28 @@ func NewVerifyCmd() *cobra.Command {
 
 Exits with code 0 if all thresholds are met, code 1 otherwise.
 Use 'mcpchecker summary' to view detailed results.`,
-		Args:         cobra.ExactArgs(1),
-		SilenceUsage: true,
+		Args:          cobra.ExactArgs(1),
+		SilenceUsage:  true,
+		SilenceErrors: true,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			resultsFile := args[0]
 
-			results, err := loadEvalResults(resultsFile)
+			evalResults, err := results.Load(resultsFile)
 			if err != nil {
 				return fmt.Errorf("failed to load results file: %w", err)
 			}
 
-			stats := calculateStats(resultsFile, results)
+			stats := results.CalculateStats(resultsFile, evalResults)
 
 			taskThresholdMet := stats.TaskPassRate >= taskThreshold
-			assertionThresholdMet := stats.AssertionPassRate >= assertionThreshold
+			// If no assertions exist, skip the assertion threshold check
+			assertionThresholdMet := stats.AssertionsTotal == 0 || stats.AssertionPassRate >= assertionThreshold
 			passed := taskThresholdMet && assertionThresholdMet
 
 			outputVerifyResults(stats, taskThreshold, assertionThreshold, taskThresholdMet, assertionThresholdMet, passed)
 
 			if !passed {
+				// silent error (SilenceErrors: true), sets exit code 1
 				return fmt.Errorf("thresholds not met")
 			}
 
@@ -92,7 +56,7 @@ Use 'mcpchecker summary' to view detailed results.`,
 	return cmd
 }
 
-func outputVerifyResults(stats Stats, taskThreshold, assertionThreshold float64, taskMet, assertionMet, passed bool) {
+func outputVerifyResults(stats results.Stats, taskThreshold, assertionThreshold float64, taskMet, assertionMet, passed bool) {
 	green := color.New(color.FgGreen)
 	red := color.New(color.FgRed)
 	bold := color.New(color.Bold)
@@ -110,7 +74,9 @@ func outputVerifyResults(stats Stats, taskThreshold, assertionThreshold float64,
 	}
 
 	// Assertion threshold
-	if assertionMet {
+	if stats.AssertionsTotal == 0 {
+		fmt.Println("Assertion Pass Rate: N/A (no assertions defined)")
+	} else if assertionMet {
 		_, _ = green.Printf("Assertion Pass Rate: %.2f%% >= %.2f%% ✓\n",
 			stats.AssertionPassRate*100, assertionThreshold*100)
 	} else {
