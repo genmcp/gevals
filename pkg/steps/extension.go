@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/genmcp/gevals/pkg/extension/client"
-	extprotocol "github.com/genmcp/gevals/pkg/extension/protocol"
+	"github.com/mcpchecker/mcpchecker/pkg/extension/client"
+	extprotocol "github.com/mcpchecker/mcpchecker/pkg/extension/protocol"
 )
 
 type extensionStep struct {

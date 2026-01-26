@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/genmcp/gevals/pkg/extension/protocol"
+	"github.com/mcpchecker/mcpchecker/pkg/extension/protocol"
 )
 
 // UnmarshalArgs unmarshals the operation request args into the provided type.

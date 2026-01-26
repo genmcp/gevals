@@ -3,7 +3,7 @@ package sdk
 import (
 	"context"
 
-	"github.com/genmcp/gevals/pkg/extension/protocol"
+	"github.com/mcpchecker/mcpchecker/pkg/extension/protocol"
 	"github.com/google/jsonschema-go/jsonschema"
 )
 

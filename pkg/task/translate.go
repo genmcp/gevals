@@ -3,8 +3,8 @@ package task
 import (
 	"encoding/json"
 
-	"github.com/genmcp/gevals/pkg/steps"
-	"github.com/genmcp/gevals/pkg/util"
+	"github.com/mcpchecker/mcpchecker/pkg/steps"
+	"github.com/mcpchecker/mcpchecker/pkg/util"
 )
 
 func translateV1Alpha1ToSteps(legacy *TaskStepsV1Alpha1) (*TaskSpec, error) {

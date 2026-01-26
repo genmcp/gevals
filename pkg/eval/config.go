@@ -7,9 +7,9 @@ import (
 
 	"sigs.k8s.io/yaml"
 
-	"github.com/genmcp/gevals/pkg/extension"
-	"github.com/genmcp/gevals/pkg/llmjudge"
-	"github.com/genmcp/gevals/pkg/util"
+	"github.com/mcpchecker/mcpchecker/pkg/extension"
+	"github.com/mcpchecker/mcpchecker/pkg/llmjudge"
+	"github.com/mcpchecker/mcpchecker/pkg/util"
 )
 
 const (

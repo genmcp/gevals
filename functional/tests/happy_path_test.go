@@ -5,7 +5,7 @@ package tests
 import (
 	"testing"
 
-	"github.com/genmcp/gevals/functional/testcase"
+	"github.com/mcpchecker/mcpchecker/functional/testcase"
 )
 
 // TestTaskPassesWithToolCallAndJudge verifies the happy path where:

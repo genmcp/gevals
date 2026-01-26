@@ -1,7 +1,7 @@
-// Package sdk provides a framework for building gevals extensions.
+// Package sdk provides a framework for building mcpchecker extensions.
 //
 // Extensions are JSON-RPC 2.0 servers that communicate over stdio, allowing
-// gevals to execute domain-specific operations during task setup, verification,
+// mcpchecker to execute domain-specific operations during task setup, verification,
 // and cleanup phases.
 //
 // # Creating an Extension

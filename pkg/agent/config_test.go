@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/genmcp/gevals/pkg/util"
+	"github.com/mcpchecker/mcpchecker/pkg/util"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/utils/ptr"
 )

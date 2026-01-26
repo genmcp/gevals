@@ -27,10 +27,10 @@ extending an existing eval. In this case, you will only need to modify some of t
 To run the evals, use:
 
 ```bash
-gevals run <path to eval yaml file>
+mcpchecker run <path to eval yaml file>
 ```
 
-The `gevals` binary may or may not be in the `$PATH`. If it is not in the path, ask the user where it is.
+The `mcpchecker` binary may or may not be in the `$PATH`. If it is not in the path, ask the user where it is.
 
 ## Examples
 

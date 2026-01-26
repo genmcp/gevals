@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/genmcp/gevals/functional/servers/mcp"
-	"github.com/genmcp/gevals/functional/servers/openai"
-	"github.com/genmcp/gevals/pkg/eval"
+	"github.com/mcpchecker/mcpchecker/functional/servers/mcp"
+	"github.com/mcpchecker/mcpchecker/functional/servers/openai"
+	"github.com/mcpchecker/mcpchecker/pkg/eval"
 )
 
 // RunContext contains runtime data needed for assertions.

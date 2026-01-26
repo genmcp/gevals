@@ -7,7 +7,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/genmcp/gevals/pkg/openaiagent"
+	"github.com/mcpchecker/mcpchecker/pkg/openaiagent"
 	"github.com/spf13/cobra"
 )
 

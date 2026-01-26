@@ -1,6 +1,6 @@
 # Release Guide
 
-This document describes how to create releases for the gevals project.
+This document describes how to create releases for the mcpchecker project.
 
 ## Release Types
 
@@ -66,7 +66,7 @@ Stable releases follow semantic versioning (vX.Y.Z) and are triggered by pushing
 
 5. **Verify the release**
 
-   Check the [releases page](https://github.com/genmcp/gevals/releases) to ensure:
+   Check the [releases page](https://github.com/mcpchecker/mcpchecker/releases) to ensure:
    - The release was created successfully
    - All artifacts are present (12 zip files + 12 bundles)
    - The changelog was extracted correctly
@@ -129,7 +129,7 @@ The nightly workflow:
 
 To trigger a nightly build manually:
 
-1. Go to the [Actions tab](https://github.com/genmcp/gevals/actions/workflows/nightly.yaml)
+1. Go to the [Actions tab](https://github.com/mcpchecker/mcpchecker/actions/workflows/nightly.yaml)
 2. Click "Run workflow"
 3. Select the branch (usually `main`)
 4. Click "Run workflow"
@@ -162,15 +162,15 @@ Users can verify artifact signatures using the bundle format:
 
 ```bash
 # Download artifacts
-wget https://github.com/genmcp/gevals/releases/download/v1.0.0/gevals-linux-amd64.zip
-wget https://github.com/genmcp/gevals/releases/download/v1.0.0/gevals-linux-amd64.zip.bundle
+wget https://github.com/mcpchecker/mcpchecker/releases/download/v1.0.0/mcpchecker-linux-amd64.zip
+wget https://github.com/mcpchecker/mcpchecker/releases/download/v1.0.0/mcpchecker-linux-amd64.zip.bundle
 
 # Verify using bundle (simplified format)
 cosign verify-blob \
-  --bundle gevals-linux-amd64.zip.bundle \
-  --certificate-identity-regexp 'https://github.com/genmcp/gevals' \
+  --bundle mcpchecker-linux-amd64.zip.bundle \
+  --certificate-identity-regexp 'https://github.com/mcpchecker/mcpchecker' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-  gevals-linux-amd64.zip
+  mcpchecker-linux-amd64.zip
 ```
 
 The bundle file contains both the signature and certificate, making verification simpler compared to the older separate `.sig` and `.pem` files.

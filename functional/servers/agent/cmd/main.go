@@ -10,7 +10,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/genmcp/gevals/functional/servers/agent"
+	"github.com/mcpchecker/mcpchecker/functional/servers/agent"
 )
 
 func main() {

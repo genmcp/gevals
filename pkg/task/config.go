@@ -5,9 +5,9 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/genmcp/gevals/pkg/llmjudge"
-	"github.com/genmcp/gevals/pkg/steps"
-	"github.com/genmcp/gevals/pkg/util"
+	"github.com/mcpchecker/mcpchecker/pkg/llmjudge"
+	"github.com/mcpchecker/mcpchecker/pkg/steps"
+	"github.com/mcpchecker/mcpchecker/pkg/util"
 	"sigs.k8s.io/yaml"
 )
 

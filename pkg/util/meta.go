@@ -6,8 +6,8 @@ import (
 )
 
 const (
-	APIVersionV1Alpha1 = "gevals/v1alpha1"
-	APIVersionV1Alpha2 = "gevals/v1alpha2"
+	APIVersionV1Alpha1 = "mcpchecker/v1alpha1"
+	APIVersionV1Alpha2 = "mcpchecker/v1alpha2"
 )
 
 type TypeMeta struct {

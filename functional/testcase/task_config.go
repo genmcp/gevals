@@ -4,10 +4,10 @@ import (
 	"encoding/json"
 	"strings"
 
-	"github.com/genmcp/gevals/pkg/llmjudge"
-	"github.com/genmcp/gevals/pkg/steps"
-	"github.com/genmcp/gevals/pkg/task"
-	"github.com/genmcp/gevals/pkg/util"
+	"github.com/mcpchecker/mcpchecker/pkg/llmjudge"
+	"github.com/mcpchecker/mcpchecker/pkg/steps"
+	"github.com/mcpchecker/mcpchecker/pkg/task"
+	"github.com/mcpchecker/mcpchecker/pkg/util"
 )
 
 // shellEscapeSingleQuote escapes a string for use within single quotes in a shell command.

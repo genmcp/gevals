@@ -1,5 +1,5 @@
 kind: Task
-apiVersion: gevals/v1alpha2
+apiVersion: mcpchecker/v1alpha2
 metadata:
   name: "create-nginx-pod"
   difficulty: easy

@@ -6,7 +6,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/genmcp/gevals/pkg/mcpproxy"
+	"github.com/mcpchecker/mcpchecker/pkg/mcpproxy"
 )
 
 const (

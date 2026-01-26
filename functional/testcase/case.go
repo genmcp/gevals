@@ -1,5 +1,5 @@
 // Package testcase provides a fluent API for defining functional test cases
-// that exercise the gevals binary against mock servers.
+// that exercise the mcpchecker binary against mock servers.
 package testcase
 
 import (

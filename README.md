@@ -1,10 +1,10 @@
-# gevals
+# mcpchecker
 
 🧪 Test your MCP servers by having AI agents complete real tasks.
 
 ## What It Does
 
-gevals validates MCP servers by:
+mcpchecker validates MCP servers by:
 1. 🔧 Running setup scripts (e.g., create test namespace)
 2. 🤖 Giving an AI agent a task prompt (e.g., "create a nginx pod")
 3. 📝 Recording which MCP tools the agent uses
@@ -18,15 +18,15 @@ If agents successfully complete tasks using your MCP server, your tools are well
 
 ```bash
 # Build
-go build -o gevals ./cmd/gevals
+go build -o mcpchecker ./cmd/mcpchecker
 
 # Run the example (requires Kubernetes cluster + MCP server)
-./gevals eval examples/kubernetes/eval.yaml
+./mcpchecker eval examples/kubernetes/eval.yaml
 ```
 
 The tool will:
 - Display progress in real-time
-- Save results to `gevals-<name>-out.json`
+- Save results to `mcpchecker-<name>-out.json`
 - Show pass/fail summary
 
 ## Example Setup
@@ -291,7 +291,7 @@ Pass/fail means:
 
 ## Output
 
-Results saved to `gevals-<eval-name>-out.json`:
+Results saved to `mcpchecker-<eval-name>-out.json`:
 
 ```json
 {
@@ -341,7 +341,7 @@ Use inline configuration for simple setups with built-in agents. Use a separate 
 
 ### Built-in Agent Types
 
-gevals provides built-in configurations for popular AI agents to eliminate boilerplate:
+mcpchecker provides built-in configurations for popular AI agents to eliminate boilerplate:
 
 **Claude Code**:
 ```yaml

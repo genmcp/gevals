@@ -9,8 +9,8 @@ import (
 	"strings"
 
 	"github.com/fatih/color"
-	"github.com/genmcp/gevals/pkg/eval"
-	"github.com/genmcp/gevals/pkg/util"
+	"github.com/mcpchecker/mcpchecker/pkg/eval"
+	"github.com/mcpchecker/mcpchecker/pkg/util"
 	"github.com/spf13/cobra"
 )
 
@@ -52,7 +52,7 @@ func NewEvalCmd() *cobra.Command {
 			}
 
 			// Save results to JSON file
-			outputFile := fmt.Sprintf("gevals-%s-out.json", spec.Metadata.Name)
+			outputFile := fmt.Sprintf("mcpchecker-%s-out.json", spec.Metadata.Name)
 			if err := saveResultsToFile(results, outputFile); err != nil {
 				return fmt.Errorf("failed to save results to file: %w", err)
 			}

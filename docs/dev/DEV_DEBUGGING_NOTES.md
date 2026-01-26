@@ -1,14 +1,14 @@
-# Gevals Debugging Notes
+# Mcpchecker Debugging Notes
 
 This project supports an opt-in debugging mode that preserves the temporary
 files created while the agent runs. Enable it per invocation:
 
 ```bash
-GEVALS_DEBUG=1 ./gevals run <path-to-eval>
+MCPCHECKER_DEBUG=1 ./mcpchecker run <path-to-eval>
 ```
 
-When `GEVALS_DEBUG` is set, the agent runner creates a directory such as
-`/tmp/gevals-debug-XXXXXXXX`. If the agent command fails, the error message will
+When `MCPCHECKER_DEBUG` is set, the agent runner creates a directory such as
+`/tmp/mcpchecker-debug-XXXXXXXX`. If the agent command fails, the error message will
 include the exact path. Inside you will find:
 
 - `config.toml` – the Codex configuration file generated for the attempt.
