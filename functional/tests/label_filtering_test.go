@@ -3,307 +3,247 @@
 package tests
 
 import (
-	"encoding/json"
 	"os"
-	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/mcpchecker/mcpchecker/functional/testcase"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"sigs.k8s.io/yaml"
 )
 
-// TestLabelFiltering creates multiple tasks and verifies label-based filtering works end-to-end
-func TestLabelFiltering(t *testing.T) {
-	tmpDir, err := os.MkdirTemp("", "label-filtering-test-*")
-	require.NoError(t, err)
-	defer os.RemoveAll(tmpDir)
+// TestLabelFiltering_NoSelector runs 3 labeled tasks and ensures all are executed when no selector is provided.
+func TestLabelFiltering_NoSelector(t *testing.T) {
+	tasksDir := writeLabelFilteringTasks(t)
+	glob := filepath.Join(tasksDir, "*.yaml")
 
-	tasksDir := filepath.Join(tmpDir, "tasks")
-	require.NoError(t, os.MkdirAll(tasksDir, 0755))
+	testcase.New(t, "label-filtering-no-selector").
+		WithMCPServer("kubernetes", func(s *testcase.MCPServerBuilder) {
+			s.Tool("noop", func(tool *testcase.ToolDef) {
+				tool.WithDescription("No-op tool").ReturnsText("ok")
+			})
+		}).
+		WithAgent(func(a *testcase.AgentBuilder) {
+			a.OnAnyPrompt().ThenRespond("ok")
+		}).
+		WithEval(func(ec *testcase.EvalConfig) {
+			ec.Name("label-filtering-no-selector").
+				TaskSet(func(ts *testcase.TaskSetBuilder) {
+					ts.Glob(glob)
+				})
+		}).
+		Expect(&testcase.TaskCountAssertion{Expected: 3}).
+		Expect(testcase.AssertFunc("output contains Total Tasks: 3", func(t *testing.T, ctx *testcase.RunContext) {
+			if ctx == nil {
+				t.Fatalf("nil run context")
+			}
+			if ctx.CommandOutput == "" {
+				t.Fatalf("empty command output")
+			}
+			if !contains(ctx.CommandOutput, "Total Tasks: 3") {
+				t.Fatalf("expected command output to contain %q, got:\n%s", "Total Tasks: 3", ctx.CommandOutput)
+			}
+		})).
+		Expect(testcase.AssertFunc("results include all tasks", func(t *testing.T, ctx *testcase.RunContext) {
+			for _, name := range []string{"k8s-basic-task", "k8s-advanced-task", "istio-task"} {
+				if ctx.ResultForTask(name) == nil {
+					t.Fatalf("expected result for task %q", name)
+				}
+			}
+		})).
+		Run()
+}
 
-	// Create task 1: kubernetes + basic (SHOULD MATCH)
-	task1 := map[string]any{
-		"apiVersion": "mcpchecker/v1alpha2",
-		"kind":       "Task",
-		"metadata": map[string]any{
-			"name":       "k8s-basic-task",
-			"difficulty": "easy",
-			"labels": map[string]string{
-				"suite":    "kubernetes",
-				"category": "basic",
-			},
-		},
-		"spec": map[string]any{
-			"prompt": map[string]any{
-				"inline": "kubernetes basic task",
-			},
-			"verify": []map[string]any{
-				{
-					"script": map[string]any{
-						"inline": "exit 0",
-					},
-				},
-			},
-		},
-	}
-	writeTaskFile(t, tasksDir, "task1.yaml", task1)
+// TestLabelFiltering_KubernetesBasicSelector ensures only the kubernetes/basic task is selected via TaskSet labelSelector.
+func TestLabelFiltering_KubernetesBasicSelector(t *testing.T) {
+	tasksDir := writeLabelFilteringTasks(t)
+	glob := filepath.Join(tasksDir, "*.yaml")
 
-	// Create task 2: kubernetes + advanced (should NOT match)
-	task2 := map[string]any{
-		"apiVersion": "mcpchecker/v1alpha2",
-		"kind":       "Task",
-		"metadata": map[string]any{
-			"name":       "k8s-advanced-task",
-			"difficulty": "hard",
-			"labels": map[string]string{
-				"suite":    "kubernetes",
-				"category": "advanced",
-			},
-		},
-		"spec": map[string]any{
-			"prompt": map[string]any{
-				"inline": "kubernetes advanced task",
-			},
-			"verify": []map[string]any{
-				{
-					"script": map[string]any{
-						"inline": "exit 0",
-					},
-				},
-			},
-		},
-	}
-	writeTaskFile(t, tasksDir, "task2.yaml", task2)
-
-	// Create task 3: istio (should NOT match)
-	task3 := map[string]any{
-		"apiVersion": "mcpchecker/v1alpha2",
-		"kind":       "Task",
-		"metadata": map[string]any{
-			"name":       "istio-task",
-			"difficulty": "medium",
-			"labels": map[string]string{
-				"suite": "istio",
-			},
-		},
-		"spec": map[string]any{
-			"prompt": map[string]any{
-				"inline": "istio task",
-			},
-			"verify": []map[string]any{
-				{
-					"script": map[string]any{
-						"inline": "exit 0",
-					},
-				},
-			},
-		},
-	}
-	writeTaskFile(t, tasksDir, "task3.yaml", task3)
-
-	mcpcheckerBinary, err := testcase.GetMcpCheckerBinary()
-	require.NoError(t, err)
-
-	// STEP 1: Run WITHOUT label selector - should execute ALL 3 tasks
-	t.Log("=== Testing WITHOUT label selector (should execute 3 tasks) ===")
-
-	evalConfigNoFilter := map[string]any{
-		"kind": "Eval",
-		"metadata": map[string]any{
-			"name": "no-filter-test",
-		},
-		"config": map[string]any{
-			"taskSets": []map[string]any{
-				{
-					"glob": filepath.Join(tasksDir, "*.yaml"),
-					// NO labelSelector - should run all tasks
-				},
-			},
-			"agent": map[string]any{
-				"type": "builtin.claude-code",
-			},
-			"mcpConfigFile": createEmptyMCPConfig(t, tmpDir),
-		},
-	}
-
-	evalNoFilterBytes, err := yaml.Marshal(evalConfigNoFilter)
-	require.NoError(t, err)
-	evalNoFilterFile := filepath.Join(tmpDir, "eval-no-filter.yaml")
-	require.NoError(t, os.WriteFile(evalNoFilterFile, evalNoFilterBytes, 0644))
-
-	cmdNoFilter := exec.Command(mcpcheckerBinary, "check", evalNoFilterFile)
-	cmdNoFilter.Dir = tmpDir
-	outputNoFilter, err := cmdNoFilter.CombinedOutput()
-	require.NoError(t, err, "mcpchecker check command failed (no filter):\n%s", string(outputNoFilter))
-
-	t.Logf("mcpchecker output (no filter):\n%s", string(outputNoFilter))
-
-	// Verify all 3 tasks were executed
-	outputNoFilterStr := string(outputNoFilter)
-	assert.Contains(t, outputNoFilterStr, "Total Tasks: 3", "Should process all 3 tasks without filter")
-	assert.Contains(t, outputNoFilterStr, "k8s-basic-task", "Should include k8s-basic-task")
-	assert.Contains(t, outputNoFilterStr, "k8s-advanced-task", "Should include k8s-advanced-task")
-	assert.Contains(t, outputNoFilterStr, "istio-task", "Should include istio-task")
-
-	// Verify results file contains 3 tasks
-	outputNoFilterFile := filepath.Join(tmpDir, "mcpchecker-no-filter-test-out.json")
-	_, err = os.Stat(outputNoFilterFile)
-	require.NoError(t, err, "Output file should exist: %s", outputNoFilterFile)
-
-	data, err := os.ReadFile(outputNoFilterFile)
-	require.NoError(t, err)
-
-	var results []map[string]any
-	require.NoError(t, json.Unmarshal(data, &results))
-
-	assert.Len(t, results, 3, "Results should contain all 3 tasks without filter")
-
-	// STEP 2: Run WITH label selector - should execute ONLY 1 task
-	t.Log("=== Testing WITH label selector (should execute 1 task) ===")
-
-	evalConfigWithFilter := map[string]any{
-		"kind": "Eval",
-		"metadata": map[string]any{
-			"name": "label-filtering-test",
-		},
-		"config": map[string]any{
-			"taskSets": []map[string]any{
-				{
-					"glob": filepath.Join(tasksDir, "*.yaml"),
-					"labelSelector": map[string]string{
+	testcase.New(t, "label-filtering-kubernetes-basic-selector").
+		WithMCPServer("kubernetes", func(s *testcase.MCPServerBuilder) {
+			s.Tool("noop", func(tool *testcase.ToolDef) {
+				tool.WithDescription("No-op tool").ReturnsText("ok")
+			})
+		}).
+		WithAgent(func(a *testcase.AgentBuilder) {
+			a.OnAnyPrompt().ThenRespond("ok")
+		}).
+		WithEval(func(ec *testcase.EvalConfig) {
+			ec.Name("label-filtering-kubernetes-basic-selector").
+				TaskSet(func(ts *testcase.TaskSetBuilder) {
+					ts.Glob(glob).LabelSelector(map[string]string{
 						"suite":    "kubernetes",
 						"category": "basic",
-					},
-				},
-			},
-			"agent": map[string]any{
-				"type": "builtin.claude-code",
-			},
-			"mcpConfigFile": createEmptyMCPConfig(t, tmpDir),
-		},
-	}
-
-	evalWithFilterBytes, err := yaml.Marshal(evalConfigWithFilter)
-	require.NoError(t, err)
-	evalWithFilterFile := filepath.Join(tmpDir, "eval-with-filter.yaml")
-	require.NoError(t, os.WriteFile(evalWithFilterFile, evalWithFilterBytes, 0644))
-
-	cmdWithFilter := exec.Command(mcpcheckerBinary, "check", evalWithFilterFile)
-	cmdWithFilter.Dir = tmpDir
-	outputWithFilter, err := cmdWithFilter.CombinedOutput()
-	if err != nil {
-		t.Fatalf("mcpchecker check command failed (with filter): %v\nOutput:\n%s", err, string(outputWithFilter))
-	}
-
-	t.Logf("mcpchecker output (with filter):\n%s", string(outputWithFilter))
-
-	// Verify filtering worked by checking output
-	outputWithFilterStr := string(outputWithFilter)
-
-	// Should see k8s-basic-task being executed
-	assert.Contains(t, outputWithFilterStr, "k8s-basic-task", "Should execute k8s-basic-task")
-	assert.Contains(t, outputWithFilterStr, "Total Tasks: 1", "Should only process 1 task with filter")
-
-	// Should NOT see the other tasks
-	assert.NotContains(t, outputWithFilterStr, "k8s-advanced-task", "Should NOT execute k8s-advanced-task")
-	assert.NotContains(t, outputWithFilterStr, "istio-task", "Should NOT execute istio-task")
-
-	// Verify results file exists and contains exactly 1 task
-	outputWithFilterFile := filepath.Join(tmpDir, "mcpchecker-label-filtering-test-out.json")
-	_, err = os.Stat(outputWithFilterFile)
-	require.NoError(t, err, "Output file should exist: %s", outputWithFilterFile)
-
-	data, err = os.ReadFile(outputWithFilterFile)
-	require.NoError(t, err)
-
-	results = nil // Reset the slice
-	require.NoError(t, json.Unmarshal(data, &results))
-
-	// Should only have 1 result (the filtered task)
-	assert.Len(t, results, 1, "Results should contain exactly 1 task (k8s-basic-task) with filter")
-
-	// STEP 3: Run WITH --label-selector CLI flag - should execute ONLY 1 task
-	t.Log("=== Testing WITH --label-selector CLI flag (should execute 1 task) ===")
-
-	evalConfigCLIFlag := map[string]any{
-		"kind": "Eval",
-		"metadata": map[string]any{
-			"name": "cli-flag-test",
-		},
-		"config": map[string]any{
-			"taskSets": []map[string]any{
-				{
-					"glob": filepath.Join(tasksDir, "*.yaml"),
-					// NO labelSelector - will use CLI flag instead
-				},
-			},
-			"agent": map[string]any{
-				"type": "builtin.claude-code",
-			},
-			"mcpConfigFile": createEmptyMCPConfig(t, tmpDir),
-		},
-	}
-
-	evalCLIFlagBytes, err := yaml.Marshal(evalConfigCLIFlag)
-	require.NoError(t, err)
-	evalCLIFlagFile := filepath.Join(tmpDir, "eval-cli-flag.yaml")
-	require.NoError(t, os.WriteFile(evalCLIFlagFile, evalCLIFlagBytes, 0644))
-
-	cmdCLIFlag := exec.Command(mcpcheckerBinary, "check", "--label-selector", "category=basic", evalCLIFlagFile)
-	cmdCLIFlag.Dir = tmpDir
-	outputCLIFlag, err := cmdCLIFlag.CombinedOutput()
-	if err != nil {
-		t.Fatalf("mcpchecker check command failed (CLI flag): %v\nOutput:\n%s", err, string(outputCLIFlag))
-	}
-
-	t.Logf("mcpchecker output (CLI flag):\n%s", string(outputCLIFlag))
-
-	// Verify filtering worked by checking output
-	outputCLIFlagStr := string(outputCLIFlag)
-
-	// Should see k8s-basic-task being executed
-	assert.Contains(t, outputCLIFlagStr, "k8s-basic-task", "Should execute k8s-basic-task with CLI flag")
-	assert.Contains(t, outputCLIFlagStr, "Total Tasks: 1", "Should only process 1 task with CLI flag")
-
-	// Should NOT see the other tasks
-	assert.NotContains(t, outputCLIFlagStr, "k8s-advanced-task", "Should NOT execute k8s-advanced-task with CLI flag")
-	assert.NotContains(t, outputCLIFlagStr, "istio-task", "Should NOT execute istio-task with CLI flag")
-
-	// Verify results file exists and contains exactly 1 task
-	outputCLIFlagFile := filepath.Join(tmpDir, "mcpchecker-cli-flag-test-out.json")
-	_, err = os.Stat(outputCLIFlagFile)
-	require.NoError(t, err, "Output file should exist: %s", outputCLIFlagFile)
-
-	data, err = os.ReadFile(outputCLIFlagFile)
-	require.NoError(t, err)
-
-	results = nil // Reset the slice
-	require.NoError(t, json.Unmarshal(data, &results))
-
-	// Should only have 1 result (the filtered task)
-	assert.Len(t, results, 1, "Results should contain exactly 1 task (k8s-basic-task) with CLI flag")
+					})
+				})
+		}).
+		Expect(&testcase.TaskCountAssertion{Expected: 1}).
+		Expect(testcase.AssertFunc("only k8s-basic-task executed", func(t *testing.T, ctx *testcase.RunContext) {
+			if ctx.ResultForTask("k8s-basic-task") == nil {
+				t.Fatalf("expected k8s-basic-task to be executed")
+			}
+			if ctx.ResultForTask("k8s-advanced-task") != nil {
+				t.Fatalf("did not expect k8s-advanced-task to be executed")
+			}
+			if ctx.ResultForTask("istio-task") != nil {
+				t.Fatalf("did not expect istio-task to be executed")
+			}
+		})).
+		Run()
 }
 
-// writeTaskFile writes a task configuration to a YAML file in the specified directory
-func writeTaskFile(t *testing.T, dir, filename string, task map[string]any) {
-	t.Helper()
-	taskBytes, err := yaml.Marshal(task)
-	require.NoError(t, err)
-	require.NoError(t, os.WriteFile(filepath.Join(dir, filename), taskBytes, 0644))
+// TestLabelFiltering_KubernetesSelector ensures both kubernetes tasks are selected when using only suite=kubernetes selector.
+func TestLabelFiltering_KubernetesSelector(t *testing.T) {
+	tasksDir := writeLabelFilteringTasks(t)
+	glob := filepath.Join(tasksDir, "*.yaml")
+
+	testcase.New(t, "label-filtering-kubernetes-selector").
+		WithMCPServer("kubernetes", func(s *testcase.MCPServerBuilder) {
+			s.Tool("noop", func(tool *testcase.ToolDef) {
+				tool.WithDescription("No-op tool").ReturnsText("ok")
+			})
+		}).
+		WithAgent(func(a *testcase.AgentBuilder) {
+			a.OnAnyPrompt().ThenRespond("ok")
+		}).
+		WithEval(func(ec *testcase.EvalConfig) {
+			ec.Name("label-filtering-kubernetes-selector").
+				TaskSet(func(ts *testcase.TaskSetBuilder) {
+					ts.Glob(glob).LabelSelector(map[string]string{
+						"suite": "kubernetes",
+					})
+				})
+		}).
+		Expect(&testcase.TaskCountAssertion{Expected: 2}).
+		Expect(testcase.AssertFunc("output contains Total Tasks: 2", func(t *testing.T, ctx *testcase.RunContext) {
+			if ctx == nil {
+				t.Fatalf("nil run context")
+			}
+			if ctx.CommandOutput == "" {
+				t.Fatalf("empty command output")
+			}
+			if !contains(ctx.CommandOutput, "Total Tasks: 2") {
+				t.Fatalf("expected command output to contain %q, got:\n%s", "Total Tasks: 2", ctx.CommandOutput)
+			}
+		})).
+		Expect(testcase.AssertFunc("both kubernetes tasks executed", func(t *testing.T, ctx *testcase.RunContext) {
+			if ctx.ResultForTask("k8s-basic-task") == nil {
+				t.Fatalf("expected k8s-basic-task to be executed")
+			}
+			if ctx.ResultForTask("k8s-advanced-task") == nil {
+				t.Fatalf("expected k8s-advanced-task to be executed")
+			}
+			if ctx.ResultForTask("istio-task") != nil {
+				t.Fatalf("did not expect istio-task to be executed")
+			}
+		})).
+		Run()
 }
 
-// createEmptyMCPConfig creates an empty MCP server configuration file and returns its path
-func createEmptyMCPConfig(t *testing.T, dir string) string {
+// TestLabelFiltering_IstioSelector ensures only the istio task is selected via TaskSet labelSelector.
+func TestLabelFiltering_IstioSelector(t *testing.T) {
+	tasksDir := writeLabelFilteringTasks(t)
+	glob := filepath.Join(tasksDir, "*.yaml")
+
+	testcase.New(t, "label-filtering-istio-selector").
+		WithMCPServer("kubernetes", func(s *testcase.MCPServerBuilder) {
+			s.Tool("noop", func(tool *testcase.ToolDef) {
+				tool.WithDescription("No-op tool").ReturnsText("ok")
+			})
+		}).
+		WithAgent(func(a *testcase.AgentBuilder) {
+			a.OnAnyPrompt().ThenRespond("ok")
+		}).
+		WithEval(func(ec *testcase.EvalConfig) {
+			ec.Name("label-filtering-istio-selector").
+				TaskSet(func(ts *testcase.TaskSetBuilder) {
+					ts.Glob(glob).LabelSelector(map[string]string{
+						"suite": "istio",
+					})
+				})
+		}).
+		Expect(&testcase.TaskCountAssertion{Expected: 1}).
+		Expect(testcase.AssertFunc("only istio-task executed", func(t *testing.T, ctx *testcase.RunContext) {
+			if ctx.ResultForTask("istio-task") == nil {
+				t.Fatalf("expected istio-task to be executed")
+			}
+			if ctx.ResultForTask("k8s-basic-task") != nil {
+				t.Fatalf("did not expect k8s-basic-task to be executed")
+			}
+			if ctx.ResultForTask("k8s-advanced-task") != nil {
+				t.Fatalf("did not expect k8s-advanced-task to be executed")
+			}
+		})).
+		Run()
+}
+
+func writeLabelFilteringTasks(t *testing.T) string {
 	t.Helper()
-	mcpConfig := map[string]any{
-		"mcpServers": map[string]any{},
+	dir := t.TempDir()
+	tasksDir := filepath.Join(dir, "tasks")
+	if err := os.MkdirAll(tasksDir, 0o755); err != nil {
+		t.Fatalf("failed to create tasks dir: %v", err)
 	}
-	mcpBytes, err := json.Marshal(mcpConfig)
-	require.NoError(t, err)
-	mcpFile := filepath.Join(dir, "mcp-config.json")
-	require.NoError(t, os.WriteFile(mcpFile, mcpBytes, 0644))
-	return mcpFile
+
+	writeFile(t, filepath.Join(tasksDir, "task1.yaml"), `
+apiVersion: mcpchecker/v1alpha2
+kind: Task
+metadata:
+  name: k8s-basic-task
+  difficulty: easy
+  labels:
+    suite: kubernetes
+    category: basic
+spec:
+  prompt:
+    inline: "kubernetes basic task"
+  verify:
+    - script:
+        inline: "exit 0"
+`)
+
+	writeFile(t, filepath.Join(tasksDir, "task2.yaml"), `
+apiVersion: mcpchecker/v1alpha2
+kind: Task
+metadata:
+  name: k8s-advanced-task
+  difficulty: hard
+  labels:
+    suite: kubernetes
+    category: advanced
+spec:
+  prompt:
+    inline: "kubernetes advanced task"
+  verify:
+    - script:
+        inline: "exit 0"
+`)
+
+	writeFile(t, filepath.Join(tasksDir, "task3.yaml"), `
+apiVersion: mcpchecker/v1alpha2
+kind: Task
+metadata:
+  name: istio-task
+  difficulty: medium
+  labels:
+    suite: istio
+spec:
+  prompt:
+    inline: "istio task"
+  verify:
+    - script:
+        inline: "exit 0"
+`)
+
+	return tasksDir
+}
+
+func writeFile(t *testing.T, path, content string) {
+	t.Helper()
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("failed to write file %s: %v", path, err)
+	}
+}
+
+func contains(haystack, needle string) bool {
+	return strings.Contains(haystack, needle)
 }
