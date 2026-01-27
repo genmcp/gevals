@@ -191,7 +191,7 @@ func TestLabelFiltering(t *testing.T) {
 	evalWithFilterFile := filepath.Join(tmpDir, "eval-with-filter.yaml")
 	require.NoError(t, os.WriteFile(evalWithFilterFile, evalWithFilterBytes, 0644))
 
-	cmdWithFilter := exec.Command(gevalsBinary, "eval", evalWithFilterFile)
+	cmdWithFilter := exec.Command(gevalsBinary, "check", evalWithFilterFile)
 	cmdWithFilter.Dir = tmpDir
 	outputWithFilter, err := cmdWithFilter.CombinedOutput()
 	if err != nil {
