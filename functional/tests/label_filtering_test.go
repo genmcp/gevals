@@ -134,7 +134,7 @@ func TestLabelFiltering(t *testing.T) {
 	evalNoFilterFile := filepath.Join(tmpDir, "eval-no-filter.yaml")
 	require.NoError(t, os.WriteFile(evalNoFilterFile, evalNoFilterBytes, 0644))
 
-	cmdNoFilter := exec.Command(gevalsBinary, "eval", evalNoFilterFile)
+	cmdNoFilter := exec.Command(gevalsBinary, "check", evalNoFilterFile)
 	cmdNoFilter.Dir = tmpDir
 	outputNoFilter, err := cmdNoFilter.CombinedOutput()
 	require.NoError(t, err, "gevals eval command failed (no filter):\n%s", string(outputNoFilter))
