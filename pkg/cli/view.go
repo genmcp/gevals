@@ -1,11 +1,9 @@
-// Package cli provides commands for rendering and inspecting evaluation results.
 package cli
 
 import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"os"
 	"reflect"
 	"sort"
 	"strings"
@@ -13,6 +11,7 @@ import (
 	"github.com/fatih/color"
 	"github.com/mcpchecker/mcpchecker/pkg/eval"
 	"github.com/mcpchecker/mcpchecker/pkg/mcpproxy"
+	"github.com/mcpchecker/mcpchecker/pkg/results"
 	"github.com/mcpchecker/mcpchecker/pkg/task"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/spf13/cobra"
@@ -44,12 +43,12 @@ Examples:
   mcpchecker view --task netedge-selector-mismatch --max-events 15 results.json`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			results, err := loadEvalResults(args[0])
+			evalResults, err := results.Load(args[0])
 			if err != nil {
 				return err
 			}
 
-			filtered := filterResults(results, taskFilter)
+			filtered := results.Filter(evalResults, taskFilter)
 			if len(filtered) == 0 {
 				if taskFilter == "" {
 					return errors.New("no tasks found in results")
@@ -82,43 +81,12 @@ Examples:
 	return cmd
 }
 
-// loadEvalResults reads a JSON results file and returns the parsed evaluations.
-func loadEvalResults(path string) ([]*eval.EvalResult, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read results file: %w", err)
-	}
-
-	var results []*eval.EvalResult
-	if err := json.Unmarshal(data, &results); err != nil {
-		return nil, fmt.Errorf("failed to parse results JSON: %w", err)
-	}
-
-	return results, nil
-}
-
 // viewOptions controls which portions of a result are rendered and how much detail is shown.
 type viewOptions struct {
 	showTimeline   bool
 	maxEvents      int
 	maxOutputLines int
 	maxLineLength  int
-}
-
-// filterResults returns the subset of results whose task names contain the filter substring.
-func filterResults(results []*eval.EvalResult, filter string) []*eval.EvalResult {
-	if filter == "" {
-		return results
-	}
-
-	filter = strings.ToLower(filter)
-	filtered := make([]*eval.EvalResult, 0, len(results))
-	for _, r := range results {
-		if strings.Contains(strings.ToLower(r.TaskName), filter) {
-			filtered = append(filtered, r)
-		}
-	}
-	return filtered
 }
 
 // printEvalResult prints a formatted summary of a single evaluation result.
