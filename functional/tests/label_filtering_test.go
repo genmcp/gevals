@@ -26,7 +26,7 @@ func TestLabelFiltering(t *testing.T) {
 
 	// Create task 1: kubernetes + basic (SHOULD MATCH)
 	task1 := map[string]any{
-		"apiVersion": "gevals/v1alpha2",
+		"apiVersion": "mcpchecker/v1alpha2",
 		"kind":       "Task",
 		"metadata": map[string]any{
 			"name":       "k8s-basic-task",
@@ -53,7 +53,7 @@ func TestLabelFiltering(t *testing.T) {
 
 	// Create task 2: kubernetes + advanced (should NOT match)
 	task2 := map[string]any{
-		"apiVersion": "gevals/v1alpha2",
+		"apiVersion": "mcpchecker/v1alpha2",
 		"kind":       "Task",
 		"metadata": map[string]any{
 			"name":       "k8s-advanced-task",
@@ -80,7 +80,7 @@ func TestLabelFiltering(t *testing.T) {
 
 	// Create task 3: istio (should NOT match)
 	task3 := map[string]any{
-		"apiVersion": "gevals/v1alpha2",
+		"apiVersion": "mcpchecker/v1alpha2",
 		"kind":       "Task",
 		"metadata": map[string]any{
 			"name":       "istio-task",
@@ -104,7 +104,7 @@ func TestLabelFiltering(t *testing.T) {
 	}
 	writeTaskFile(t, tasksDir, "task3.yaml", task3)
 
-	gevalsBinary, err := testcase.GetGevalsBinary()
+	mcpcheckerBinary, err := testcase.GetMcpCheckerBinary()
 	require.NoError(t, err)
 
 	// STEP 1: Run WITHOUT label selector - should execute ALL 3 tasks
@@ -134,12 +134,12 @@ func TestLabelFiltering(t *testing.T) {
 	evalNoFilterFile := filepath.Join(tmpDir, "eval-no-filter.yaml")
 	require.NoError(t, os.WriteFile(evalNoFilterFile, evalNoFilterBytes, 0644))
 
-	cmdNoFilter := exec.Command(gevalsBinary, "check", evalNoFilterFile)
+	cmdNoFilter := exec.Command(mcpcheckerBinary, "check", evalNoFilterFile)
 	cmdNoFilter.Dir = tmpDir
 	outputNoFilter, err := cmdNoFilter.CombinedOutput()
-	require.NoError(t, err, "gevals eval command failed (no filter):\n%s", string(outputNoFilter))
+	require.NoError(t, err, "mcpchecker check command failed (no filter):\n%s", string(outputNoFilter))
 
-	t.Logf("gevals output (no filter):\n%s", string(outputNoFilter))
+	t.Logf("mcpchecker output (no filter):\n%s", string(outputNoFilter))
 
 	// Verify all 3 tasks were executed
 	outputNoFilterStr := string(outputNoFilter)
@@ -149,7 +149,7 @@ func TestLabelFiltering(t *testing.T) {
 	assert.Contains(t, outputNoFilterStr, "istio-task", "Should include istio-task")
 
 	// Verify results file contains 3 tasks
-	outputNoFilterFile := filepath.Join(tmpDir, "gevals-no-filter-test-out.json")
+	outputNoFilterFile := filepath.Join(tmpDir, "mcpchecker-no-filter-test-out.json")
 	_, err = os.Stat(outputNoFilterFile)
 	require.NoError(t, err, "Output file should exist: %s", outputNoFilterFile)
 
@@ -191,14 +191,14 @@ func TestLabelFiltering(t *testing.T) {
 	evalWithFilterFile := filepath.Join(tmpDir, "eval-with-filter.yaml")
 	require.NoError(t, os.WriteFile(evalWithFilterFile, evalWithFilterBytes, 0644))
 
-	cmdWithFilter := exec.Command(gevalsBinary, "check", evalWithFilterFile)
+	cmdWithFilter := exec.Command(mcpcheckerBinary, "check", evalWithFilterFile)
 	cmdWithFilter.Dir = tmpDir
 	outputWithFilter, err := cmdWithFilter.CombinedOutput()
 	if err != nil {
-		t.Fatalf("gevals eval command failed (with filter): %v\nOutput:\n%s", err, string(outputWithFilter))
+		t.Fatalf("mcpchecker check command failed (with filter): %v\nOutput:\n%s", err, string(outputWithFilter))
 	}
 
-	t.Logf("gevals output (with filter):\n%s", string(outputWithFilter))
+	t.Logf("mcpchecker output (with filter):\n%s", string(outputWithFilter))
 
 	// Verify filtering worked by checking output
 	outputWithFilterStr := string(outputWithFilter)
@@ -212,7 +212,7 @@ func TestLabelFiltering(t *testing.T) {
 	assert.NotContains(t, outputWithFilterStr, "istio-task", "Should NOT execute istio-task")
 
 	// Verify results file exists and contains exactly 1 task
-	outputWithFilterFile := filepath.Join(tmpDir, "gevals-label-filtering-test-out.json")
+	outputWithFilterFile := filepath.Join(tmpDir, "mcpchecker-label-filtering-test-out.json")
 	_, err = os.Stat(outputWithFilterFile)
 	require.NoError(t, err, "Output file should exist: %s", outputWithFilterFile)
 
@@ -252,14 +252,14 @@ func TestLabelFiltering(t *testing.T) {
 	evalCLIFlagFile := filepath.Join(tmpDir, "eval-cli-flag.yaml")
 	require.NoError(t, os.WriteFile(evalCLIFlagFile, evalCLIFlagBytes, 0644))
 
-	cmdCLIFlag := exec.Command(gevalsBinary, "eval", "--label-selector", "category=basic", evalCLIFlagFile)
+	cmdCLIFlag := exec.Command(mcpcheckerBinary, "check", "--label-selector", "category=basic", evalCLIFlagFile)
 	cmdCLIFlag.Dir = tmpDir
 	outputCLIFlag, err := cmdCLIFlag.CombinedOutput()
 	if err != nil {
-		t.Fatalf("gevals eval command failed (CLI flag): %v\nOutput:\n%s", err, string(outputCLIFlag))
+		t.Fatalf("mcpchecker check command failed (CLI flag): %v\nOutput:\n%s", err, string(outputCLIFlag))
 	}
 
-	t.Logf("gevals output (CLI flag):\n%s", string(outputCLIFlag))
+	t.Logf("mcpchecker output (CLI flag):\n%s", string(outputCLIFlag))
 
 	// Verify filtering worked by checking output
 	outputCLIFlagStr := string(outputCLIFlag)
@@ -273,7 +273,7 @@ func TestLabelFiltering(t *testing.T) {
 	assert.NotContains(t, outputCLIFlagStr, "istio-task", "Should NOT execute istio-task with CLI flag")
 
 	// Verify results file exists and contains exactly 1 task
-	outputCLIFlagFile := filepath.Join(tmpDir, "gevals-cli-flag-test-out.json")
+	outputCLIFlagFile := filepath.Join(tmpDir, "mcpchecker-cli-flag-test-out.json")
 	_, err = os.Stat(outputCLIFlagFile)
 	require.NoError(t, err, "Output file should exist: %s", outputCLIFlagFile)
 
