@@ -8,7 +8,7 @@ config:
   mcpConfigFile: ../mcp-config.yaml
   extensions:
     kubernetes:
-      package: ../bin/kubernetes-extension
+      package: https://github.com/mcpchecker/kubernetes-extension@v0.0.2
       config:
         kubeconfig: ~/.kube/config
   llmJudge:

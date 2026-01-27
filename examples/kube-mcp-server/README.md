@@ -39,6 +39,7 @@ The tasks and MCP configuration are shared - only the agent configuration differ
 - kubectl configured
 - Kubernetes MCP server running at `http://localhost:8080/mcp`
 - Built binaries: `mcpchecker` and `agent`
+- The kubernetes-extension will be automatically downloaded from https://github.com/mcpchecker/kubernetes-extension when running evals
 
 ## Running Examples
 
