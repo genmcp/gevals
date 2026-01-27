@@ -1,0 +1,5 @@
+# Downloaded extension binaries
+bin/
+
+# Test output
+*-out.json
