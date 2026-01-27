@@ -116,6 +116,11 @@ config:
             toolPattern: "pods_.*"  # Agent must use pod-related tools
         minToolCalls: 1
         maxToolCalls: 10
+    # Or use globs with optional label filtering:
+    # - glob: tasks/**/*.yaml
+    #   labelSelector:
+    #     suite: kubernetes  # Only run tasks with label suite=kubernetes
+    #     category: basic    # AND label category=basic (AND logic)
 ```
 
 **mcp-config.yaml** - MCP server to test:
@@ -157,6 +162,9 @@ kind: Task
 metadata:
   name: "create-nginx-pod"
   difficulty: easy
+  labels:
+    suite: kubernetes
+    category: basic
 steps:
   setup:
     file: setup.sh      # Creates test namespace
@@ -172,6 +180,68 @@ steps:
 ```
 
 Note: You must choose either script-based verification (`file` or `inline`) OR LLM judge verification (`contains` or `exact`), not both.
+
+## Task Organization and Filtering
+
+### Using Labels
+
+Tasks can include labels for categorization and filtering:
+
+```yaml
+kind: Task
+metadata:
+  name: "create-pod"
+  difficulty: easy
+  labels:
+    suite: kubernetes
+    category: basic
+    requires: cluster
+```
+
+### Filtering with Label Selectors
+
+Use `labelSelector` in eval configs to filter tasks:
+
+```yaml
+# Run only kubernetes tasks
+taskSets:
+  - glob: tasks/**/*.yaml
+    labelSelector:
+      suite: kubernetes
+
+# Run only kiali tasks that require istio
+taskSets:
+  - glob: tasks/**/*.yaml
+    labelSelector:
+      suite: kiali
+      requires: istio
+
+# Multiple task sets with different filters
+taskSets:
+  - glob: tasks/kubernetes/*/*.yaml
+    labelSelector:
+      suite: kubernetes
+    assertions:
+      minToolCalls: 1
+      maxToolCalls: 20
+  - glob: tasks/kiali/*/*.yaml
+    labelSelector:
+      suite: kiali
+    assertions:
+      minToolCalls: 1
+      maxToolCalls: 40
+```
+
+**Label Selector Logic:**
+- All labels in the selector must match (AND logic)
+- If `labelSelector` is omitted or empty, all tasks matched by the glob/path are included
+- Tasks without labels will not match any non-empty label selector
+- Combines with glob/path patterns - both must match for a task to be included
+
+**Best Practices:**
+- Use consistent label keys across your task suite (`suite`, `category`, `requires`, etc.)
+- Combine directory structure with labels for robust organization
+- Use globs for path-based filtering, labels for semantic filtering
 
 ## Assertions
 

@@ -60,6 +60,21 @@ func (tc *TaskConfig) Hard() *TaskConfig {
 	return tc.Difficulty(task.DifficultyHard)
 }
 
+// Labels sets the task labels
+func (tc *TaskConfig) Labels(labels map[string]string) *TaskConfig {
+	tc.metadata.Labels = labels
+	return tc
+}
+
+// AddLabel adds a single label to the task
+func (tc *TaskConfig) AddLabel(key, value string) *TaskConfig {
+	if tc.metadata.Labels == nil {
+		tc.metadata.Labels = make(map[string]string)
+	}
+	tc.metadata.Labels[key] = value
+	return tc
+}
+
 // Prompt sets the prompt text for the agent.
 // The prompt is shell-escaped for single quotes since the agent spec template
 // uses single quotes around the prompt argument.
@@ -206,6 +221,21 @@ func (tc *TaskConfigV2) Medium() *TaskConfigV2 {
 // Hard sets the difficulty to "hard"
 func (tc *TaskConfigV2) Hard() *TaskConfigV2 {
 	return tc.Difficulty(task.DifficultyHard)
+}
+
+// Labels sets the task labels
+func (tc *TaskConfigV2) Labels(labels map[string]string) *TaskConfigV2 {
+	tc.metadata.Labels = labels
+	return tc
+}
+
+// AddLabel adds a single label to the task
+func (tc *TaskConfigV2) AddLabel(key, value string) *TaskConfigV2 {
+	if tc.metadata.Labels == nil {
+		tc.metadata.Labels = make(map[string]string)
+	}
+	tc.metadata.Labels[key] = value
+	return tc
 }
 
 // Prompt sets the prompt text for the agent.

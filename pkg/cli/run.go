@@ -19,6 +19,7 @@ func NewEvalCmd() *cobra.Command {
 	var outputFormat string
 	var verbose bool
 	var run string
+	var labelSelector string
 
 	cmd := &cobra.Command{
 		Use:   "check [eval-config-file]",
@@ -32,6 +33,13 @@ func NewEvalCmd() *cobra.Command {
 			spec, err := eval.FromFile(configFile)
 			if err != nil {
 				return fmt.Errorf("failed to load eval config: %w", err)
+			}
+
+			// Apply label selector filter if provided
+			if labelSelector != "" {
+				if err := eval.ApplyLabelSelectorFilter(spec, labelSelector); err != nil {
+					return fmt.Errorf("failed to apply label selector: %w", err)
+				}
 			}
 
 			// Create runner
@@ -70,6 +78,7 @@ func NewEvalCmd() *cobra.Command {
 	cmd.Flags().StringVarP(&outputFormat, "output", "o", "text", "Output format (text, json)")
 	cmd.Flags().BoolVarP(&verbose, "verbose", "v", false, "Verbose output")
 	cmd.Flags().StringVarP(&run, "run", "r", "", "Regular expression to match task names to run (unanchored, like go test -run)")
+	cmd.Flags().StringVarP(&labelSelector, "label-selector", "l", "", "Filter taskSets by label (format: key=value, e.g., suite=kubernetes)")
 
 	return cmd
 }

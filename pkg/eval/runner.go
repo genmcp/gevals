@@ -225,6 +225,11 @@ func (r *evalRunner) collectTaskConfigs(rx *regexp.Regexp) ([]taskConfig, error)
 				continue
 			}
 
+			// Filter by label selector if specified
+			if !matchesLabelSelector(taskSpec.Metadata.Labels, ts.LabelSelector) {
+				continue
+			}
+
 			taskConfigs = append(taskConfigs, taskConfig{
 				path:       path,
 				spec:       taskSpec,
