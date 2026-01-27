@@ -92,204 +92,51 @@ outputs:
 
   mcpchecker-path:
     description: 'Path to the installed mcpchecker binary'
-    value: ${{ steps.install.outputs.mcpchecker-path }}
+    value: ${{ steps.setup.outputs.mcpchecker-path }}
 
   agent-path:
     description: 'Path to the installed agent binary'
-    value: ${{ steps.install.outputs.agent-path }}
+    value: ${{ steps.setup.outputs.agent-path }}
+
+  mcpchecker-version:
+    description: 'The version of mcpchecker that was installed'
+    value: ${{ steps.setup.outputs.version }}
 
 runs:
   using: 'composite'
   steps:
-    - name: Detect platform
-      id: platform
+    - name: Determine version
+      id: version
       shell: bash
       run: |
-        # Detect OS
-        OS=$(uname -s | tr '[:upper:]' '[:lower:]')
-        case "$OS" in
-          linux*)
-            GOOS="linux"
-            ;;
-          darwin*)
-            GOOS="darwin"
-            ;;
-          mingw* | msys* | cygwin*)
-            GOOS="windows"
-            ;;
-          *)
-            echo "❌ Unsupported OS: $OS"
-            exit 1
-            ;;
-        esac
-
-        # Detect architecture
-        ARCH=$(uname -m)
-        case "$ARCH" in
-          x86_64 | amd64)
-            GOARCH="amd64"
-            ;;
-          aarch64 | arm64)
-            GOARCH="arm64"
-            ;;
-          armv7l | armv7)
-            GOARCH="arm"
-            ;;
-          i386 | i686)
-            GOARCH="386"
-            ;;
-          *)
-            echo "❌ Unsupported architecture: $ARCH"
-            exit 1
-            ;;
-        esac
-
-        echo "Detected platform: $GOOS/$GOARCH"
-        echo "goos=$GOOS" >> $GITHUB_OUTPUT
-        echo "goarch=$GOARCH" >> $GITHUB_OUTPUT
-
-        # Binary extension (for Windows)
-        if [ "$GOOS" = "windows" ]; then
-          echo "bin-ext=.exe" >> $GITHUB_OUTPUT
-        else
-          echo "bin-ext=" >> $GITHUB_OUTPUT
+        VERSION="${{ inputs.mcpchecker-version }}"
+        # If version is 'latest' or unset and action was invoked with a version tag, use that
+        if [ "$VERSION" = "latest" ] || [ -z "$VERSION" ]; then
+          ACTION_REF="${{ github.action_ref }}"
+          if [[ "$ACTION_REF" =~ ^v[0-9] ]]; then
+            VERSION="$ACTION_REF"
+            echo "Using version from action ref: $VERSION"
+          else
+            VERSION="latest"
+          fi
         fi
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-        # Binary name for releases
-        echo "binary-suffix=$GOOS-$GOARCH" >> $GITHUB_OUTPUT
-
-    - name: Set up Go
-      uses: actions/setup-go@v6
+    - name: Setup mcpchecker
+      id: setup
+      uses: mcpchecker/mcpchecker/.github/actions/setup-mcpchecker@${{ github.action_ref || 'main' }}
       with:
-        go-version: '1.25.x'
-        cache: false
-
-    - name: Install mcpchecker
-      id: install
-      shell: bash
-      env:
-        GOOS: ${{ steps.platform.outputs.goos }}
-        GOARCH: ${{ steps.platform.outputs.goarch }}
-        BIN_EXT: ${{ steps.platform.outputs.bin-ext }}
-        BINARY_SUFFIX: ${{ steps.platform.outputs.binary-suffix }}
-      run: |
-        INSTALL_DIR="${{ runner.temp }}/mcpchecker-bin"
-        mkdir -p "$INSTALL_DIR"
-
-        MCPCHECKER_BIN="$INSTALL_DIR/mcpchecker$BIN_EXT"
-        AGENT_BIN="$INSTALL_DIR/agent$BIN_EXT"
-
-        # Determine effective version to use
-        REQUESTED_VERSION="${{ inputs.mcpchecker-version }}"
-        ACTION_REF="${{ github.action_ref }}"
-
-        # If version is 'latest' and the action was called with a version tag ref,
-        # use the action ref as the version (enables automatic version matching)
-        if [ "$REQUESTED_VERSION" = "latest" ] && [[ "$ACTION_REF" =~ ^v[0-9] ]]; then
-          echo "Detected action ref '$ACTION_REF' - using as mcpchecker version"
-          EFFECTIVE_VERSION="$ACTION_REF"
-        else
-          EFFECTIVE_VERSION="$REQUESTED_VERSION"
-        fi
-
-        echo "Effective mcpchecker version: $EFFECTIVE_VERSION"
-
-        if [ "$EFFECTIVE_VERSION" = "latest" ] || [ "$EFFECTIVE_VERSION" = "main" ]; then
-          echo "Building mcpchecker from source for $GOOS/$GOARCH..."
-
-          # Clone mcpchecker repository
-          MCPCHECKER_SRC="${{ runner.temp }}/mcpchecker-src"
-          git clone --depth 1 https://github.com/mcpchecker/mcpchecker.git "$MCPCHECKER_SRC"
-          cd "$MCPCHECKER_SRC"
-
-          # Build binaries
-          make build GOOS=$GOOS GOARCH=$GOARCH
-
-          # Copy built binaries to install directory
-          mv mcpchecker$BIN_EXT "$MCPCHECKER_BIN"
-          mv agent$BIN_EXT "$AGENT_BIN"
-
-          # Cleanup source
-          cd -
-          rm -rf "$MCPCHECKER_SRC"
-        else
-          echo "Downloading pre-built mcpchecker $EFFECTIVE_VERSION for $BINARY_SUFFIX..."
-
-          # Download from GitHub releases
-          RELEASE_URL="https://github.com/mcpchecker/mcpchecker/releases/download/$EFFECTIVE_VERSION"
-          DOWNLOAD_DIR="${{ runner.temp }}/mcpchecker-download"
-          mkdir -p "$DOWNLOAD_DIR"
-
-          # Download pre-built mcpchecker zip
-          if ! curl -fsSL "$RELEASE_URL/mcpchecker-$BINARY_SUFFIX.zip" -o "$DOWNLOAD_DIR/mcpchecker.zip" 2>&1; then
-            echo "❌ Failed to download pre-built mcpchecker release for $BINARY_SUFFIX"
-            echo "   Check that version '$EFFECTIVE_VERSION' exists and has release artifacts"
-            exit 1
-          fi
-
-          # Download agent zip
-          if ! curl -fsSL "$RELEASE_URL/agent-$BINARY_SUFFIX.zip" -o "$DOWNLOAD_DIR/agent.zip" 2>&1; then
-            echo "❌ Failed to download agent binary for $BINARY_SUFFIX"
-            exit 1
-          fi
-
-          # Extract zips
-          echo "Extracting mcpchecker..."
-          unzip -q "$DOWNLOAD_DIR/mcpchecker.zip" -d "$DOWNLOAD_DIR"
-          mv "$DOWNLOAD_DIR/mcpchecker-$BINARY_SUFFIX$BIN_EXT" "$MCPCHECKER_BIN"
-
-          echo "Extracting agent..."
-          unzip -q "$DOWNLOAD_DIR/agent.zip" -d "$DOWNLOAD_DIR"
-          mv "$DOWNLOAD_DIR/agent-$BINARY_SUFFIX$BIN_EXT" "$AGENT_BIN"
-
-          # Make binaries executable (not needed on Windows, but harmless)
-          chmod +x "$MCPCHECKER_BIN" "$AGENT_BIN"
-
-          # Cleanup download directory
-          rm -rf "$DOWNLOAD_DIR"
-        fi
-
-        # Verify binaries exist
-        if [ ! -f "$MCPCHECKER_BIN" ]; then
-          echo "❌ mcpchecker binary not found at $MCPCHECKER_BIN"
-          exit 1
-        fi
-
-        if [ ! -f "$AGENT_BIN" ]; then
-          echo "❌ agent binary not found at $AGENT_BIN"
-          exit 1
-        fi
-
-        # Output paths and version
-        echo "mcpchecker-path=$MCPCHECKER_BIN" >> $GITHUB_OUTPUT
-        echo "agent-path=$AGENT_BIN" >> $GITHUB_OUTPUT
-        echo "effective-version=$EFFECTIVE_VERSION" >> $GITHUB_OUTPUT
-
-        # Add to PATH for subsequent steps
-        echo "$INSTALL_DIR" >> $GITHUB_PATH
-
-        echo "✓ Installed mcpchecker to $MCPCHECKER_BIN"
-        echo "✓ Installed agent to $AGENT_BIN"
-
-    - name: Verify mcpchecker installation
-      shell: bash
-      run: |
-        echo "Verifying mcpchecker installation..."
-        ${{ steps.install.outputs.mcpchecker-path }} help
-        echo "✓ mcpchecker installed successfully"
-        echo ""
-        echo "Platform: ${{ steps.platform.outputs.goos }}/${{ steps.platform.outputs.goarch }}"
-        echo "Version: ${{ steps.install.outputs.effective-version }}"
+        version: ${{ steps.version.outputs.version }}
 
     - name: Run evaluation
       id: run-eval
       shell: bash
       working-directory: ${{ inputs.working-directory }}
       run: |
-        MCPCHECKER="${{ steps.install.outputs.mcpchecker-path }}"
+        MCPCHECKER="${{ steps.setup.outputs.mcpchecker-path }}"
 
         # Build command as array (safe from shell injection)
-        CMD=("${{ steps.install.outputs.mcpchecker-path }}" "check" "${{ inputs.eval-config }}")
+        CMD=("$MCPCHECKER" "check" "${{ inputs.eval-config }}")
 
         if [ -n "${{ inputs.output-format }}" ]; then
           CMD+=("--output" "${{ inputs.output-format }}")
@@ -330,13 +177,13 @@ runs:
         echo "Results file: $RESULTS_FILE"
         echo "results-file=$RESULTS_FILE" >> $GITHUB_OUTPUT
 
-        # Use geval summary to output metrics in GitHub Actions format
+        # Output metrics in GitHub Actions format
         "$MCPCHECKER" summary "$RESULTS_FILE" --github-output >> $GITHUB_OUTPUT
 
         # Display human-readable summary
         "$MCPCHECKER" summary "$RESULTS_FILE"
 
-        # Verify thresholds using mcpchecker verify
+        # Verify thresholds
         TASK_THRESHOLD="${{ inputs.task-pass-threshold }}"
         ASSERTION_THRESHOLD="${{ inputs.assertion-pass-threshold }}"
 
