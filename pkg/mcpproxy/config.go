@@ -4,13 +4,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"time"
 
+	"github.com/genmcp/gen-mcp/pkg/template"
+	"github.com/genmcp/gevals/pkg/util"
 	"sigs.k8s.io/yaml"
 )
 
 const (
-	TransportTypeHttp  = "http"
-	TransportTypeStdio = "stdio"
+	TransportTypeHttp        = "http"
+	TransportTypeStdio       = "stdio"
+	TransportTypeManagedHttp = "managedhttp"
 )
 
 // MCPConfig represents the top-level MCP configuration file structure
@@ -22,21 +26,37 @@ type MCPConfig struct {
 // ServerConfig represents the configuration for a single MCP server.
 // Supports both stdio (command-based) and HTTP-based servers.
 type ServerConfig struct {
-	// Type specifies the server type: "stdio" or "http"
+	// Type specifies the server type: "stdio", "managedhttp", or "http"
 	// If not specified, will be inferred from URL (http) or Command (stdio)
 	Type string `json:"type,omitempty"`
 
+	// ServerUrlTemplate specifies what the server's URL will be once it's running.
+	// It can use variables from 'command.env' or the 'lifecycle.setup' script output.
+	// variables are formatted as ${ENV_VAR_NAME}
+	ServerUrlTemplate string `json:"serverUrlTemplate,omitempty"`
+
+	// ParsedServerUrlTemplate contains the parsed template for the server url
+	ParsedServerUrlTemplate *template.ParsedTemplate `json:"-"`
+
 	// Command is the executable to run (e.g., "node", "python", "npx")
-	// Used for stdio servers
+	// Used for stdio and managedhttp servers
 	Command string `json:"command,omitempty"`
 
 	// Args are the command-line arguments to pass to the command
-	// Used for stdio servers
+	// Used for stdio and managedhttp servers
+	// Can contain env variables formatted as ${ENV_VAR_NAME}
 	Args []string `json:"args,omitempty"`
 
+	// ParsedArgs contains the parsed templates for the args
+	ParsedArgs []*template.ParsedTemplate `json:"-"`
+
 	// Env contains environment variables to set for the server process
-	// Used for stdio servers
+	// Used for stdio and managedhttp servers
 	Env map[string]string `json:"env,omitempty"`
+
+	// HealthCheckConfig contains the config to health check the managedhttp
+	// or http mcp servers, before accessing them
+	HealthCheckConfig *HttpHealthCheckConfig `json:"healthCheck,omitempty"`
 
 	// URL is the HTTP endpoint for the MCP server
 	// Used for http servers. May contain environment variable references
@@ -55,6 +75,73 @@ type ServerConfig struct {
 
 	// EnableAllTools sets all tools to be allowed
 	EnableAllTools bool `json:"enableAllTools"`
+
+	// Lifecycle contains the lifecycle for the mcp server/env
+	Lifecycle *McpServerLifecycleConfig `json:"lifecycle,omitempty"`
+}
+
+type HttpHealthCheckConfig struct {
+	Path     string        `json:"path"`
+	Retries  int           `json:"retries"`
+	Interval time.Duration `json:"interval"`
+}
+
+type McpServerLifecycleConfig struct {
+	// Setup contains setup script for the mcp server/env
+	// Output that matches the format VAR=VALUE will be added to future env
+	Setup *util.Step `json:"setup,omitempty"`
+	// Cleanup contains cleanup script for the mcp server/env
+	Cleanup *util.Step `json:"cleanup,omitempty"`
+}
+
+func (c *HttpHealthCheckConfig) UnmarshalJSON(data []byte) error {
+	type Doppleganger HttpHealthCheckConfig
+
+	tmp := &struct {
+		Interval string `json:"interval"`
+		*Doppleganger
+	}{
+		Doppleganger: (*Doppleganger)(c),
+	}
+
+	err := json.Unmarshal(data, tmp)
+	if err != nil {
+		return err
+	}
+
+	c.Interval, err = time.ParseDuration(tmp.Interval)
+	if err != nil {
+		return fmt.Errorf("unable to parse interval: %w", err)
+	}
+
+	return nil
+}
+
+func (c *ServerConfig) UnmarshalJSON(data []byte) error {
+	type Doppleganger ServerConfig
+
+	tmp := (*Doppleganger)(c)
+
+	err := json.Unmarshal(data, tmp)
+	if err != nil {
+		return err
+	}
+
+	c.ParsedServerUrlTemplate, err = template.ParseTemplate(c.ServerUrlTemplate, template.TemplateParserOptions{})
+	if err != nil {
+		return fmt.Errorf("failed to parse serverUrlTemplate: %w", err)
+	}
+
+	c.ParsedArgs = make([]*template.ParsedTemplate, len(c.Args))
+
+	for i, arg := range c.Args {
+		c.ParsedArgs[i], err = template.ParseTemplate(arg, template.TemplateParserOptions{})
+		if err != nil {
+			return fmt.Errorf("failed to parse args[%d]: %w", i, err)
+		}
+	}
+
+	return nil
 }
 
 // ParseConfigFile reads and parses an MCP config file from the given path.
