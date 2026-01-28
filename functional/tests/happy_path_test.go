@@ -148,7 +148,7 @@ func TestTaskWithLabels(t *testing.T) {
 				CallTool("kubectl_version", map[string]any{}).
 				ThenRespond("kubectl version is v1.28.0")
 		}).
-		WithTask(func(task *testcase.TaskConfig) {
+		AddTask(func(task *testcase.TaskConfig) {
 			task.Name("check-kubectl-version").
 				Easy().
 				AddLabel("suite", "kubernetes").
