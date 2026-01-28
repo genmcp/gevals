@@ -68,6 +68,29 @@ func NewRunner(spec *EvalSpec) (EvalRunner, error) {
 	}, nil
 }
 
+func (r *evalRunner) loadMcpConfig() (*mcpproxy.MCPConfig, error) {
+	// Priority 1: Config file
+	if r.spec.Config.McpConfigFile != "" {
+		config, err := mcpproxy.ParseConfigFile(r.spec.Config.McpConfigFile)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load MCP config from file: %w", err)
+		}
+		return config, nil
+	}
+
+	// Priority 2: Environment variables
+	config, err := mcpproxy.ConfigFromEnv()
+	if err != nil {
+		return nil, fmt.Errorf("failed to load MCP config from environment: %w", err)
+	}
+	if config != nil {
+		return config, nil
+	}
+
+	// Neither available
+	return nil, fmt.Errorf("no MCP configuration found: specify mcpConfigFile in eval config or set MCP_URL/MCP_COMMAND environment variables")
+}
+
 func (r *evalRunner) loadAgentSpec() (*agent.AgentSpec, error) {
 	if r.spec.Config.Agent == nil {
 		return nil, fmt.Errorf("agent must be specified in eval config")
@@ -136,9 +159,9 @@ func (r *evalRunner) RunWithProgress(ctx context.Context, taskPattern string, ca
 		Message: "Starting evaluation",
 	})
 
-	mcpConfig, err := mcpproxy.ParseConfigFile(r.spec.Config.McpConfigFile)
+	mcpConfig, err := r.loadMcpConfig()
 	if err != nil {
-		return nil, fmt.Errorf("failed to load MCP config: %w", err)
+		return nil, err
 	}
 
 	r.mcpConfig = mcpConfig
