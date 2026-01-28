@@ -29,7 +29,7 @@ func TestTaskPassesWithToolCallAndJudge(t *testing.T) {
 				}).
 				ThenRespond("I created the nginx pod named nginx-web successfully.")
 		}).
-		WithTask(func(task *testcase.TaskConfig) {
+		AddTask(func(task *testcase.TaskConfig) {
 			task.Name("create-nginx-pod").
 				Easy().
 				Prompt("Create an nginx pod named nginx-web").
@@ -69,7 +69,7 @@ func TestTaskPassesWithScriptVerification(t *testing.T) {
 				}).
 				ThenRespond("I wrote 'Hello, World!' to /tmp/hello.txt")
 		}).
-		WithTask(func(task *testcase.TaskConfig) {
+		AddTask(func(task *testcase.TaskConfig) {
 			task.Name("write-hello-file").
 				Easy().
 				Prompt("Write 'Hello, World!' to a file called hello.txt").
@@ -112,7 +112,7 @@ func TestTaskPassesWithMultipleToolCalls(t *testing.T) {
 				}).
 				ThenRespond("I found the nginx pod and created a service nginx-svc to expose it.")
 		}).
-		WithTask(func(task *testcase.TaskConfig) {
+		AddTask(func(task *testcase.TaskConfig) {
 			task.Name("expose-nginx").
 				Medium().
 				Prompt("Find the nginx pod and expose it with a service").
@@ -148,7 +148,7 @@ func TestTaskWithLabels(t *testing.T) {
 				CallTool("kubectl_version", map[string]any{}).
 				ThenRespond("kubectl version is v1.28.0")
 		}).
-		WithTask(func(task *testcase.TaskConfig) {
+		AddTask(func(task *testcase.TaskConfig) {
 			task.Name("check-kubectl-version").
 				Easy().
 				AddLabel("suite", "kubernetes").

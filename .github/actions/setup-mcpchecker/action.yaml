@@ -1,0 +1,171 @@
+name: 'Setup mcpchecker'
+description: 'Install mcpchecker and agent binaries'
+author: 'mcpchecker'
+
+inputs:
+  version:
+    description: 'Version of mcpchecker to install (latest, main, or vX.Y.Z)'
+    required: false
+    default: 'latest'
+
+outputs:
+  mcpchecker-path:
+    description: 'Path to the installed mcpchecker binary'
+    value: ${{ steps.install.outputs.mcpchecker-path }}
+
+  agent-path:
+    description: 'Path to the installed agent binary'
+    value: ${{ steps.install.outputs.agent-path }}
+
+  version:
+    description: 'The version that was installed'
+    value: ${{ steps.install.outputs.version }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Detect platform
+      id: platform
+      shell: bash
+      run: |
+        # Detect OS
+        OS=$(uname -s | tr '[:upper:]' '[:lower:]')
+        case "$OS" in
+          linux*)
+            GOOS="linux"
+            ;;
+          darwin*)
+            GOOS="darwin"
+            ;;
+          mingw* | msys* | cygwin*)
+            GOOS="windows"
+            ;;
+          *)
+            echo "❌ Unsupported OS: $OS"
+            exit 1
+            ;;
+        esac
+
+        # Detect architecture
+        ARCH=$(uname -m)
+        case "$ARCH" in
+          x86_64 | amd64)
+            GOARCH="amd64"
+            ;;
+          aarch64 | arm64)
+            GOARCH="arm64"
+            ;;
+          armv7l | armv7)
+            GOARCH="arm"
+            ;;
+          i386 | i686)
+            GOARCH="386"
+            ;;
+          *)
+            echo "❌ Unsupported architecture: $ARCH"
+            exit 1
+            ;;
+        esac
+
+        # Binary extension (for Windows)
+        if [ "$GOOS" = "windows" ]; then
+          BIN_EXT=".exe"
+        else
+          BIN_EXT=""
+        fi
+
+        BINARY_SUFFIX="$GOOS-$GOARCH"
+        echo "Detected platform: $BINARY_SUFFIX"
+
+        echo "bin-ext=$BIN_EXT" >> $GITHUB_OUTPUT
+        echo "binary-suffix=$BINARY_SUFFIX" >> $GITHUB_OUTPUT
+
+    - name: Install mcpchecker
+      id: install
+      shell: bash
+      env:
+        BIN_EXT: ${{ steps.platform.outputs.bin-ext }}
+        BINARY_SUFFIX: ${{ steps.platform.outputs.binary-suffix }}
+      run: |
+        INSTALL_DIR="${{ runner.temp }}/mcpchecker-bin"
+        mkdir -p "$INSTALL_DIR"
+
+        MCPCHECKER_BIN="$INSTALL_DIR/mcpchecker$BIN_EXT"
+        AGENT_BIN="$INSTALL_DIR/agent$BIN_EXT"
+
+        VERSION="${{ inputs.version }}"
+        echo "Requested version: $VERSION"
+
+        # Map 'latest' and 'main' to nightly release
+        if [ "$VERSION" = "latest" ] || [ "$VERSION" = "main" ]; then
+          RELEASE_TAG="nightly"
+          echo "Downloading nightly build for $BINARY_SUFFIX..."
+        else
+          RELEASE_TAG="$VERSION"
+          echo "Downloading mcpchecker $VERSION for $BINARY_SUFFIX..."
+        fi
+
+        # Download from GitHub releases
+        RELEASE_URL="https://github.com/mcpchecker/mcpchecker/releases/download/$RELEASE_TAG"
+        DOWNLOAD_DIR="${{ runner.temp }}/mcpchecker-download"
+        mkdir -p "$DOWNLOAD_DIR"
+
+        # Download mcpchecker zip
+        if ! curl -fsSL "$RELEASE_URL/mcpchecker-$BINARY_SUFFIX.zip" -o "$DOWNLOAD_DIR/mcpchecker.zip" 2>&1; then
+          echo "❌ Failed to download mcpchecker release for $BINARY_SUFFIX"
+          echo "   Check that release '$RELEASE_TAG' exists and has release artifacts"
+          exit 1
+        fi
+
+        # Download agent zip
+        if ! curl -fsSL "$RELEASE_URL/agent-$BINARY_SUFFIX.zip" -o "$DOWNLOAD_DIR/agent.zip" 2>&1; then
+          echo "❌ Failed to download agent binary for $BINARY_SUFFIX"
+          exit 1
+        fi
+
+        # Extract zips
+        echo "Extracting mcpchecker..."
+        unzip -q "$DOWNLOAD_DIR/mcpchecker.zip" -d "$DOWNLOAD_DIR"
+        mv "$DOWNLOAD_DIR/mcpchecker-$BINARY_SUFFIX$BIN_EXT" "$MCPCHECKER_BIN"
+
+        echo "Extracting agent..."
+        unzip -q "$DOWNLOAD_DIR/agent.zip" -d "$DOWNLOAD_DIR"
+        mv "$DOWNLOAD_DIR/agent-$BINARY_SUFFIX$BIN_EXT" "$AGENT_BIN"
+
+        chmod +x "$MCPCHECKER_BIN" "$AGENT_BIN"
+        rm -rf "$DOWNLOAD_DIR"
+
+        EFFECTIVE_VERSION="$RELEASE_TAG"
+
+        # Verify binaries exist
+        if [ ! -f "$MCPCHECKER_BIN" ]; then
+          echo "❌ mcpchecker binary not found at $MCPCHECKER_BIN"
+          exit 1
+        fi
+
+        if [ ! -f "$AGENT_BIN" ]; then
+          echo "❌ agent binary not found at $AGENT_BIN"
+          exit 1
+        fi
+
+        # Output paths and version
+        echo "mcpchecker-path=$MCPCHECKER_BIN" >> $GITHUB_OUTPUT
+        echo "agent-path=$AGENT_BIN" >> $GITHUB_OUTPUT
+        echo "version=$EFFECTIVE_VERSION" >> $GITHUB_OUTPUT
+
+        # Add to PATH for subsequent steps
+        echo "$INSTALL_DIR" >> $GITHUB_PATH
+
+        echo "✓ Installed mcpchecker to $MCPCHECKER_BIN"
+        echo "✓ Installed agent to $AGENT_BIN"
+
+    - name: Verify installation
+      shell: bash
+      run: |
+        echo "Verifying mcpchecker installation..."
+        "${{ steps.install.outputs.mcpchecker-path }}" help
+        echo "✓ Installed mcpchecker (${{ steps.platform.outputs.binary-suffix }}, ${{ steps.install.outputs.version }})"
+
+branding:
+  icon: 'download'
+  color: 'blue'

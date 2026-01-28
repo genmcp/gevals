@@ -232,3 +232,16 @@ func (g *Generator) Mkdir(name string) (string, error) {
 	}
 	return path, nil
 }
+
+// writeTaskYAML writes a single task config to a YAML file.
+// The caller is responsible for providing a unique basename to avoid collisions.
+func (g *Generator) writeTaskYAML(basename string, taskConfig *TaskConfig) (string, error) {
+	wrapper := map[string]any{
+		"apiVersion": util.APIVersionV1Alpha1,
+		"kind":       task.KindTask,
+		"metadata":   taskConfig.Metadata(),
+		"steps":      g.buildLegacyTaskSteps(taskConfig.Steps()),
+	}
+
+	return g.writeYAML(basename, wrapper)
+}

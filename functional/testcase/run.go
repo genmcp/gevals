@@ -33,7 +33,7 @@ type Runner struct {
 	mcpURLs     map[string]string
 
 	// Generated file paths
-	taskFile      string
+	taskFiles     []string
 	evalFile      string
 	mcpConfigFile string
 	agentConfig   string
@@ -135,12 +135,19 @@ func (r *Runner) cleanup() {
 func (r *Runner) generateConfigs() error {
 	var err error
 
-	// Generate task YAML if task config is provided
-	if r.tc.task != nil {
-		r.taskFile, err = r.generator.GenerateTaskYAML(r.tc.task)
+	// Generate task YAML(s)
+	r.taskFiles = make([]string, 0, len(r.tc.tasks))
+	for i, task := range r.tc.tasks {
+		// Include index in filename to avoid collisions when names repeat
+		filename := fmt.Sprintf("task-%d.yaml", i)
+		if task.metadata.Name != "" {
+			filename = fmt.Sprintf("task-%d-%s.yaml", i, task.metadata.Name)
+		}
+		path, err := r.generator.writeTaskYAML(filename, task)
 		if err != nil {
 			return err
 		}
+		r.taskFiles = append(r.taskFiles, path)
 	}
 
 	// Generate MCP config JSON
@@ -190,9 +197,11 @@ func (r *Runner) generateConfigs() error {
 			evalSpec.Config.LLMJudge.Env.ModelNameKey = "E2E_OPENAI_MODEL"
 		}
 
-		// Add task to task sets if not already configured
-		if len(evalSpec.Config.TaskSets) == 0 && r.taskFile != "" {
-			evalSpec.Config.TaskSets = []TaskSet{{Path: r.taskFile}}
+		// Add tasks to task sets if not already configured
+		if len(evalSpec.Config.TaskSets) == 0 {
+			for _, path := range r.taskFiles {
+				evalSpec.Config.TaskSets = append(evalSpec.Config.TaskSets, TaskSet{Path: path})
+			}
 		}
 
 		r.evalFile, err = r.generator.GenerateEvalYAML(evalSpec)
