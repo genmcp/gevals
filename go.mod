@@ -3,6 +3,7 @@ module github.com/mcpchecker/mcpchecker
 go 1.25.5
 
 require (
+	github.com/coder/acp-go-sdk v0.6.3
 	github.com/fatih/color v1.18.0
 	github.com/genmcp/gen-mcp v0.2.3
 	github.com/google/jsonschema-go v0.4.2
