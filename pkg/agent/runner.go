@@ -14,7 +14,7 @@ import (
 
 type Runner interface {
 	RunTask(ctx context.Context, prompt string) (AgentResult, error)
-	WithMcpServerInfo(mcpInfo McpServerInfo) Runner
+	WithMcpServerInfo(mcpServers mcpproxy.ServerManager) Runner
 	AgentName() string
 }
 
@@ -43,6 +43,11 @@ func (a *agentSpecRunnerResult) GetOutput() string {
 func NewRunnerForSpec(spec *AgentSpec) (Runner, error) {
 	if spec == nil {
 		return nil, fmt.Errorf("cannot create a Runner for a nil AgentSpec")
+	}
+
+	// check first for acp config
+	if spec.AcpConfig != nil {
+		return NewAcpRunner(spec.AcpConfig, spec.Metadata.Name), nil
 	}
 
 	// Check if this is an OpenAI agent with builtin configuration
@@ -227,10 +232,10 @@ func (a *agentSpecRunner) RunTask(ctx context.Context, prompt string) (AgentResu
 	}, nil
 }
 
-func (a *agentSpecRunner) WithMcpServerInfo(mcpInfo McpServerInfo) Runner {
+func (a *agentSpecRunner) WithMcpServerInfo(mcpServers mcpproxy.ServerManager) Runner {
 	return &agentSpecRunner{
 		AgentSpec: a.AgentSpec,
-		mcpInfo:   mcpInfo,
+		mcpInfo:   mcpServers,
 	}
 }
 

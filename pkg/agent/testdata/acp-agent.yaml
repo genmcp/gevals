@@ -1,0 +1,8 @@
+kind: Agent
+metadata:
+  name: "my-acp-agent"
+acp:
+  cmd: "claude-code-acp"
+  args:
+    - "--verbose"
+    - "--timeout=300"

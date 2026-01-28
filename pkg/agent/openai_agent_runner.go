@@ -4,15 +4,16 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/mcpchecker/mcpchecker/pkg/mcpproxy"
 	"github.com/mcpchecker/mcpchecker/pkg/openaiagent"
 )
 
 // openAIAgentRunner implements Runner for OpenAI agents using the openaiagent package
 type openAIAgentRunner struct {
-	model    string
-	baseURL  string
-	apiKey   string
-	mcpInfo  McpServerInfo
+	model   string
+	baseURL string
+	apiKey  string
+	mcpInfo McpServerInfo
 }
 
 type openAIAgentResult struct {
@@ -36,12 +37,12 @@ func NewOpenAIAgentRunner(model, baseURL, apiKey string) (Runner, error) {
 	}, nil
 }
 
-func (r *openAIAgentRunner) WithMcpServerInfo(mcpInfo McpServerInfo) Runner {
+func (r *openAIAgentRunner) WithMcpServerInfo(mcpServers mcpproxy.ServerManager) Runner {
 	return &openAIAgentRunner{
 		model:   r.model,
 		baseURL: r.baseURL,
 		apiKey:  r.apiKey,
-		mcpInfo: mcpInfo,
+		mcpInfo: mcpServers,
 	}
 }
 

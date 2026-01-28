@@ -1,6 +1,7 @@
 package acpclient
 
 import (
+	"strings"
 	"sync"
 
 	"github.com/coder/acp-go-sdk"
@@ -66,7 +67,7 @@ func (s *session) isAllowedToolCall(call acp.RequestPermissionToolCall) bool {
 				continue
 			}
 
-			if t.Title == title {
+			if toolTitleProbablyMatches(title, t.Title, t.Name, srv.GetName()) {
 				return true
 			}
 		}
@@ -134,4 +135,24 @@ func (s *session) toolCallStatusUpdateLocked(update *acp.SessionToolCallUpdate) 
 	if update.Title != nil {
 		call.Title = update.Title
 	}
+}
+
+// toolTitleProbablyMatches helps find matching tool titles that we should approve
+// from the spec, it is not clear how to tell which tool title matches which mcp tool
+// Open discussion (without answers currently): https://github.com/orgs/agentclientprotocol/discussions/409
+func toolTitleProbablyMatches(acpToolTitle, mcpToolTitle, mcpToolName, mcpServerName string) bool {
+	if acpToolTitle == mcpToolTitle {
+		return true
+	}
+
+	if acpToolTitle == mcpToolName {
+		return true
+	}
+
+	if (strings.Contains(acpToolTitle, "mcp") || strings.Contains(acpToolTitle, mcpServerName)) &&
+		strings.Contains(acpToolTitle, mcpToolName) {
+		return true
+	}
+
+	return false
 }

@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"testing"
 
+	"github.com/mcpchecker/mcpchecker/pkg/acpclient"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -132,6 +133,87 @@ func TestLoadWithBuiltins(t *testing.T) {
 
 			if tc.validate != nil {
 				tc.validate(t, spec)
+			}
+		})
+	}
+}
+
+func TestNewRunnerForSpec(t *testing.T) {
+	tt := map[string]struct {
+		spec        *AgentSpec
+		expectErr   bool
+		errContains string
+		validate    func(t *testing.T, runner Runner)
+	}{
+		"nil spec returns error": {
+			spec:        nil,
+			expectErr:   true,
+			errContains: "nil AgentSpec",
+		},
+		"acp config returns acpRunner": {
+			spec: &AgentSpec{
+				Metadata: AgentMetadata{Name: "acp-test"},
+				AcpConfig: &acpclient.AcpConfig{
+					Cmd:  "test-acp-cmd",
+					Args: []string{"--arg1"},
+				},
+			},
+			validate: func(t *testing.T, runner Runner) {
+				assert.Equal(t, "acp-test", runner.AgentName())
+				_, ok := runner.(*acpRunner)
+				assert.True(t, ok, "expected runner to be *acpRunner")
+			},
+		},
+		"acp config takes precedence over builtin": {
+			spec: &AgentSpec{
+				Metadata: AgentMetadata{Name: "acp-priority"},
+				AcpConfig: &acpclient.AcpConfig{
+					Cmd: "acp-cmd",
+				},
+				Builtin: &BuiltinRef{
+					Type:  "openai-agent",
+					Model: "gpt-4",
+				},
+			},
+			validate: func(t *testing.T, runner Runner) {
+				// AcpConfig should take precedence
+				_, ok := runner.(*acpRunner)
+				assert.True(t, ok, "expected acpRunner when both AcpConfig and Builtin are set")
+				assert.Equal(t, "acp-priority", runner.AgentName())
+			},
+		},
+		"spec without acp or builtin returns agentSpecRunner": {
+			spec: &AgentSpec{
+				Metadata: AgentMetadata{Name: "shell-agent"},
+				Commands: AgentCommands{
+					RunPrompt: "echo hello",
+				},
+			},
+			validate: func(t *testing.T, runner Runner) {
+				assert.Equal(t, "shell-agent", runner.AgentName())
+				_, ok := runner.(*agentSpecRunner)
+				assert.True(t, ok, "expected runner to be *agentSpecRunner")
+			},
+		},
+	}
+
+	for tn, tc := range tt {
+		t.Run(tn, func(t *testing.T) {
+			runner, err := NewRunnerForSpec(tc.spec)
+
+			if tc.expectErr {
+				require.Error(t, err)
+				if tc.errContains != "" {
+					assert.Contains(t, err.Error(), tc.errContains)
+				}
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, runner)
+
+			if tc.validate != nil {
+				tc.validate(t, runner)
 			}
 		})
 	}

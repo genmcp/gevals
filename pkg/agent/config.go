@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/mcpchecker/mcpchecker/pkg/acpclient"
 	"github.com/mcpchecker/mcpchecker/pkg/util"
 	"sigs.k8s.io/yaml"
 )
@@ -14,9 +15,10 @@ const (
 
 type AgentSpec struct {
 	util.TypeMeta `json:",inline"`
-	Metadata      AgentMetadata `json:"metadata"`
-	Builtin       *BuiltinRef   `json:"builtin,omitempty"`
-	Commands      AgentCommands `json:"commands"`
+	Metadata      AgentMetadata        `json:"metadata"`
+	Builtin       *BuiltinRef          `json:"builtin,omitempty"`
+	AcpConfig     *acpclient.AcpConfig `json:"acp,omitempty"` // if builtin and acp are both set, default to acp
+	Commands      AgentCommands        `json:"commands"`
 }
 
 // BuiltinRef references a built-in agent type with optional model

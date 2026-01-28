@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/mcpchecker/mcpchecker/pkg/acpclient"
 	"github.com/mcpchecker/mcpchecker/pkg/util"
 	"github.com/stretchr/testify/assert"
 	"k8s.io/utils/ptr"
@@ -33,6 +34,21 @@ func TestFromFile(t *testing.T) {
 					ArgTemplateMcpServer:    "{{ .File }}",
 					ArgTemplateAllowedTools: "mcp__{{ .ServerName }}__{{ .ToolName }}",
 					RunPrompt:               "claude --mcp-config {{ .McpServerFileArgs }} --strict-mcp-config --allowedTools {{ .AllowedToolArgs }} --print {{ .Prompt }}",
+				},
+			},
+		},
+		"acp agent": {
+			file: "acp-agent.yaml",
+			expected: &AgentSpec{
+				TypeMeta: util.TypeMeta{
+					Kind: KindAgent,
+				},
+				Metadata: AgentMetadata{
+					Name: "my-acp-agent",
+				},
+				AcpConfig: &acpclient.AcpConfig{
+					Cmd:  "claude-code-acp",
+					Args: []string{"--verbose", "--timeout=300"},
 				},
 			},
 		},

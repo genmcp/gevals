@@ -21,7 +21,7 @@ type Client interface {
 	Close(ctx context.Context) error
 }
 
-func NewClient(ctx context.Context, cfg AcpConfig) Client {
+func NewClient(ctx context.Context, cfg *AcpConfig) Client {
 	return &client{
 		cfg:      cfg,
 		sessions: make(map[acp.SessionId]*session),
@@ -29,7 +29,7 @@ func NewClient(ctx context.Context, cfg AcpConfig) Client {
 }
 
 type client struct {
-	cfg      AcpConfig
+	cfg      *AcpConfig
 	mu       sync.RWMutex
 	cmd      *exec.Cmd
 	conn     *acp.ClientSideConnection
@@ -143,5 +143,23 @@ func (c *client) Close(ctx context.Context) error {
 		return nil
 	}
 
-	return c.cmd.Process.Kill()
+	if err := c.cmd.Process.Kill(); err != nil {
+		return fmt.Errorf("failed to kill acp client process: %w", err)
+	}
+
+	// Wait for the process in a goroutine so we can respect context cancellation
+	done := make(chan error, 1)
+	go func() {
+		done <- c.cmd.Wait()
+	}()
+
+	select {
+	case <-done:
+		// Process exited, pipes are closed, receive goroutine will exit
+		return nil
+	case <-ctx.Done():
+		// Context cancelled while waiting - process is already killed,
+		// so we just return the context error
+		return ctx.Err()
+	}
 }
