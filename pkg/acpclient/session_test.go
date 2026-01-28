@@ -181,6 +181,140 @@ func TestSession_ToolCallStatusUpdateLocked(t *testing.T) {
 	}
 }
 
+func TestToolTitleProbablyMatches(t *testing.T) {
+	tt := map[string]struct {
+		acpToolTitle  string
+		mcpToolTitle  string
+		mcpToolName   string
+		mcpServerName string
+		expected      bool
+	}{
+		"exact title match": {
+			acpToolTitle:  "Read File",
+			mcpToolTitle:  "Read File",
+			mcpToolName:   "read_file",
+			mcpServerName: "filesystem",
+			expected:      true,
+		},
+		"matches tool name exactly": {
+			acpToolTitle:  "read_file",
+			mcpToolTitle:  "Read File",
+			mcpToolName:   "read_file",
+			mcpServerName: "filesystem",
+			expected:      true,
+		},
+		"contains mcp and tool name": {
+			acpToolTitle:  "mcp__filesystem__read_file",
+			mcpToolTitle:  "Read File",
+			mcpToolName:   "read_file",
+			mcpServerName: "filesystem",
+			expected:      true,
+		},
+		"contains server name and tool name": {
+			acpToolTitle:  "filesystem:read_file",
+			mcpToolTitle:  "Read File",
+			mcpToolName:   "read_file",
+			mcpServerName: "filesystem",
+			expected:      true,
+		},
+		"contains mcp prefix with tool name": {
+			acpToolTitle:  "mcp_read_file",
+			mcpToolTitle:  "Read File",
+			mcpToolName:   "read_file",
+			mcpServerName: "other_server",
+			expected:      true,
+		},
+		"no match - different title": {
+			acpToolTitle:  "Delete File",
+			mcpToolTitle:  "Read File",
+			mcpToolName:   "read_file",
+			mcpServerName: "filesystem",
+			expected:      false,
+		},
+		"no match - partial tool name without mcp or server": {
+			acpToolTitle:  "some_read_file_action",
+			mcpToolTitle:  "Read File",
+			mcpToolName:   "read_file",
+			mcpServerName: "filesystem",
+			expected:      false,
+		},
+		"no match - empty acp title": {
+			acpToolTitle:  "",
+			mcpToolTitle:  "Read File",
+			mcpToolName:   "read_file",
+			mcpServerName: "filesystem",
+			expected:      false,
+		},
+		"server name contains tool name": {
+			acpToolTitle:  "kubernetes_kubectl_apply",
+			mcpToolTitle:  "Apply Manifest",
+			mcpToolName:   "kubectl_apply",
+			mcpServerName: "kubernetes",
+			expected:      true,
+		},
+	}
+
+	for tn, tc := range tt {
+		t.Run(tn, func(t *testing.T) {
+			result := toolTitleProbablyMatches(tc.acpToolTitle, tc.mcpToolTitle, tc.mcpToolName, tc.mcpServerName)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
+}
+
+func TestSession_IsAllowedToolCall_FuzzyMatching(t *testing.T) {
+	tt := map[string]struct {
+		serverName   string
+		allowedTools []*mcp.Tool
+		callTitle    string
+		expected     bool
+	}{
+		"matches via tool name": {
+			serverName:   "filesystem",
+			allowedTools: []*mcp.Tool{{Name: "read_file", Title: "Read File"}},
+			callTitle:    "read_file",
+			expected:     true,
+		},
+		"matches via mcp prefix pattern": {
+			serverName:   "filesystem",
+			allowedTools: []*mcp.Tool{{Name: "read_file", Title: "Read File"}},
+			callTitle:    "mcp__filesystem__read_file",
+			expected:     true,
+		},
+		"matches via server name pattern": {
+			serverName:   "kubernetes",
+			allowedTools: []*mcp.Tool{{Name: "kubectl_apply", Title: "Apply Manifest"}},
+			callTitle:    "kubernetes:kubectl_apply",
+			expected:     true,
+		},
+		"no match for unrelated tool": {
+			serverName:   "filesystem",
+			allowedTools: []*mcp.Tool{{Name: "read_file", Title: "Read File"}},
+			callTitle:    "mcp__other__delete_file",
+			expected:     false,
+		},
+	}
+
+	for tn, tc := range tt {
+		t.Run(tn, func(t *testing.T) {
+			mgr := &mockServerManager{
+				servers: []mcpproxy.Server{
+					&mockServer{name: tc.serverName, allowedTools: tc.allowedTools},
+				},
+			}
+			s := NewSession(mgr)
+
+			call := acp.RequestPermissionToolCall{
+				ToolCallId: "call-1",
+				Title:      ptr(tc.callTitle),
+			}
+
+			result := s.isAllowedToolCall(call)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
+}
+
 func ptr[T any](v T) *T {
 	return &v
 }
