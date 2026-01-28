@@ -28,7 +28,8 @@ func (c *client) RequestPermission(ctx context.Context, params acp.RequestPermis
 		return acp.RequestPermissionResponse{}, fmt.Errorf("at least one option is required to request permission")
 	}
 
-	if session.IsAllowedToolCall(params.ToolCall) {
+	session.recordPermissionToolCall(params.ToolCall)
+	if session.isAllowedToolCall(params.ToolCall) {
 		// try to find an always allow or allow once option, else default to first opt
 		bestOpt := params.Options[0]
 		for _, opt := range params.Options {

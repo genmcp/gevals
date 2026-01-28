@@ -77,7 +77,7 @@ func (c *client) Start(ctx context.Context) error {
 
 func (c *client) Run(ctx context.Context, prompt string, servers mcpproxy.ServerManager) ([]acp.SessionUpdate, error) {
 	if c.conn == nil {
-		return nil, fmt.Errorf("acpclient.Client.Run must be called acter acpclient.Client.Start")
+		return nil, fmt.Errorf("acpclient.Client.Run must be called after acpclient.Client.Start")
 	}
 
 	tmpDir, err := os.MkdirTemp("", "mcpchecker-agent-")
@@ -128,13 +128,18 @@ func (c *client) Run(ctx context.Context, prompt string, servers mcpproxy.Server
 		return nil, fmt.Errorf("failed to send prompt to acp session: %w", err)
 	}
 
-	c.mu.RLock()
-	defer c.mu.RUnlock()
-	return slices.Clone(c.sessions[session.SessionId].updates), nil
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// return all the updates from this session, remove it from storage it
+	res := slices.Clone(c.sessions[session.SessionId].updates)
+	delete(c.sessions, session.SessionId)
+
+	return res, nil
 }
 
 func (c *client) Close(ctx context.Context) error {
-	if c.cmd == nil || c.cmd.ProcessState.Exited() {
+	if c.cmd == nil || (c.cmd.ProcessState != nil && c.cmd.ProcessState.Exited()) {
 		return nil
 	}
 

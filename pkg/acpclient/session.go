@@ -22,12 +22,10 @@ func NewSession(mcpServers mcpproxy.ServerManager) *session {
 	}
 }
 
-func (s *session) IsAllowedToolCall(call acp.RequestPermissionToolCall) bool {
+func (s *session) recordPermissionToolCall(call acp.RequestPermissionToolCall) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// Update tool call statuses within the same critical section to ensure
-	// atomicity between the update and subsequent read.
 	s.toolCallStatusUpdateLocked(&acp.SessionToolCallUpdate{
 		Meta:       call.Meta,
 		Content:    call.Content,
@@ -39,6 +37,11 @@ func (s *session) IsAllowedToolCall(call acp.RequestPermissionToolCall) bool {
 		Title:      call.Title,
 		ToolCallId: call.ToolCallId,
 	})
+}
+
+func (s *session) isAllowedToolCall(call acp.RequestPermissionToolCall) bool {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
 	var title string
 	if call.Title != nil {

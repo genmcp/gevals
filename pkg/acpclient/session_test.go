@@ -85,7 +85,7 @@ func TestSession_IsAllowedToolCall(t *testing.T) {
 			}
 			s := NewSession(mgr)
 
-			result := s.IsAllowedToolCall(tc.call)
+			result := s.isAllowedToolCall(tc.call)
 			assert.Equal(t, tc.expected, result)
 		})
 	}
@@ -112,7 +112,7 @@ func TestSession_IsAllowedToolCall_WithPriorUpdate(t *testing.T) {
 		Title:      nil,
 	}
 
-	result := s.IsAllowedToolCall(call)
+	result := s.isAllowedToolCall(call)
 	assert.True(t, result)
 }
 
