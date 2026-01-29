@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/mcpchecker/mcpchecker/pkg/agent"
 	"github.com/mcpchecker/mcpchecker/pkg/extension/client"
@@ -72,6 +73,14 @@ func NewTaskRunner(ctx context.Context, cfg *TaskConfig) (TaskRunner, error) {
 
 			if alias == "" {
 				alias = *req.Extension
+			}
+
+			if _, ok := extensions[alias]; ok {
+				return nil, fmt.Errorf("duplicate alias %q in requirements", alias)
+			}
+
+			if strings.Contains(alias, ".") {
+				return nil, fmt.Errorf("alias %q cannot contain dots", alias)
 			}
 
 			extensions[alias] = *req.Extension
