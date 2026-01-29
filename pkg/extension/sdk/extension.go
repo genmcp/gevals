@@ -180,9 +180,9 @@ func (e *Extension) handleInitialize(_ context.Context, req *jsonrpc2.Request) (
 	e.mu.RLock()
 	defer e.mu.RUnlock()
 
-	operations := make(map[string]protocol.Operation, len(e.operations))
+	operations := make(map[string]*protocol.Operation, len(e.operations))
 	for name, op := range e.operations {
-		operations[name] = protocol.Operation{
+		operations[name] = &protocol.Operation{
 			Description: op.operation.description,
 			Params:      op.operation.params,
 		}
