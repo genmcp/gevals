@@ -10,9 +10,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 ### Changed
-- Command `eval` is now renamed to `check` in the CLI.
 
 ### Fixed
+
+## [0.0.4]
+
+### Added
+- Verify command to validate results meet pass rate thresholds (#122)
+- Summary command with text, JSON, and GitHub Actions output formats (#122)
+- Diff command to compare two evaluation runs with regression detection (#122)
+- Labels support for task definitions with label-selector flag for filtering (#115)
+
+### Changed
+- Command `eval` is now renamed to `check` in the CLI (#121)
+- Extracted mcpchecker setup into reusable GitHub Action (#128)
+
+### Fixed
+- GitHub Action uses correct `check` command (#123)
+- Functional tests pass after labels and multi-task changes (#129)
+
+### Documentation
+- Added sections on why MCPChecker and links to downloads and quickstarts (#120)
 
 ## [0.0.3]
 
