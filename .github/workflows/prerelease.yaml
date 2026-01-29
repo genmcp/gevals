@@ -61,6 +61,8 @@ jobs:
       - name: Create or update pre-release
         run: |
           VERSION="${{ env.PRERELEASE_VERSION }}"
+          NOTES_FILE=$(mktemp)
+          trap 'rm -f "$NOTES_FILE"' EXIT
 
           # Check if release already exists
           if gh release view "$VERSION" >/dev/null 2>&1; then
@@ -70,18 +72,23 @@ jobs:
             CURRENT_NOTES=$(gh release view "$VERSION" --json body -q .body)
 
             # Check if changelog content is already in the notes
-            if echo "$CURRENT_NOTES" | grep -qF "${{ env.CHANGELOG_BODY }}"; then
+            if printf '%s' "$CURRENT_NOTES" | grep -qF "$CHANGELOG_BODY"; then
               echo "Changelog already present in release notes, skipping update..."
             else
               echo "Appending changelog to existing release notes..."
-              NEW_NOTES="${CURRENT_NOTES}\n\n---\n\n${{ env.CHANGELOG_BODY }}"
-              gh release edit "$VERSION" --notes "$NEW_NOTES"
+              {
+                printf '%s' "$CURRENT_NOTES"
+                printf '\n\n---\n\n'
+                printf '%s' "$CHANGELOG_BODY"
+              } > "$NOTES_FILE"
+              gh release edit "$VERSION" --notes-file "$NOTES_FILE"
             fi
           else
             echo "Creating pre-release $VERSION..."
+            printf '%s' "$CHANGELOG_BODY" > "$NOTES_FILE"
             gh release create "$VERSION" \
               --title "$VERSION" \
-              --notes "${{ env.CHANGELOG_BODY }}" \
+              --notes-file "$NOTES_FILE" \
               --prerelease
           fi
         env:
