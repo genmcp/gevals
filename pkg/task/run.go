@@ -58,13 +58,23 @@ func NewTaskRunner(ctx context.Context, cfg *TaskConfig) (TaskRunner, error) {
 		return nil, fmt.Errorf("failed to get extension manager from context")
 	}
 
-	extensions := make([]string, 0, len(cfg.Spec.Requires))
+	extensions := make(map[string]string, len(cfg.Spec.Requires))
 	for _, req := range cfg.Spec.Requires {
+		var alias string
+		if req.As != nil {
+			alias = *req.As
+		}
+
 		if req.Extension != nil {
 			if !extensionManager.Has(*req.Extension) {
 				return nil, fmt.Errorf("required extension %q not registered", *req.Extension)
 			}
-			extensions = append(extensions, *req.Extension)
+
+			if alias == "" {
+				alias = *req.Extension
+			}
+
+			extensions[alias] = *req.Extension
 		}
 	}
 

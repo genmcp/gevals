@@ -184,6 +184,17 @@ spec:
     - extension: kubernetes
 ```
 
+If you want to rename the extension, for example to avoid naming conflicts or to make it easier to type, you can set an alias:
+
+```yaml
+spec:
+  requires:
+    - extension: kubernetes
+      as: k8s
+```
+
+Throughout the rest of the task, you can now refer to the kubernetes extension with `k8s` instead of `kubernetes`.
+
 ### Configuring Extensions in eval.yaml
 
 Extensions are configured in the eval.yaml under `config.extensions`:
@@ -212,7 +223,7 @@ Extension operations use the syntax `extension.operation`:
 
 ```yaml
 setup:
-  - kubernetes.create:
+  - kubernetes.create: # or k8s.create if you used an alias
       apiVersion: v1
       kind: Namespace
       metadata:

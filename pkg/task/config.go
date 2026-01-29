@@ -42,6 +42,7 @@ type TaskSpec struct {
 
 type Requirements struct {
 	Extension *string `json:"extension,omitempty"`
+	As        *string `json:"as,omitempty"`
 }
 
 type TaskStepsV1Alpha1 struct {

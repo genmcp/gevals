@@ -47,18 +47,18 @@ func (r *Registry) RegisterPrefix(prefix string, parser PrefixParser) error {
 	return nil
 }
 
-func (r *Registry) WithExtensions(ctx context.Context, aliases []string) *Registry {
+func (r *Registry) WithExtensions(ctx context.Context, aliases map[string]string) *Registry {
 	r.mu.RLock()
 	reg := &Registry{
 		parsers:       make(map[string]Parser, len(r.parsers)),
-		prefixParsers: make(map[string]PrefixParser, len(r.prefixParsers)),
+		prefixParsers: make(map[string]PrefixParser, len(r.prefixParsers)+len(aliases)),
 	}
 	maps.Copy(reg.parsers, r.parsers)
 	maps.Copy(reg.prefixParsers, r.prefixParsers)
 	r.mu.RUnlock()
 
-	for _, alias := range aliases {
-		reg.prefixParsers[alias] = NewExtensionParser(ctx, alias)
+	for alias, extension := range aliases {
+		reg.prefixParsers[alias] = NewExtensionParser(ctx, extension)
 	}
 
 	return reg

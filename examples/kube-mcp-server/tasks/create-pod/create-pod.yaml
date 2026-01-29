@@ -6,20 +6,21 @@ metadata:
 spec:
   requires:
     - extension: kubernetes
+      as: k8s
   setup:
-    - kubernetes.delete:
+    - k8s.delete:
         apiVersion: v1
         kind: Namespace
         metadata:
           name: create-pod-test
         ignoreNotFound: true
-    - kubernetes.create:
+    - k8s.create:
         apiVersion: v1
         kind: Namespace
         metadata:
           name: create-pod-test
   verify:
-    - kubernetes.wait:
+    - k8s.wait:
         apiVersion: v1
         kind: Pod
         metadata:
@@ -28,7 +29,7 @@ spec:
         condition: Ready
         timeout: 120s
   cleanup:
-    - kubernetes.delete:
+    - k8s.delete:
         apiVersion: v1
         kind: Namespace
         metadata:
