@@ -4,6 +4,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/mcpchecker/mcpchecker/pkg/mcpproxy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -244,6 +245,140 @@ func TestMatchesLabelSelector(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			result := matchesLabelSelector(tc.taskLabels, tc.selector)
 			assert.Equal(t, tc.expected, result)
+		})
+	}
+}
+
+func TestLoadMcpConfig(t *testing.T) {
+	// Helper to clear all MCP env vars
+	clearEnv := func() {
+		envVars := []string{
+			mcpproxy.EnvMcpURL, mcpproxy.EnvMcpHost, mcpproxy.EnvMcpPort, mcpproxy.EnvMcpPath,
+			mcpproxy.EnvMcpCommand, mcpproxy.EnvMcpArgs, mcpproxy.EnvMcpEnv, mcpproxy.EnvMcpServerName,
+			mcpproxy.EnvMcpHeaders, mcpproxy.EnvMcpEnableAllTools,
+		}
+		for _, v := range envVars {
+			os.Unsetenv(v)
+		}
+	}
+
+	tests := map[string]struct {
+		setupEnv      func()
+		cleanupEnv    func()
+		spec          *EvalSpec
+		expectErr     bool
+		errContains   string
+		validateFunc  func(t *testing.T, config *mcpproxy.MCPConfig)
+	}{
+		"config file takes priority over env vars": {
+			setupEnv: func() {
+				// Set env vars that would normally create a config
+				os.Setenv(mcpproxy.EnvMcpURL, "http://env-server:8080/mcp")
+			},
+			cleanupEnv: clearEnv,
+			spec: &EvalSpec{
+				Config: EvalConfig{
+					McpConfigFile: "../mcpproxy/testdata/basic.json",
+				},
+			},
+			validateFunc: func(t *testing.T, config *mcpproxy.MCPConfig) {
+				require.NotNil(t, config)
+				// Should load from file (filesystem server), not from env (env-server)
+				_, hasFilesystem := config.MCPServers["filesystem"]
+				assert.True(t, hasFilesystem, "should have filesystem server from config file")
+				_, hasDefault := config.MCPServers["default"]
+				assert.False(t, hasDefault, "should not have default server from env vars")
+			},
+		},
+		"env vars used when no config file": {
+			setupEnv: func() {
+				os.Setenv(mcpproxy.EnvMcpURL, "http://localhost:9090/mcp")
+				os.Setenv(mcpproxy.EnvMcpServerName, "test-server")
+			},
+			cleanupEnv: clearEnv,
+			spec: &EvalSpec{
+				Config: EvalConfig{
+					McpConfigFile: "", // No config file
+				},
+			},
+			validateFunc: func(t *testing.T, config *mcpproxy.MCPConfig) {
+				require.NotNil(t, config)
+				server, hasServer := config.MCPServers["test-server"]
+				assert.True(t, hasServer, "should have test-server from env vars")
+				assert.Equal(t, "http://localhost:9090/mcp", server.URL)
+			},
+		},
+		"error when neither config file nor env vars available": {
+			setupEnv:    clearEnv,
+			cleanupEnv:  clearEnv,
+			spec: &EvalSpec{
+				Config: EvalConfig{
+					McpConfigFile: "",
+				},
+			},
+			expectErr:   true,
+			errContains: "no MCP configuration found",
+		},
+		"error when config file does not exist": {
+			setupEnv:   clearEnv,
+			cleanupEnv: clearEnv,
+			spec: &EvalSpec{
+				Config: EvalConfig{
+					McpConfigFile: "/nonexistent/path/config.json",
+				},
+			},
+			expectErr:   true,
+			errContains: "failed to load MCP config from file",
+		},
+		"stdio server from env vars": {
+			setupEnv: func() {
+				os.Setenv(mcpproxy.EnvMcpCommand, "npx")
+				os.Setenv(mcpproxy.EnvMcpArgs, "-y,@modelcontextprotocol/server-filesystem,/tmp")
+			},
+			cleanupEnv: clearEnv,
+			spec: &EvalSpec{
+				Config: EvalConfig{
+					McpConfigFile: "",
+				},
+			},
+			validateFunc: func(t *testing.T, config *mcpproxy.MCPConfig) {
+				require.NotNil(t, config)
+				server, hasServer := config.MCPServers["default"]
+				require.True(t, hasServer, "should have default server from env vars")
+				assert.Equal(t, "npx", server.Command)
+				assert.Equal(t, []string{"-y", "@modelcontextprotocol/server-filesystem", "/tmp"}, server.Args)
+				assert.True(t, server.IsStdio())
+			},
+		},
+	}
+
+	for name, tc := range tests {
+		t.Run(name, func(t *testing.T) {
+			if tc.setupEnv != nil {
+				tc.setupEnv()
+			}
+			if tc.cleanupEnv != nil {
+				defer tc.cleanupEnv()
+			}
+
+			runner := &evalRunner{
+				spec: tc.spec,
+			}
+
+			config, err := runner.loadMcpConfig()
+
+			if tc.expectErr {
+				require.Error(t, err)
+				if tc.errContains != "" {
+					assert.Contains(t, err.Error(), tc.errContains)
+				}
+				return
+			}
+
+			require.NoError(t, err)
+			if tc.validateFunc != nil {
+				tc.validateFunc(t, config)
+			}
 		})
 	}
 }
