@@ -3,7 +3,9 @@ package mcpproxy
 import (
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os"
+	"strings"
 
 	"sigs.k8s.io/yaml"
 )
@@ -163,4 +165,197 @@ func (s *ServerConfig) IsHttp() bool {
 	}
 	// Type not specified - infer from fields
 	return s.URL != ""
+}
+
+// Environment variable names for MCP configuration
+const (
+	EnvMcpURL            = "MCP_URL"
+	EnvMcpHost           = "MCP_HOST"
+	EnvMcpPort           = "MCP_PORT"
+	EnvMcpPath           = "MCP_PATH"
+	EnvMcpCommand        = "MCP_COMMAND"
+	EnvMcpArgs           = "MCP_ARGS"
+	EnvMcpEnv            = "MCP_ENV"
+	EnvMcpServerName     = "MCP_SERVER_NAME"
+	EnvMcpHeaders        = "MCP_HEADERS"
+	EnvMcpEnableAllTools = "MCP_ENABLE_ALL_TOOLS"
+)
+
+// ConfigFromEnv builds MCPConfig from environment variables.
+// Returns nil, nil if no MCP env vars are set (not an error).
+// Returns config, nil if valid configuration was built from env vars.
+// Returns nil, error if env vars are set but invalid.
+func ConfigFromEnv() (*MCPConfig, error) {
+	mcpURL := os.Getenv(EnvMcpURL)
+	mcpHost := os.Getenv(EnvMcpHost)
+	mcpPort := os.Getenv(EnvMcpPort)
+	mcpCommand := os.Getenv(EnvMcpCommand)
+
+	// Check if any MCP env vars are set
+	if mcpURL == "" && mcpHost == "" && mcpPort == "" && mcpCommand == "" {
+		return nil, nil
+	}
+
+	var server *ServerConfig
+	var err error
+
+	// Determine server type based on which env vars are set
+	if mcpCommand != "" {
+		server, err = buildStdioServerFromEnv()
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		server, err = buildHTTPServerFromEnv()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// Get server name (default to "default")
+	serverName := os.Getenv(EnvMcpServerName)
+	if serverName == "" {
+		serverName = "default"
+	}
+
+	config := &MCPConfig{
+		MCPServers: map[string]*ServerConfig{
+			serverName: server,
+		},
+	}
+
+	if err := validateConfig(config); err != nil {
+		return nil, fmt.Errorf("invalid config from environment: %w", err)
+	}
+
+	return config, nil
+}
+
+// buildHTTPServerFromEnv builds an HTTP ServerConfig from environment variables.
+func buildHTTPServerFromEnv() (*ServerConfig, error) {
+	mcpURL := os.Getenv(EnvMcpURL)
+	mcpHost := os.Getenv(EnvMcpHost)
+	mcpPort := os.Getenv(EnvMcpPort)
+	mcpPath := os.Getenv(EnvMcpPath)
+
+	var serverURL string
+
+	if mcpURL != "" {
+		// Use full URL if provided
+		serverURL = mcpURL
+	} else {
+		// Build URL from components
+		if mcpHost == "" {
+			mcpHost = "localhost"
+		}
+		if mcpPath == "" {
+			mcpPath = "/mcp"
+		}
+		// Ensure path starts with /
+		if !strings.HasPrefix(mcpPath, "/") {
+			mcpPath = "/" + mcpPath
+		}
+
+		if mcpPort != "" {
+			serverURL = fmt.Sprintf("http://%s:%s%s", mcpHost, mcpPort, mcpPath)
+		} else {
+			serverURL = fmt.Sprintf("http://%s%s", mcpHost, mcpPath)
+		}
+	}
+
+	// Validate URL
+	if _, err := url.Parse(serverURL); err != nil {
+		return nil, fmt.Errorf("invalid MCP URL: %w", err)
+	}
+
+	server := &ServerConfig{
+		Type: TransportTypeHttp,
+		URL:  serverURL,
+	}
+
+	// Parse headers if provided
+	headersJSON := os.Getenv(EnvMcpHeaders)
+	if headersJSON != "" {
+		var headers map[string]string
+		if err := json.Unmarshal([]byte(headersJSON), &headers); err != nil {
+			return nil, fmt.Errorf("invalid %s: must be valid JSON object: %w", EnvMcpHeaders, err)
+		}
+		server.Headers = headers
+	}
+
+	// Parse enableAllTools (default to true)
+	server.EnableAllTools = parseEnableAllTools()
+
+	return server, nil
+}
+
+// buildStdioServerFromEnv builds a stdio ServerConfig from environment variables.
+func buildStdioServerFromEnv() (*ServerConfig, error) {
+	mcpCommand := os.Getenv(EnvMcpCommand)
+	mcpArgs := os.Getenv(EnvMcpArgs)
+
+	server := &ServerConfig{
+		Type:    TransportTypeStdio,
+		Command: mcpCommand,
+	}
+
+	// Parse args - support both JSON array and comma-separated
+	if mcpArgs != "" {
+		args, err := parseArgs(mcpArgs)
+		if err != nil {
+			return nil, fmt.Errorf("invalid %s: %w", EnvMcpArgs, err)
+		}
+		server.Args = args
+	}
+
+	// Parse env vars if provided
+	envJSON := os.Getenv(EnvMcpEnv)
+	if envJSON != "" {
+		var env map[string]string
+		if err := json.Unmarshal([]byte(envJSON), &env); err != nil {
+			return nil, fmt.Errorf("invalid %s: must be valid JSON object: %w", EnvMcpEnv, err)
+		}
+		server.Env = env
+	}
+
+	// Parse enableAllTools (default to true)
+	server.EnableAllTools = parseEnableAllTools()
+
+	return server, nil
+}
+
+// parseArgs parses MCP_ARGS which can be either a JSON array or comma-separated string.
+func parseArgs(argsStr string) ([]string, error) {
+	argsStr = strings.TrimSpace(argsStr)
+
+	// Try JSON array first
+	if strings.HasPrefix(argsStr, "[") {
+		var args []string
+		if err := json.Unmarshal([]byte(argsStr), &args); err != nil {
+			return nil, fmt.Errorf("invalid JSON array: %w", err)
+		}
+		return args, nil
+	}
+
+	// Fall back to comma-separated
+	parts := strings.Split(argsStr, ",")
+	args := make([]string, 0, len(parts))
+	for _, part := range parts {
+		trimmed := strings.TrimSpace(part)
+		if trimmed != "" {
+			args = append(args, trimmed)
+		}
+	}
+	return args, nil
+}
+
+// parseEnableAllTools parses MCP_ENABLE_ALL_TOOLS, defaulting to true.
+func parseEnableAllTools() bool {
+	val := os.Getenv(EnvMcpEnableAllTools)
+	if val == "" {
+		return true // default to true
+	}
+	// Only false if explicitly set to "false" or "0"
+	lower := strings.ToLower(val)
+	return lower != "false" && lower != "0"
 }

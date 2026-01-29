@@ -1,8 +1,79 @@
 # MCP Config Reference
 
-MCP configuration files define which MCP servers to use during evaluation, including connection details and tool permissions.
+MCP configuration defines which MCP servers to use during evaluation, including connection details and tool permissions.
 
-## MCP Config Structure
+## Configuration Methods
+
+There are two ways to configure MCP servers:
+
+1. **Config file** - Specify `mcpConfigFile` in the eval definition (recommended for complex setups)
+2. **Environment variables** - Set `MCP_*` environment variables (recommended for CI/CD and single-server setups)
+
+If both are provided, the config file takes priority.
+
+## Environment Variable Configuration
+
+For simple setups or CI/CD pipelines, configure MCP using environment variables:
+
+### HTTP Server Variables
+
+| Variable | Description | Default | Example |
+|----------|-------------|---------|---------|
+| `MCP_URL` | Full HTTP URL for MCP server | - | `http://localhost:8080/mcp` |
+| `MCP_HOST` | HTTP server host | `localhost` | `api.example.com` |
+| `MCP_PORT` | HTTP server port | - | `8080` |
+| `MCP_PATH` | HTTP path | `/mcp` | `/api/v1/mcp` |
+| `MCP_HEADERS` | JSON object of HTTP headers | - | `{"Authorization":"Bearer token"}` |
+
+Use either `MCP_URL` for a full URL, or `MCP_HOST`/`MCP_PORT`/`MCP_PATH` to build one.
+
+### Stdio Server Variables
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `MCP_COMMAND` | Stdio server command | `npx` |
+| `MCP_ARGS` | Comma-separated or JSON array of args | `-y,@modelcontextprotocol/server-filesystem` |
+| `MCP_ENV` | JSON object of environment variables | `{"KUBECONFIG":"/path/to/config"}` |
+
+### Common Variables
+
+| Variable | Description | Default | Example |
+|----------|-------------|---------|---------|
+| `MCP_SERVER_NAME` | Server name in config | `default` | `my-server` |
+| `MCP_ENABLE_ALL_TOOLS` | Enable all tools | `true` | `false` |
+
+### Examples
+
+**HTTP server:**
+```bash
+export MCP_URL=http://localhost:8080/mcp
+export MCP_HEADERS='{"Authorization":"Bearer my-token"}'
+```
+
+**HTTP server from components:**
+```bash
+export MCP_HOST=api.example.com
+export MCP_PORT=8080
+export MCP_PATH=/api/mcp
+```
+
+**Stdio server:**
+```bash
+export MCP_COMMAND=npx
+export MCP_ARGS='-y,@modelcontextprotocol/server-filesystem,/tmp'
+```
+
+**Stdio server with JSON args:**
+```bash
+export MCP_COMMAND=npx
+export MCP_ARGS='["-y", "@modelcontextprotocol/server-filesystem", "/tmp"]'
+```
+
+## Config File Configuration
+
+For more complex setups with multiple servers, use a config file.
+
+### MCP Config Structure
 
 ```yaml
 mcpServers:
@@ -18,13 +89,13 @@ mcpServers:
     enableAllTools: true
 ```
 
-## Top-Level Fields
+### Top-Level Fields
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
 | `mcpServers` | object | Yes | Map of server names to server configurations |
 
-## Server Configuration Fields
+### Server Configuration Fields
 
 Each server under `mcpServers` has these available fields:
 
