@@ -199,25 +199,25 @@ func TestRegistry_WithExtensions(t *testing.T) {
 	}
 
 	tt := map[string]struct {
-		aliases              []string
-		expectParsersCount   int
-		expectPrefixCount    int
-		expectBaseUnchanged  bool
+		aliases             map[string]string
+		expectParsersCount  int
+		expectPrefixCount   int
+		expectBaseUnchanged bool
 	}{
 		"add single extension": {
-			aliases:             []string{"k8s"},
+			aliases:             map[string]string{"k8s": "kubernetes"},
 			expectParsersCount:  1,
 			expectPrefixCount:   2, // existing + k8s
 			expectBaseUnchanged: true,
 		},
 		"add multiple extensions": {
-			aliases:             []string{"k8s", "db", "git"},
+			aliases:             map[string]string{"k8s": "kubernetes", "db": "database", "git": "git"},
 			expectParsersCount:  1,
 			expectPrefixCount:   4, // existing + 3 new
 			expectBaseUnchanged: true,
 		},
 		"empty aliases": {
-			aliases:             []string{},
+			aliases:             map[string]string{},
 			expectParsersCount:  1,
 			expectPrefixCount:   1, // just existing
 			expectBaseUnchanged: true,
@@ -243,7 +243,7 @@ func TestRegistry_WithExtensions(t *testing.T) {
 			}
 
 			// Verify all aliases are registered as prefix parsers
-			for _, alias := range tc.aliases {
+			for alias := range tc.aliases {
 				_, exists := newReg.prefixParsers[alias]
 				assert.True(t, exists, "alias %q should be registered", alias)
 			}
