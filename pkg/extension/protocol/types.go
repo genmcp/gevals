@@ -25,11 +25,11 @@ type InitializeParams struct {
 // InitializeResult is returned form the "initialize" method
 // This is the extension manifest
 type InitializeResult struct {
-	Name            string               `json:"name"`
-	Version         string               `json:"version"`
-	ProtocolVersion string               `json:"protocolVersion"`
-	Description     string               `json:"description,omitempty"`
-	Operations      map[string]Operation `json:"operations"`
+	Name            string                `json:"name"`
+	Version         string                `json:"version"`
+	ProtocolVersion string                `json:"protocolVersion"`
+	Description     string                `json:"description,omitempty"`
+	Operations      map[string]*Operation `json:"operations"`
 }
 
 type Operation struct {
