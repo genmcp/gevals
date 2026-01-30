@@ -1,4 +1,4 @@
-package mcpproxy
+package mcpclient
 
 import (
 	"encoding/json"

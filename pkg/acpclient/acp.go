@@ -29,7 +29,7 @@ func (c *client) RequestPermission(ctx context.Context, params acp.RequestPermis
 	}
 
 	session.recordPermissionToolCall(params.ToolCall)
-	if session.isAllowedToolCall(params.ToolCall) {
+	if session.isAllowedToolCall(ctx, params.ToolCall) {
 		// try to find an always allow or allow once option, else default to first opt
 		bestOpt := params.Options[0]
 		for _, opt := range params.Options {

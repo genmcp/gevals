@@ -11,6 +11,7 @@ import (
 	"github.com/mcpchecker/mcpchecker/pkg/extension/client"
 	"github.com/mcpchecker/mcpchecker/pkg/extension/resolver"
 	"github.com/mcpchecker/mcpchecker/pkg/llmjudge"
+	"github.com/mcpchecker/mcpchecker/pkg/mcpclient"
 	"github.com/mcpchecker/mcpchecker/pkg/mcpproxy"
 	"github.com/mcpchecker/mcpchecker/pkg/task"
 	"github.com/mcpchecker/mcpchecker/pkg/util"
@@ -44,7 +45,6 @@ type EvalRunner interface {
 
 type evalRunner struct {
 	spec             *EvalSpec
-	mcpConfig        *mcpproxy.MCPConfig
 	progressCallback ProgressCallback
 }
 
@@ -68,10 +68,10 @@ func NewRunner(spec *EvalSpec) (EvalRunner, error) {
 	}, nil
 }
 
-func (r *evalRunner) loadMcpConfig() (*mcpproxy.MCPConfig, error) {
+func (r *evalRunner) loadMcpConfig() (*mcpclient.MCPConfig, error) {
 	// Priority 1: Config file
 	if r.spec.Config.McpConfigFile != "" {
-		config, err := mcpproxy.ParseConfigFile(r.spec.Config.McpConfigFile)
+		config, err := mcpclient.ParseConfigFile(r.spec.Config.McpConfigFile)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load MCP config from file: %w", err)
 		}
@@ -79,7 +79,7 @@ func (r *evalRunner) loadMcpConfig() (*mcpproxy.MCPConfig, error) {
 	}
 
 	// Priority 2: Environment variables
-	config, err := mcpproxy.ConfigFromEnv()
+	config, err := mcpclient.ConfigFromEnv()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load MCP config from environment: %w", err)
 	}
@@ -164,7 +164,10 @@ func (r *evalRunner) RunWithProgress(ctx context.Context, taskPattern string, ca
 		return nil, err
 	}
 
-	r.mcpConfig = mcpConfig
+	mcpManager, err := mcpclient.NewManager(ctx, mcpConfig)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create mcp manager: %w", err)
+	}
 
 	agentSpec, err := r.loadAgentSpec()
 	if err != nil {
@@ -206,7 +209,7 @@ func (r *evalRunner) RunWithProgress(ctx context.Context, taskPattern string, ca
 	results := make([]*EvalResult, 0, len(taskConfigs))
 	var runErr error
 	for _, tc := range taskConfigs {
-		result, err := r.runTask(ctx, runner, mcpConfig, tc)
+		result, err := r.runTask(ctx, runner, mcpManager, tc)
 		if err != nil {
 			runErr = errors.Join(runErr, err)
 		} else {
@@ -267,7 +270,7 @@ func (r *evalRunner) collectTaskConfigs(rx *regexp.Regexp) ([]taskConfig, error)
 func (r *evalRunner) runTask(
 	ctx context.Context,
 	agentRunner agent.Runner,
-	mcpConfig *mcpproxy.MCPConfig,
+	mcpManager mcpclient.Manager,
 	tc taskConfig,
 ) (*EvalResult, error) {
 	result := &EvalResult{
@@ -288,7 +291,7 @@ func (r *evalRunner) runTask(
 		Task:    result,
 	})
 
-	taskRunner, manager, cleanup, err := r.setupTaskResources(ctx, tc, mcpConfig, result)
+	taskRunner, manager, cleanup, err := r.setupTaskResources(ctx, tc, mcpManager, result)
 	if err != nil {
 		result.TaskPassed = false
 		result.TaskError = err.Error()
@@ -325,7 +328,7 @@ func (r *evalRunner) runTask(
 func (r *evalRunner) setupTaskResources(
 	ctx context.Context,
 	tc taskConfig,
-	mcpConfig *mcpproxy.MCPConfig,
+	mcpManager mcpclient.Manager,
 	result *EvalResult,
 ) (task.TaskRunner, mcpproxy.ServerManager, func(), error) {
 	taskRunner, err := task.NewTaskRunner(ctx, tc.spec)
@@ -333,7 +336,7 @@ func (r *evalRunner) setupTaskResources(
 		return nil, nil, nil, fmt.Errorf("failed to create task runner for task '%s': %w", tc.spec.Metadata.Name, err)
 	}
 
-	manager, err := mcpproxy.NewServerManger(ctx, mcpConfig)
+	manager, err := mcpproxy.NewServerManger(ctx, mcpManager)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("failed to create mcp proxy server manager: %w", err)
 	}

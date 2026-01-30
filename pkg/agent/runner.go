@@ -149,7 +149,7 @@ func (a *agentSpecRunner) RunTask(ctx context.Context, prompt string) (AgentResu
 
 	var allowedTools []string
 	for _, s := range a.mcpInfo.GetMcpServers() {
-		for _, t := range s.GetAllowedTools() {
+		for _, t := range s.GetAllowedTools(ctx) {
 			tmp := struct {
 				ServerName string
 				ToolName   string

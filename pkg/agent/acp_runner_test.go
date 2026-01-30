@@ -6,6 +6,7 @@ import (
 
 	"github.com/coder/acp-go-sdk"
 	"github.com/mcpchecker/mcpchecker/pkg/acpclient"
+	"github.com/mcpchecker/mcpchecker/pkg/mcpclient"
 	"github.com/mcpchecker/mcpchecker/pkg/mcpproxy"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
@@ -150,9 +151,9 @@ type mockServer struct {
 }
 
 func (m *mockServer) Run(_ context.Context) error                   { return nil }
-func (m *mockServer) GetConfig() (*mcpproxy.ServerConfig, error)    { return nil, nil }
+func (m *mockServer) GetConfig() (*mcpclient.ServerConfig, error)   { return nil, nil }
 func (m *mockServer) GetName() string                               { return m.name }
-func (m *mockServer) GetAllowedTools() []*mcp.Tool                  { return m.allowedTools }
+func (m *mockServer) GetAllowedTools(_ context.Context) []*mcp.Tool { return m.allowedTools }
 func (m *mockServer) Close() error                                  { return nil }
 func (m *mockServer) GetCallHistory() mcpproxy.CallHistory          { return mcpproxy.CallHistory{} }
 func (m *mockServer) WaitReady(_ context.Context) error             { return nil }
@@ -162,9 +163,11 @@ type mockServerManager struct {
 	servers []mcpproxy.Server
 }
 
-func (m *mockServerManager) GetMcpServerFiles() ([]string, error)                          { return nil, nil }
-func (m *mockServerManager) GetMcpServers() []mcpproxy.Server                              { return m.servers }
-func (m *mockServerManager) Start(_ context.Context) error                                 { return nil }
-func (m *mockServerManager) Close() error                                                  { return nil }
-func (m *mockServerManager) GetAllCallHistory() *mcpproxy.CallHistory                      { return nil }
-func (m *mockServerManager) GetCallHistoryForServer(_ string) (mcpproxy.CallHistory, bool) { return mcpproxy.CallHistory{}, false }
+func (m *mockServerManager) GetMcpServerFiles() ([]string, error)     { return nil, nil }
+func (m *mockServerManager) GetMcpServers() []mcpproxy.Server         { return m.servers }
+func (m *mockServerManager) Start(_ context.Context) error            { return nil }
+func (m *mockServerManager) Close() error                             { return nil }
+func (m *mockServerManager) GetAllCallHistory() *mcpproxy.CallHistory { return nil }
+func (m *mockServerManager) GetCallHistoryForServer(_ string) (mcpproxy.CallHistory, bool) {
+	return mcpproxy.CallHistory{}, false
+}

@@ -10,6 +10,8 @@ import (
 	"sort"
 
 	"golang.org/x/sync/errgroup"
+
+	"github.com/mcpchecker/mcpchecker/pkg/mcpclient"
 )
 
 const (
@@ -37,15 +39,16 @@ type serverManager struct {
 	eg     *errgroup.Group
 }
 
-func NewServerManger(ctx context.Context, cfg *MCPConfig) (ServerManager, error) {
-	servers := make(map[string]Server, len(cfg.MCPServers))
-	for n, cfg := range cfg.MCPServers {
-		s, err := NewProxyServerForConfig(ctx, n, cfg)
+func NewServerManger(ctx context.Context, manager mcpclient.Manager) (ServerManager, error) {
+	clients := manager.GetAll()
+	servers := make(map[string]Server, len(clients))
+	for name, client := range clients {
+		s, err := NewProxyServerForClient(ctx, name, client)
 		if err != nil {
 			return nil, err
 		}
 
-		servers[n] = s
+		servers[name] = s
 	}
 
 	return &serverManager{
@@ -177,9 +180,9 @@ func (m *serverManager) GetCallHistoryForServer(serverName string) (CallHistory,
 	return srv.GetCallHistory(), true
 }
 
-func (m *serverManager) getMcpServers() (*MCPConfig, error) {
-	cfg := &MCPConfig{
-		MCPServers: make(map[string]*ServerConfig),
+func (m *serverManager) getMcpServers() (*mcpclient.MCPConfig, error) {
+	cfg := &mcpclient.MCPConfig{
+		MCPServers: make(map[string]*mcpclient.ServerConfig),
 	}
 	for n, s := range m.servers {
 		serverCfg, err := s.GetConfig()
