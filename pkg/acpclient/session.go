@@ -1,6 +1,7 @@
 package acpclient
 
 import (
+	"context"
 	"strings"
 	"sync"
 
@@ -40,7 +41,7 @@ func (s *session) recordPermissionToolCall(call acp.RequestPermissionToolCall) {
 	})
 }
 
-func (s *session) isAllowedToolCall(call acp.RequestPermissionToolCall) bool {
+func (s *session) isAllowedToolCall(ctx context.Context, call acp.RequestPermissionToolCall) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -62,7 +63,7 @@ func (s *session) isAllowedToolCall(call acp.RequestPermissionToolCall) bool {
 	}
 
 	for _, srv := range s.mcpServers.GetMcpServers() {
-		for _, t := range srv.GetAllowedTools() {
+		for _, t := range srv.GetAllowedTools(ctx) {
 			if t == nil {
 				continue
 			}

@@ -4,6 +4,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/mcpchecker/mcpchecker/pkg/mcpclient"
 	"github.com/mcpchecker/mcpchecker/pkg/mcpproxy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -263,12 +264,12 @@ func TestLoadMcpConfig(t *testing.T) {
 	}
 
 	tests := map[string]struct {
-		setupEnv      func()
-		cleanupEnv    func()
-		spec          *EvalSpec
-		expectErr     bool
-		errContains   string
-		validateFunc  func(t *testing.T, config *mcpproxy.MCPConfig)
+		setupEnv     func()
+		cleanupEnv   func()
+		spec         *EvalSpec
+		expectErr    bool
+		errContains  string
+		validateFunc func(t *testing.T, config *mcpclient.MCPConfig)
 	}{
 		"config file takes priority over env vars": {
 			setupEnv: func() {
@@ -281,7 +282,7 @@ func TestLoadMcpConfig(t *testing.T) {
 					McpConfigFile: "../mcpproxy/testdata/basic.json",
 				},
 			},
-			validateFunc: func(t *testing.T, config *mcpproxy.MCPConfig) {
+			validateFunc: func(t *testing.T, config *mcpclient.MCPConfig) {
 				require.NotNil(t, config)
 				// Should load from file (filesystem server), not from env (env-server)
 				_, hasFilesystem := config.MCPServers["filesystem"]
@@ -301,7 +302,7 @@ func TestLoadMcpConfig(t *testing.T) {
 					McpConfigFile: "", // No config file
 				},
 			},
-			validateFunc: func(t *testing.T, config *mcpproxy.MCPConfig) {
+			validateFunc: func(t *testing.T, config *mcpclient.MCPConfig) {
 				require.NotNil(t, config)
 				server, hasServer := config.MCPServers["test-server"]
 				assert.True(t, hasServer, "should have test-server from env vars")
@@ -309,8 +310,8 @@ func TestLoadMcpConfig(t *testing.T) {
 			},
 		},
 		"error when neither config file nor env vars available": {
-			setupEnv:    clearEnv,
-			cleanupEnv:  clearEnv,
+			setupEnv:   clearEnv,
+			cleanupEnv: clearEnv,
 			spec: &EvalSpec{
 				Config: EvalConfig{
 					McpConfigFile: "",
@@ -341,7 +342,7 @@ func TestLoadMcpConfig(t *testing.T) {
 					McpConfigFile: "",
 				},
 			},
-			validateFunc: func(t *testing.T, config *mcpproxy.MCPConfig) {
+			validateFunc: func(t *testing.T, config *mcpclient.MCPConfig) {
 				require.NotNil(t, config)
 				server, hasServer := config.MCPServers["default"]
 				require.True(t, hasServer, "should have default server from env vars")

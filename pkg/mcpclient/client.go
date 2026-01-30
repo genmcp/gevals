@@ -4,11 +4,17 @@ import (
 	"context"
 	"net/http"
 	"os/exec"
+	"slices"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-func Connect(ctx context.Context, cfg *ServerConfig) (*mcp.ClientSession, error) {
+type Client struct {
+	*mcp.ClientSession
+	cfg *ServerConfig
+}
+
+func Connect(ctx context.Context, cfg *ServerConfig) (*Client, error) {
 	var transport mcp.Transport
 	if cfg.IsHttp() {
 		client := &http.Client{
@@ -35,5 +41,29 @@ func Connect(ctx context.Context, cfg *ServerConfig) (*mcp.ClientSession, error)
 		return nil, err
 	}
 
-	return cs, nil
+	return &Client{
+		ClientSession: cs,
+		cfg:           cfg,
+	}, nil
+}
+
+func (c *Client) GetAllowedTools(ctx context.Context) []*mcp.Tool {
+	allowed := []*mcp.Tool{}
+	for t, err := range c.Tools(context.Background(), &mcp.ListToolsParams{}) {
+		if err != nil {
+			continue
+		}
+
+		if c.cfg.EnableAllTools {
+			allowed = append(allowed, t)
+		} else if slices.Contains(c.cfg.AlwaysAllow, t.Name) {
+			allowed = append(allowed, t)
+		}
+	}
+
+	return allowed
+}
+
+func (c *Client) GetConfig() *ServerConfig {
+	return c.cfg
 }

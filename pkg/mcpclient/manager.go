@@ -5,19 +5,21 @@ import (
 	"errors"
 	"fmt"
 	"time"
-
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
 type Manager interface {
-	Get(name string) (*mcp.ClientSession, bool)
+	// Get returns a single MCP client
+	Get(name string) (*Client, bool)
+	// GetAll returns all MCP clients
+	GetAll() map[string]*Client
+	// Close closes all the MCP client connections
 	Close(ctx context.Context) error
 }
 
 var _ Manager = &manager{}
 
 type manager struct {
-	sessions map[string]*mcp.ClientSession
+	sessions map[string]*Client
 }
 
 func NewManager(ctx context.Context, config *MCPConfig) (Manager, error) {
@@ -32,7 +34,7 @@ func NewManager(ctx context.Context, config *MCPConfig) (Manager, error) {
 	}
 
 	m := &manager{
-		sessions: make(map[string]*mcp.ClientSession, len(servers)),
+		sessions: make(map[string]*Client, len(servers)),
 	}
 
 	var err error
@@ -57,9 +59,13 @@ func NewManager(ctx context.Context, config *MCPConfig) (Manager, error) {
 	return m, nil
 }
 
-func (m *manager) Get(name string) (*mcp.ClientSession, bool) {
+func (m *manager) Get(name string) (*Client, bool) {
 	cs, ok := m.sessions[name]
 	return cs, ok
+}
+
+func (m *manager) GetAll() map[string]*Client {
+	return m.sessions
 }
 
 func (m *manager) Close(ctx context.Context) error {

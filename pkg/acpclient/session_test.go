@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/coder/acp-go-sdk"
+	"github.com/mcpchecker/mcpchecker/pkg/mcpclient"
 	"github.com/mcpchecker/mcpchecker/pkg/mcpproxy"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/stretchr/testify/assert"
@@ -17,9 +18,9 @@ type mockServer struct {
 }
 
 func (m *mockServer) Run(_ context.Context) error                   { return nil }
-func (m *mockServer) GetConfig() (*mcpproxy.ServerConfig, error)    { return nil, nil }
+func (m *mockServer) GetConfig() (*mcpclient.ServerConfig, error)   { return nil, nil }
 func (m *mockServer) GetName() string                               { return m.name }
-func (m *mockServer) GetAllowedTools() []*mcp.Tool                  { return m.allowedTools }
+func (m *mockServer) GetAllowedTools(_ context.Context) []*mcp.Tool { return m.allowedTools }
 func (m *mockServer) Close() error                                  { return nil }
 func (m *mockServer) GetCallHistory() mcpproxy.CallHistory          { return mcpproxy.CallHistory{} }
 func (m *mockServer) WaitReady(_ context.Context) error             { return nil }
@@ -29,12 +30,14 @@ type mockServerManager struct {
 	servers []mcpproxy.Server
 }
 
-func (m *mockServerManager) GetMcpServerFiles() ([]string, error)                          { return nil, nil }
-func (m *mockServerManager) GetMcpServers() []mcpproxy.Server                              { return m.servers }
-func (m *mockServerManager) Start(_ context.Context) error                                 { return nil }
-func (m *mockServerManager) Close() error                                                  { return nil }
-func (m *mockServerManager) GetAllCallHistory() *mcpproxy.CallHistory                      { return nil }
-func (m *mockServerManager) GetCallHistoryForServer(_ string) (mcpproxy.CallHistory, bool) { return mcpproxy.CallHistory{}, false }
+func (m *mockServerManager) GetMcpServerFiles() ([]string, error)     { return nil, nil }
+func (m *mockServerManager) GetMcpServers() []mcpproxy.Server         { return m.servers }
+func (m *mockServerManager) Start(_ context.Context) error            { return nil }
+func (m *mockServerManager) Close() error                             { return nil }
+func (m *mockServerManager) GetAllCallHistory() *mcpproxy.CallHistory { return nil }
+func (m *mockServerManager) GetCallHistoryForServer(_ string) (mcpproxy.CallHistory, bool) {
+	return mcpproxy.CallHistory{}, false
+}
 
 func TestSession_IsAllowedToolCall(t *testing.T) {
 	tt := map[string]struct {
@@ -85,7 +88,7 @@ func TestSession_IsAllowedToolCall(t *testing.T) {
 			}
 			s := NewSession(mgr)
 
-			result := s.isAllowedToolCall(tc.call)
+			result := s.isAllowedToolCall(context.Background(), tc.call)
 			assert.Equal(t, tc.expected, result)
 		})
 	}
@@ -112,7 +115,7 @@ func TestSession_IsAllowedToolCall_WithPriorUpdate(t *testing.T) {
 		Title:      nil,
 	}
 
-	result := s.isAllowedToolCall(call)
+	result := s.isAllowedToolCall(context.Background(), call)
 	assert.True(t, result)
 }
 
@@ -309,7 +312,7 @@ func TestSession_IsAllowedToolCall_FuzzyMatching(t *testing.T) {
 				Title:      ptr(tc.callTitle),
 			}
 
-			result := s.isAllowedToolCall(call)
+			result := s.isAllowedToolCall(context.Background(), call)
 			assert.Equal(t, tc.expected, result)
 		})
 	}
