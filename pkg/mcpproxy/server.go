@@ -203,7 +203,7 @@ func (s *server) GetConfig() (*mcpclient.ServerConfig, error) {
 	}
 
 	cfg := &mcpclient.ServerConfig{
-		Type: TransportTypeHttp,
+		Type: mcpclient.TransportTypeHttp,
 		URL:  s.url,
 	}
 

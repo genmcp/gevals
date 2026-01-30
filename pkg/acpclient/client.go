@@ -10,6 +10,7 @@ import (
 
 	"github.com/coder/acp-go-sdk"
 	"github.com/mcpchecker/mcpchecker/pkg/mcpproxy"
+	"github.com/mcpchecker/mcpchecker/pkg/mcpclient"
 )
 
 type Client interface {
@@ -100,7 +101,7 @@ func (c *client) Run(ctx context.Context, prompt string, servers mcpproxy.Server
 			Http: &acp.McpServerHttp{
 				Name:    srv.GetName(),
 				Url:     cfg.URL,
-				Type:    mcpproxy.TransportTypeHttp,
+				Type:    mcpclient.TransportTypeHttp,
 				Headers: make([]acp.HttpHeader, 0),
 			},
 		})

@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/mcpchecker/mcpchecker/pkg/mcpclient"
-	"github.com/mcpchecker/mcpchecker/pkg/mcpproxy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -254,9 +253,9 @@ func TestLoadMcpConfig(t *testing.T) {
 	// Helper to clear all MCP env vars
 	clearEnv := func() {
 		envVars := []string{
-			mcpproxy.EnvMcpURL, mcpproxy.EnvMcpHost, mcpproxy.EnvMcpPort, mcpproxy.EnvMcpPath,
-			mcpproxy.EnvMcpCommand, mcpproxy.EnvMcpArgs, mcpproxy.EnvMcpEnv, mcpproxy.EnvMcpServerName,
-			mcpproxy.EnvMcpHeaders, mcpproxy.EnvMcpEnableAllTools,
+			mcpclient.EnvMcpURL, mcpclient.EnvMcpHost, mcpclient.EnvMcpPort, mcpclient.EnvMcpPath,
+			mcpclient.EnvMcpCommand, mcpclient.EnvMcpArgs, mcpclient.EnvMcpEnv, mcpclient.EnvMcpServerName,
+			mcpclient.EnvMcpHeaders, mcpclient.EnvMcpEnableAllTools,
 		}
 		for _, v := range envVars {
 			os.Unsetenv(v)
@@ -274,12 +273,12 @@ func TestLoadMcpConfig(t *testing.T) {
 		"config file takes priority over env vars": {
 			setupEnv: func() {
 				// Set env vars that would normally create a config
-				os.Setenv(mcpproxy.EnvMcpURL, "http://env-server:8080/mcp")
+				os.Setenv(mcpclient.EnvMcpURL, "http://env-server:8080/mcp")
 			},
 			cleanupEnv: clearEnv,
 			spec: &EvalSpec{
 				Config: EvalConfig{
-					McpConfigFile: "../mcpproxy/testdata/basic.json",
+					McpConfigFile: "../mcpclient/testdata/basic.json",
 				},
 			},
 			validateFunc: func(t *testing.T, config *mcpclient.MCPConfig) {
@@ -293,8 +292,8 @@ func TestLoadMcpConfig(t *testing.T) {
 		},
 		"env vars used when no config file": {
 			setupEnv: func() {
-				os.Setenv(mcpproxy.EnvMcpURL, "http://localhost:9090/mcp")
-				os.Setenv(mcpproxy.EnvMcpServerName, "test-server")
+				os.Setenv(mcpclient.EnvMcpURL, "http://localhost:9090/mcp")
+				os.Setenv(mcpclient.EnvMcpServerName, "test-server")
 			},
 			cleanupEnv: clearEnv,
 			spec: &EvalSpec{
@@ -333,8 +332,8 @@ func TestLoadMcpConfig(t *testing.T) {
 		},
 		"stdio server from env vars": {
 			setupEnv: func() {
-				os.Setenv(mcpproxy.EnvMcpCommand, "npx")
-				os.Setenv(mcpproxy.EnvMcpArgs, "-y,@modelcontextprotocol/server-filesystem,/tmp")
+				os.Setenv(mcpclient.EnvMcpCommand, "npx")
+				os.Setenv(mcpclient.EnvMcpArgs, "-y,@modelcontextprotocol/server-filesystem,/tmp")
 			},
 			cleanupEnv: clearEnv,
 			spec: &EvalSpec{
